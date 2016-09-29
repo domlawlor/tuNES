@@ -1,0 +1,35 @@
+NES Emulation Programming Notes
+
+Specs
+Cpu 8bit microprocessor
+2Kib of Ram used by CPU
+
+
+64 Sprites
+25 colors out of 53
+256x240 Res
+2Kib Ram used by PPU
+
+
+Little Endian
+
+
+
+
+Plan
+
+-create basic memory
+	- allocate once, then divide out to pointers, NES has fixed ram sizes to run in
+	- three registers A, X, Y.
+	- pointer to the line of code currently located at.
+	
+-load .nes files
+	-create struct that holds the details of the file. 
+	-check first 4 bytes equal NES
+	-create a header struct and read in, details on web
+	-load program data, and char data.
+	
+-start running program code
+	-parse by looking at each instruction and send to a function.
+	-when a opcode comes that I don't have, research and create.
+	
