@@ -269,7 +269,9 @@ void writeMemByte(uint16 Address, uint8 Byte)
     // NOTE: Mirror for PPU Registers
     if(0x2008 <= Address && Address < 0x4000)
         Address = Address & 7; // Modulus, repeates every 8 bytes
-
+    if(0x8000 < Address)
+        Assert(0); // Writing to Program ROM, bank switching? 
+    
     
     uint8 *NewAddress = (uint8 *)(Address + MemoryStartOffset);
     *NewAddress = Byte;
@@ -283,6 +285,7 @@ uint8 readMemory(uint16 Address)
     // NOTE: Mirror for PPU Registers
     if(0x2008 <= Address && Address < 0x4000)
         Address = Address & 7; // Modulus, repeates every 8 bytes
+    
 
     uint8 *NewAddress = (uint8 *)(Address + MemoryStartOffset);
     return(*NewAddress);
@@ -400,13 +403,12 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     //       Offset is required to make relative to memory mapped address    
 #define PRG_BANK_NUM 4
     uint8 PrgRomBanks[PRG_BANK_NUM] = {};
-
     uint8 *PrgRamBank;
     uint8 *ChrBank1;
     uint8 *ChrBank2;
 
 
-    uint8 BankRegisters[PRG_BANK_NUM];
+    uint64 BankRegisters[PRG_BANK_NUM];
 
 
     // NOTE: MY UNDERSTANDING OF HOW BANK REGISTERS WORK (SO FAR)
@@ -430,13 +432,13 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     {
         case 0:
         {
-            PrgRomBanks[0] = RomPrgData;
-            PrgRomBanks[2] = RomPrgData;
+            PrgRomBanks[0] = (uint64)RomPrgData;
+            PrgRomBanks[2] = (uint64)RomPrgData;
             break;
         }
         case 1:
         {
-            
+            Assert(0);
             break;
         }
         default:

@@ -25,13 +25,13 @@ $SG87603 DB	'Up', 00H
 	ORG $+1
 $SG87605 DB	'Up', 00H
 	ORG $+1
-$SG87765 DB	'ZeldaT.nes', 00H
+$SG87771 DB	'ZeldaT.nes', 00H
 	ORG $+5
-$SG87775 DB	'Error: Unknown mapper number = %d', 0aH, 00H
+$SG87782 DB	'Error: Unknown mapper number = %d', 0aH, 00H
 	ORG $+1
-$SG87777 DB	'NesEmu', 00H
+$SG87784 DB	'NesEmu', 00H
 	ORG $+1
-$SG87780 DB	'NesEmu', 00H
+$SG87787 DB	'NesEmu', 00H
 CONST	ENDS
 PUBLIC	WinMain
 PUBLIC	__local_stdio_printf_options
@@ -75,8 +75,8 @@ _BSS	SEGMENT
 ?MemoryStartOffset@@3_KA DQ 01H DUP (?)			; MemoryStartOffset
 _BSS	ENDS
 pdata	SEGMENT
-$pdata$WinMain DD imagerel $LN25
-	DD	imagerel $LN25+1173
+$pdata$WinMain DD imagerel $LN26
+	DD	imagerel $LN26+1227
 	DD	imagerel $unwind$WinMain
 pdata	ENDS
 ;	COMDAT pdata
@@ -137,10 +137,10 @@ $unwind$_vsnprintf_l DD 011801H
 xdata	ENDS
 xdata	SEGMENT
 $unwind$WinMain DD 032e19H
-	DD	030011cH
+	DD	02e011cH
 	DD	07015H
 	DD	imagerel __GSHandlerCheck
-	DD	0178H
+	DD	0168H
 $unwind$?WinInputCallback@@YA_JPEAUHWND__@@I_K_J@Z DD 011701H
 	DD	0e217H
 $unwind$?LoadRomData@@YAPEAXPEADPEAI@Z DD 010e01H
@@ -169,7 +169,7 @@ this$ = 8
 ??0registers@?1??WinMain@@YAHPEAUHINSTANCE__@@0PEADH@Z@QEAA@XZ ENDP ; `WinMain'::`2'::registers::registers
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 HighByte$ = 32
 LowByte$ = 33
@@ -218,7 +218,7 @@ $LN3:
 ?readMemory16@@YAGG@Z ENDP				; readMemory16
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 NewAddress$ = 0
 Address$ = 32
@@ -285,7 +285,7 @@ $LN3@readMemory:
 ?readMemory@@YAEG@Z ENDP				; readMemory
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 NewAddress$ = 0
 Address$ = 32
@@ -356,7 +356,7 @@ $LN3@writeMemBy:
 ?writeMemByte@@YAXGE@Z ENDP				; writeMemByte
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 Value$ = 0
 Address$ = 8
@@ -405,7 +405,7 @@ $LN3:
 ?PopByte@@YAEPEAE0@Z ENDP				; PopByte
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 Address$ = 0
 Byte$ = 32
@@ -456,7 +456,7 @@ $LN3:
 ?PushByte@@YAXEPEAE0@Z ENDP				; PushByte
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 BytesRead$1 = 64
 RomData$ = 72
@@ -620,7 +620,7 @@ $LN3@LoadRomDat:
 ?LoadRomData@@YAPEAXPEADPEAI@Z ENDP			; LoadRomData
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 tv64 = 32
 tv67 = 36
@@ -1500,7 +1500,7 @@ __local_stdio_printf_options PROC			; COMDAT
 __local_stdio_printf_options ENDP
 _TEXT	ENDS
 ; Function compile flags: /Odtp
-; File y:\nesemu\code\nesemu.cpp
+; File y:\nesemud\code\nesemu.cpp
 _TEXT	SEGMENT
 Flags6$ = 96
 MapperNumber$ = 97
@@ -1515,12 +1515,13 @@ Flags9$ = 116
 Flags10$ = 117
 BytesRead$1 = 118
 ResetVec$ = 120
-tv153 = 124
-RAMAdrs$ = 128
-ZeroPageAdrs$ = 132
-StackAdrs$ = 136
-NMIVec$ = 140
-IRQnBRKVec$ = 144
+tv157 = 124
+PrgRomBanks$ = 128
+NMIVec$ = 132
+IRQnBRKVec$ = 136
+RAMAdrs$ = 140
+ZeroPageAdrs$ = 144
+StackAdrs$ = 148
 RomPrgData$ = 152
 Registers$ = 160
 Window$2 = 168
@@ -1528,34 +1529,32 @@ FileSize$ = 176
 Memory$ = 184
 Filename$ = 192
 RomChrData$ = 200
-loadedPrgBank1$ = 208
-loadedPrgBank2$ = 216
-LastCounter$3 = 224
-LastCycles$4 = 232
-WindowClass$ = 240
-Message$5 = 320
-Buffer$6 = 368
-__$ArrayPad$ = 376
-WindowInstance$ = 400
-PrevWindowInstance$ = 408
-CommandLine$ = 416
-CommandShow$ = 424
+LastCounter$3 = 208
+LastCycles$4 = 216
+WindowClass$ = 224
+Message$5 = 304
+Buffer$6 = 352
+__$ArrayPad$ = 360
+WindowInstance$ = 384
+PrevWindowInstance$ = 392
+CommandLine$ = 400
+CommandShow$ = 408
 WinMain	PROC
 
 ; 305  : {
 
-$LN25:
+$LN26:
   00000	44 89 4c 24 20	 mov	 DWORD PTR [rsp+32], r9d
   00005	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
   0000a	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   0000f	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00014	57		 push	 rdi
-  00015	48 81 ec 80 01
-	00 00		 sub	 rsp, 384		; 00000180H
+  00015	48 81 ec 70 01
+	00 00		 sub	 rsp, 368		; 00000170H
   0001c	48 8b 05 00 00
 	00 00		 mov	 rax, QWORD PTR __security_cookie
   00023	48 33 c4	 xor	 rax, rsp
-  00026	48 89 84 24 78
+  00026	48 89 84 24 68
 	01 00 00	 mov	 QWORD PTR __$ArrayPad$[rsp], rax
 
 ; 306  :     struct registers {
@@ -1584,7 +1583,7 @@ $LN25:
 ; 318  :     uint16 NMIVec = 0xFFFA;
 
   0004f	b8 fa ff 00 00	 mov	 eax, 65530		; 0000fffaH
-  00054	66 89 84 24 8c
+  00054	66 89 84 24 84
 	00 00 00	 mov	 WORD PTR NMIVec$[rsp], ax
 
 ; 319  :     uint16 ResetVec = 0xFFFC;
@@ -1595,7 +1594,7 @@ $LN25:
 ; 320  :     uint16 IRQnBRKVec = 0xFFFE; 
 
   00066	b8 fe ff 00 00	 mov	 eax, 65534		; 0000fffeH
-  0006b	66 89 84 24 90
+  0006b	66 89 84 24 88
 	00 00 00	 mov	 WORD PTR IRQnBRKVec$[rsp], ax
 
 ; 321  :     
@@ -1644,19 +1643,19 @@ $LN25:
 ; 346  :     uint16 RAMAdrs = 0x0;
 
   000a3	33 c0		 xor	 eax, eax
-  000a5	66 89 84 24 80
+  000a5	66 89 84 24 8c
 	00 00 00	 mov	 WORD PTR RAMAdrs$[rsp], ax
 
 ; 347  :     uint16 ZeroPageAdrs = 0x0;
 
   000ad	33 c0		 xor	 eax, eax
-  000af	66 89 84 24 84
+  000af	66 89 84 24 90
 	00 00 00	 mov	 WORD PTR ZeroPageAdrs$[rsp], ax
 
 ; 348  :     uint16 StackAdrs = 0x100;
 
   000b7	b8 00 01 00 00	 mov	 eax, 256		; 00000100H
-  000bc	66 89 84 24 88
+  000bc	66 89 84 24 94
 	00 00 00	 mov	 WORD PTR StackAdrs$[rsp], ax
 
 ; 349  : 
@@ -1679,7 +1678,7 @@ $LN25:
 ; 360  :     char * Filename = "ZeldaT.nes";
 
   000ce	48 8d 05 00 00
-	00 00		 lea	 rax, OFFSET FLAT:$SG87765
+	00 00		 lea	 rax, OFFSET FLAT:$SG87771
   000d5	48 89 84 24 c0
 	00 00 00	 mov	 QWORD PTR Filename$[rsp], rax
 
@@ -1848,553 +1847,597 @@ $LN12@WinMain:
 ; 398  :     //       Program will then change these banks while running.
 ; 399  :     //       These pointers reference the rom memory.
 ; 400  :     //       Offset is required to make relative to memory mapped address    
-; 401  :     uint8 *loadedPrgBank1;
-; 402  :     uint8 *loadedPrgBank2;
+; 401  : #define PRG_BANK_NUM 4
+; 402  :     uint8 PrgRomBanks[PRG_BANK_NUM] = {};
+
+  0023a	48 8d 84 24 80
+	00 00 00	 lea	 rax, QWORD PTR PrgRomBanks$[rsp]
+  00242	48 8b f8	 mov	 rdi, rax
+  00245	33 c0		 xor	 eax, eax
+  00247	b9 04 00 00 00	 mov	 ecx, 4
+  0024c	f3 aa		 rep stosb
+
 ; 403  : 
-; 404  : 
-; 405  :     
-; 406  :     uint8 MapperNumber = (Flags7 & 0xF0) | (Flags6 >> 4);
+; 404  :     uint8 *PrgRamBank;
+; 405  :     uint8 *ChrBank1;
+; 406  :     uint8 *ChrBank2;
+; 407  : 
+; 408  : 
+; 409  :     uint64 BankRegisters[PRG_BANK_NUM];
+; 410  : 
+; 411  : 
+; 412  :     // NOTE: MY UNDERSTANDING OF HOW BANK REGISTERS WORK (SO FAR)
+; 413  :     //
+; 414  :     //       This is for M001. 
+; 415  :     //       On the catridge, 4 registers are stored, each is 5 bits wide
+; 416  :     //       These registers cannot be accessed directly, but can be set.
+; 417  :     //       To set, writing to the prg rom 5 times will save the value.
+; 418  :     //       To select the register to write too, the fifth write will be
+; 419  :     //       to one of the prg banks. Only the fifth write will write to the specified
+; 420  :     //       bank. If you write to 0x8000 4 times, then 0xE000 the fifth, only
+; 421  :     //       0xE000 register will be written too. 0xE004 counts as 0xE000, and 0x8001
+; 422  :     //       counts as 0x8000
+; 423  :     //       There is a temporary port too
+; 424  :     //       This is a byte with a reset bit and the bit just entered.
+; 425  :     //       If reset is hit, then bit entered, plus temporary reg is cleared.
+; 426  :     //       If 5 bits enter through port, then reg is saved
+; 427  :     
+; 428  :     uint8 MapperNumber = (Flags7 & 0xF0) | (Flags6 >> 4);
 
-  0023a	0f b6 44 24 63	 movzx	 eax, BYTE PTR Flags7$[rsp]
-  0023f	25 f0 00 00 00	 and	 eax, 240		; 000000f0H
-  00244	0f b6 4c 24 60	 movzx	 ecx, BYTE PTR Flags6$[rsp]
-  00249	c1 f9 04	 sar	 ecx, 4
-  0024c	0b c1		 or	 eax, ecx
-  0024e	88 44 24 61	 mov	 BYTE PTR MapperNumber$[rsp], al
+  0024e	0f b6 44 24 63	 movzx	 eax, BYTE PTR Flags7$[rsp]
+  00253	25 f0 00 00 00	 and	 eax, 240		; 000000f0H
+  00258	0f b6 4c 24 60	 movzx	 ecx, BYTE PTR Flags6$[rsp]
+  0025d	c1 f9 04	 sar	 ecx, 4
+  00260	0b c1		 or	 eax, ecx
+  00262	88 44 24 61	 mov	 BYTE PTR MapperNumber$[rsp], al
 
-; 407  :     switch(MapperNumber)
+; 429  :     switch(MapperNumber)
 
-  00252	0f b6 44 24 61	 movzx	 eax, BYTE PTR MapperNumber$[rsp]
-  00257	88 44 24 7c	 mov	 BYTE PTR tv153[rsp], al
-  0025b	80 7c 24 7c 00	 cmp	 BYTE PTR tv153[rsp], 0
-  00260	74 09		 je	 SHORT $LN14@WinMain
-  00262	80 7c 24 7c 01	 cmp	 BYTE PTR tv153[rsp], 1
-  00267	74 24		 je	 SHORT $LN15@WinMain
-  00269	eb 24		 jmp	 SHORT $LN16@WinMain
+  00266	0f b6 44 24 61	 movzx	 eax, BYTE PTR MapperNumber$[rsp]
+  0026b	88 44 24 7c	 mov	 BYTE PTR tv157[rsp], al
+  0026f	80 7c 24 7c 00	 cmp	 BYTE PTR tv157[rsp], 0
+  00274	74 09		 je	 SHORT $LN14@WinMain
+  00276	80 7c 24 7c 01	 cmp	 BYTE PTR tv157[rsp], 1
+  0027b	74 34		 je	 SHORT $LN15@WinMain
+  0027d	eb 46		 jmp	 SHORT $LN17@WinMain
 $LN14@WinMain:
 
-; 408  :     {
-; 409  :         case 0:
-; 410  :         {
-; 411  :             loadedPrgBank1 = RomPrgData;
+; 430  :     {
+; 431  :         case 0:
+; 432  :         {
+; 433  :             PrgRomBanks[0] = (uint64)RomPrgData;
 
-  0026b	48 8b 84 24 98
-	00 00 00	 mov	 rax, QWORD PTR RomPrgData$[rsp]
-  00273	48 89 84 24 d0
-	00 00 00	 mov	 QWORD PTR loadedPrgBank1$[rsp], rax
+  0027f	b8 01 00 00 00	 mov	 eax, 1
+  00284	48 6b c0 00	 imul	 rax, rax, 0
+  00288	0f b6 8c 24 98
+	00 00 00	 movzx	 ecx, BYTE PTR RomPrgData$[rsp]
+  00290	88 8c 04 80 00
+	00 00		 mov	 BYTE PTR PrgRomBanks$[rsp+rax], cl
 
-; 412  :             loadedPrgBank2 = RomPrgData;
+; 434  :             PrgRomBanks[2] = (uint64)RomPrgData;
 
-  0027b	48 8b 84 24 98
-	00 00 00	 mov	 rax, QWORD PTR RomPrgData$[rsp]
-  00283	48 89 84 24 d8
-	00 00 00	 mov	 QWORD PTR loadedPrgBank2$[rsp], rax
+  00297	b8 01 00 00 00	 mov	 eax, 1
+  0029c	48 6b c0 02	 imul	 rax, rax, 2
+  002a0	0f b6 8c 24 98
+	00 00 00	 movzx	 ecx, BYTE PTR RomPrgData$[rsp]
+  002a8	88 8c 04 80 00
+	00 00		 mov	 BYTE PTR PrgRomBanks$[rsp+rax], cl
 
-; 413  :             break;
+; 435  :             break;
 
-  0028b	eb 3e		 jmp	 SHORT $LN2@WinMain
+  002af	eb 50		 jmp	 SHORT $LN2@WinMain
 $LN15@WinMain:
 
-; 414  :         }
-; 415  :         case 1:
-; 416  :         {
-; 417  :             break;
+; 436  :         }
+; 437  :         case 1:
+; 438  :         {
+; 439  :             Assert(0);
 
-  0028d	eb 3c		 jmp	 SHORT $LN2@WinMain
-$LN16@WinMain:
-
-; 418  :         }
-; 419  :         default:
-; 420  :         {
-; 421  :             char Buffer[8];
-; 422  :             sprintf(Buffer, "Error: Unknown mapper number = %d\n", MapperNumber);
-
-  0028f	0f b6 44 24 61	 movzx	 eax, BYTE PTR MapperNumber$[rsp]
-  00294	44 8b c0	 mov	 r8d, eax
-  00297	48 8d 15 00 00
-	00 00		 lea	 rdx, OFFSET FLAT:$SG87775
-  0029e	48 8d 8c 24 70
-	01 00 00	 lea	 rcx, QWORD PTR Buffer$6[rsp]
-  002a6	e8 00 00 00 00	 call	 sprintf
-
-; 423  :             OutputDebugString(Buffer);
-
-  002ab	48 8d 8c 24 70
-	01 00 00	 lea	 rcx, QWORD PTR Buffer$6[rsp]
-  002b3	ff 15 00 00 00
-	00		 call	 QWORD PTR __imp_OutputDebugStringA
-
-; 424  :             Assert(0);
-
-  002b9	33 c0		 xor	 eax, eax
-  002bb	83 f8 01	 cmp	 eax, 1
-  002be	74 0b		 je	 SHORT $LN17@WinMain
-  002c0	c7 04 25 00 00
+  002b1	33 c0		 xor	 eax, eax
+  002b3	83 f8 01	 cmp	 eax, 1
+  002b6	74 0b		 je	 SHORT $LN16@WinMain
+  002b8	c7 04 25 00 00
 	00 00 00 00 00
 	00		 mov	 DWORD PTR ds:0, 0
+$LN16@WinMain:
+
+; 440  :             break;
+
+  002c3	eb 3c		 jmp	 SHORT $LN2@WinMain
 $LN17@WinMain:
+
+; 441  :         }
+; 442  :         default:
+; 443  :         {
+; 444  :             char Buffer[8];
+; 445  :             sprintf(Buffer, "Error: Unknown mapper number = %d\n", MapperNumber);
+
+  002c5	0f b6 44 24 61	 movzx	 eax, BYTE PTR MapperNumber$[rsp]
+  002ca	44 8b c0	 mov	 r8d, eax
+  002cd	48 8d 15 00 00
+	00 00		 lea	 rdx, OFFSET FLAT:$SG87782
+  002d4	48 8d 8c 24 60
+	01 00 00	 lea	 rcx, QWORD PTR Buffer$6[rsp]
+  002dc	e8 00 00 00 00	 call	 sprintf
+
+; 446  :             OutputDebugString(Buffer);
+
+  002e1	48 8d 8c 24 60
+	01 00 00	 lea	 rcx, QWORD PTR Buffer$6[rsp]
+  002e9	ff 15 00 00 00
+	00		 call	 QWORD PTR __imp_OutputDebugStringA
+
+; 447  :             Assert(0);
+
+  002ef	33 c0		 xor	 eax, eax
+  002f1	83 f8 01	 cmp	 eax, 1
+  002f4	74 0b		 je	 SHORT $LN18@WinMain
+  002f6	c7 04 25 00 00
+	00 00 00 00 00
+	00		 mov	 DWORD PTR ds:0, 0
+$LN18@WinMain:
 $LN2@WinMain:
 
-; 425  :             break;
-; 426  :         }
-; 427  :     }
-; 428  : 
-; 429  :     
-; 430  :     // NOTE: Load the program counter with the reset vector
-; 431  :     Registers.PrgCounter = readMemory16(ResetVec);
+; 448  :             break;
+; 449  :         }
+; 450  :     }
+; 451  : 
+; 452  :     
+; 453  :     // NOTE: Load the program counter with the reset vector
+; 454  :     Registers.PrgCounter = readMemory16(ResetVec);
 
-  002cb	0f b7 4c 24 78	 movzx	 ecx, WORD PTR ResetVec$[rsp]
-  002d0	e8 00 00 00 00	 call	 ?readMemory16@@YAGG@Z	; readMemory16
-  002d5	66 89 84 24 a6
+  00301	0f b7 4c 24 78	 movzx	 ecx, WORD PTR ResetVec$[rsp]
+  00306	e8 00 00 00 00	 call	 ?readMemory16@@YAGG@Z	; readMemory16
+  0030b	66 89 84 24 a6
 	00 00 00	 mov	 WORD PTR Registers$[rsp+6], ax
 
-; 432  : 
-; 433  : 
-; 434  :     
-; 435  :     WNDCLASSA WindowClass = {};
+; 455  : 
+; 456  : 
+; 457  :     
+; 458  :     WNDCLASSA WindowClass = {};
 
-  002dd	48 8d 84 24 f0
+  00313	48 8d 84 24 e0
 	00 00 00	 lea	 rax, QWORD PTR WindowClass$[rsp]
-  002e5	48 8b f8	 mov	 rdi, rax
-  002e8	33 c0		 xor	 eax, eax
-  002ea	b9 48 00 00 00	 mov	 ecx, 72			; 00000048H
-  002ef	f3 aa		 rep stosb
+  0031b	48 8b f8	 mov	 rdi, rax
+  0031e	33 c0		 xor	 eax, eax
+  00320	b9 48 00 00 00	 mov	 ecx, 72			; 00000048H
+  00325	f3 aa		 rep stosb
 
-; 436  :     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
+; 459  :     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
 
-  002f1	c7 84 24 f0 00
+  00327	c7 84 24 e0 00
 	00 00 03 00 00
 	00		 mov	 DWORD PTR WindowClass$[rsp], 3
 
-; 437  :     WindowClass.lpfnWndProc = WinInputCallback;
+; 460  :     WindowClass.lpfnWndProc = WinInputCallback;
 
-  002fc	48 8d 05 00 00
+  00332	48 8d 05 00 00
 	00 00		 lea	 rax, OFFSET FLAT:?WinInputCallback@@YA_JPEAUHWND__@@I_K_J@Z ; WinInputCallback
-  00303	48 89 84 24 f8
+  00339	48 89 84 24 e8
 	00 00 00	 mov	 QWORD PTR WindowClass$[rsp+8], rax
 
-; 438  :     WindowClass.hInstance = WindowInstance;
+; 461  :     WindowClass.hInstance = WindowInstance;
 
-  0030b	48 8b 84 24 90
+  00341	48 8b 84 24 80
 	01 00 00	 mov	 rax, QWORD PTR WindowInstance$[rsp]
-  00313	48 89 84 24 08
-	01 00 00	 mov	 QWORD PTR WindowClass$[rsp+24], rax
+  00349	48 89 84 24 f8
+	00 00 00	 mov	 QWORD PTR WindowClass$[rsp+24], rax
 
-; 439  :     WindowClass.lpszClassName = "NesEmu";
+; 462  :     WindowClass.lpszClassName = "NesEmu";
 
-  0031b	48 8d 05 00 00
-	00 00		 lea	 rax, OFFSET FLAT:$SG87777
-  00322	48 89 84 24 30
+  00351	48 8d 05 00 00
+	00 00		 lea	 rax, OFFSET FLAT:$SG87784
+  00358	48 89 84 24 20
 	01 00 00	 mov	 QWORD PTR WindowClass$[rsp+64], rax
 
-; 440  :     
-; 441  :     if(RegisterClassA(&WindowClass))
+; 463  :     
+; 464  :     if(RegisterClassA(&WindowClass))
 
-  0032a	48 8d 8c 24 f0
+  00360	48 8d 8c 24 e0
 	00 00 00	 lea	 rcx, QWORD PTR WindowClass$[rsp]
-  00332	ff 15 00 00 00
+  00368	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_RegisterClassA
-  00338	0f b7 c0	 movzx	 eax, ax
-  0033b	85 c0		 test	 eax, eax
-  0033d	0f 84 25 01 00
-	00		 je	 $LN18@WinMain
+  0036e	0f b7 c0	 movzx	 eax, ax
+  00371	85 c0		 test	 eax, eax
+  00373	0f 84 25 01 00
+	00		 je	 $LN19@WinMain
 
-; 442  :     {
-; 443  :         HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu",
+; 465  :     {
+; 466  :         HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu",
 
-  00343	48 c7 44 24 58
+  00379	48 c7 44 24 58
 	00 00 00 00	 mov	 QWORD PTR [rsp+88], 0
-  0034c	48 8b 84 24 90
+  00382	48 8b 84 24 80
 	01 00 00	 mov	 rax, QWORD PTR WindowInstance$[rsp]
-  00354	48 89 44 24 50	 mov	 QWORD PTR [rsp+80], rax
-  00359	48 c7 44 24 48
+  0038a	48 89 44 24 50	 mov	 QWORD PTR [rsp+80], rax
+  0038f	48 c7 44 24 48
 	00 00 00 00	 mov	 QWORD PTR [rsp+72], 0
-  00362	48 c7 44 24 40
+  00398	48 c7 44 24 40
 	00 00 00 00	 mov	 QWORD PTR [rsp+64], 0
-  0036b	c7 44 24 38 00
+  003a1	c7 44 24 38 00
 	00 00 80	 mov	 DWORD PTR [rsp+56], -2147483648 ; ffffffff80000000H
-  00373	c7 44 24 30 00
+  003a9	c7 44 24 30 00
 	00 00 80	 mov	 DWORD PTR [rsp+48], -2147483648 ; ffffffff80000000H
-  0037b	c7 44 24 28 00
+  003b1	c7 44 24 28 00
 	00 00 80	 mov	 DWORD PTR [rsp+40], -2147483648 ; ffffffff80000000H
-  00383	c7 44 24 20 00
+  003b9	c7 44 24 20 00
 	00 00 80	 mov	 DWORD PTR [rsp+32], -2147483648 ; ffffffff80000000H
-  0038b	41 b9 00 00 cf
+  003c1	41 b9 00 00 cf
 	10		 mov	 r9d, 282001408		; 10cf0000H
-  00391	4c 8d 05 00 00
-	00 00		 lea	 r8, OFFSET FLAT:$SG87780
-  00398	48 8b 94 24 30
+  003c7	4c 8d 05 00 00
+	00 00		 lea	 r8, OFFSET FLAT:$SG87787
+  003ce	48 8b 94 24 20
 	01 00 00	 mov	 rdx, QWORD PTR WindowClass$[rsp+64]
-  003a0	33 c9		 xor	 ecx, ecx
-  003a2	ff 15 00 00 00
+  003d6	33 c9		 xor	 ecx, ecx
+  003d8	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_CreateWindowExA
-  003a8	48 89 84 24 a8
+  003de	48 89 84 24 a8
 	00 00 00	 mov	 QWORD PTR Window$2[rsp], rax
 
-; 444  :                                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-; 445  :                                       CW_USEDEFAULT, CW_USEDEFAULT,
-; 446  :                                       CW_USEDEFAULT,CW_USEDEFAULT,
-; 447  :                                       0, 0, WindowInstance, 0);
-; 448  :         if(Window)
+; 467  :                                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+; 468  :                                       CW_USEDEFAULT, CW_USEDEFAULT,
+; 469  :                                       CW_USEDEFAULT,CW_USEDEFAULT,
+; 470  :                                       0, 0, WindowInstance, 0);
+; 471  :         if(Window)
 
-  003b0	48 83 bc 24 a8
+  003e6	48 83 bc 24 a8
 	00 00 00 00	 cmp	 QWORD PTR Window$2[rsp], 0
-  003b9	0f 84 95 00 00
-	00		 je	 $LN20@WinMain
+  003ef	0f 84 95 00 00
+	00		 je	 $LN21@WinMain
 
-; 449  :         {            
-; 450  :             LARGE_INTEGER LastCounter;
-; 451  :             QueryPerformanceCounter(&LastCounter);                        
+; 472  :         {            
+; 473  :             LARGE_INTEGER LastCounter;
+; 474  :             QueryPerformanceCounter(&LastCounter);                        
 
-  003bf	48 8d 8c 24 e0
+  003f5	48 8d 8c 24 d0
 	00 00 00	 lea	 rcx, QWORD PTR LastCounter$3[rsp]
-  003c7	ff 15 00 00 00
+  003fd	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_QueryPerformanceCounter
 
-; 452  :             uint64 LastCycles = __rdtsc();
+; 475  :             uint64 LastCycles = __rdtsc();
 
-  003cd	0f 31		 rdtsc
-  003cf	48 c1 e2 20	 shl	 rdx, 32			; 00000020H
-  003d3	48 0b c2	 or	 rax, rdx
-  003d6	48 89 84 24 e8
+  00403	0f 31		 rdtsc
+  00405	48 c1 e2 20	 shl	 rdx, 32			; 00000020H
+  00409	48 0b c2	 or	 rax, rdx
+  0040c	48 89 84 24 d8
 	00 00 00	 mov	 QWORD PTR LastCycles$4[rsp], rax
 
-; 453  : 
-; 454  :             
-; 455  :             uint8 BytesRead = 1;
+; 476  : 
+; 477  :             
+; 478  :             uint8 BytesRead = 1;
 
-  003de	c6 44 24 76 01	 mov	 BYTE PTR BytesRead$1[rsp], 1
+  00414	c6 44 24 76 01	 mov	 BYTE PTR BytesRead$1[rsp], 1
 
-; 456  :             
-; 457  :             GlobalRunning = true;            
+; 479  :             
+; 480  :             GlobalRunning = true;            
 
-  003e3	c7 05 00 00 00
+  00419	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?GlobalRunning@@3HA, 1
 $LN4@WinMain:
 
-; 458  :             while(GlobalRunning)
+; 481  :             while(GlobalRunning)
 
-  003ed	83 3d 00 00 00
+  00423	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?GlobalRunning@@3HA, 0
-  003f4	74 5c		 je	 SHORT $LN5@WinMain
+  0042a	74 5c		 je	 SHORT $LN5@WinMain
 
-; 459  :             {
-; 460  :                 MSG Message = {}; 
+; 482  :             {
+; 483  :                 MSG Message = {}; 
 
-  003f6	48 8d 84 24 40
+  0042c	48 8d 84 24 30
 	01 00 00	 lea	 rax, QWORD PTR Message$5[rsp]
-  003fe	48 8b f8	 mov	 rdi, rax
-  00401	33 c0		 xor	 eax, eax
-  00403	b9 30 00 00 00	 mov	 ecx, 48			; 00000030H
-  00408	f3 aa		 rep stosb
+  00434	48 8b f8	 mov	 rdi, rax
+  00437	33 c0		 xor	 eax, eax
+  00439	b9 30 00 00 00	 mov	 ecx, 48			; 00000030H
+  0043e	f3 aa		 rep stosb
 $LN6@WinMain:
 
-; 461  :                 while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
+; 484  :                 while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
 
-  0040a	c7 44 24 20 01
+  00440	c7 44 24 20 01
 	00 00 00	 mov	 DWORD PTR [rsp+32], 1
-  00412	45 33 c9	 xor	 r9d, r9d
-  00415	45 33 c0	 xor	 r8d, r8d
-  00418	48 8b 94 24 a8
+  00448	45 33 c9	 xor	 r9d, r9d
+  0044b	45 33 c0	 xor	 r8d, r8d
+  0044e	48 8b 94 24 a8
 	00 00 00	 mov	 rdx, QWORD PTR Window$2[rsp]
-  00420	48 8d 8c 24 40
+  00456	48 8d 8c 24 30
 	01 00 00	 lea	 rcx, QWORD PTR Message$5[rsp]
-  00428	ff 15 00 00 00
+  0045e	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_PeekMessageA
-  0042e	85 c0		 test	 eax, eax
-  00430	74 1e		 je	 SHORT $LN7@WinMain
+  00464	85 c0		 test	 eax, eax
+  00466	74 1e		 je	 SHORT $LN7@WinMain
 
-; 462  :                 {
-; 463  :                     TranslateMessage(&Message);
+; 485  :                 {
+; 486  :                     TranslateMessage(&Message);
 
-  00432	48 8d 8c 24 40
+  00468	48 8d 8c 24 30
 	01 00 00	 lea	 rcx, QWORD PTR Message$5[rsp]
-  0043a	ff 15 00 00 00
+  00470	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_TranslateMessage
 
-; 464  :                     DispatchMessage(&Message);
+; 487  :                     DispatchMessage(&Message);
 
-  00440	48 8d 8c 24 40
+  00476	48 8d 8c 24 30
 	01 00 00	 lea	 rcx, QWORD PTR Message$5[rsp]
-  00448	ff 15 00 00 00
+  0047e	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_DispatchMessageA
 
-; 465  :                 }
+; 488  :                 }
 
-  0044e	eb ba		 jmp	 SHORT $LN6@WinMain
+  00484	eb ba		 jmp	 SHORT $LN6@WinMain
 $LN7@WinMain:
 
-; 466  :                 /*
-; 467  :                 switch(*CurrentInstr)
-; 468  :                 {
-; 469  :                     case 0x10: // BPL - Branch if plus.
-; 470  :                     {
-; 471  :                         int8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-; 472  :                         // NOTE: Will change program counter if negative flag is clear.
-; 473  :                         if(!(Registers.Flags & (1 << 7)))
-; 474  :                         {
-; 475  :                             Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
-; 476  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-; 477  :                             BytesRead = 0;
-; 478  :                         }
-; 479  :                         break;
-; 480  :                     }
-; 481  :                     case 0x20: // JSR - Jump to subroutine
-; 482  :                     {
-; 483  :                         // last byte of jrs (next instruction minus 1) is pushed onto stack
-; 484  :                         // program counter jumps to address
-; 485  : 
-; 486  :                         // TODO: Is absolute addressing from cartridge 0x00, or where program bank starts?
-; 487  :                         uint16 NewAddress = readNextUInt16(CurrentInstr, &BytesRead);
-; 488  :                         
-; 489  :                         uint16 PrevAdrs = ((uint64)(CurrentInstr + 2) - (uint64)PrgStart);                              
-; 490  :                         uint8 HighByte = (uint8)(PrevAdrs >> 8);
-; 491  :                         uint8 LowByte = (uint8)PrevAdrs;
-; 492  :       
-; 493  :                         // Push onto stack, little endian
-; 494  :                         PushByte(HighByte, &Registers.StackPtr, Stack);
-; 495  :                         PushByte(LowByte, &Registers.StackPtr, Stack);
-; 496  : 
-; 497  :                         Registers.PrgCounter = NewAddress;
-; 498  :                         CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-; 499  :                         BytesRead = 0; // set to zero so does move forward
-; 500  : 
-; 501  :                         break;
-; 502  :                     }
-; 503  :                     case 0x29: // AND(Immediate) - Logical AND with value and A, stores in A
-; 504  :                     {
-; 505  :                         uint8 ByteValue = readNextByte(CurrentInstr, &BytesRead);
-; 506  : 
-; 507  :                         uint8 ANDValue = Registers.A & ByteValue;
+; 489  :                 /*
+; 490  :                 switch(*CurrentInstr)
+; 491  :                 {
+; 492  :                     case 0x10: // BPL - Branch if plus.
+; 493  :                     {
+; 494  :                         int8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
+; 495  :                         // NOTE: Will change program counter if negative flag is clear.
+; 496  :                         if(!(Registers.Flags & (1 << 7)))
+; 497  :                         {
+; 498  :                             Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
+; 499  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
+; 500  :                             BytesRead = 0;
+; 501  :                         }
+; 502  :                         break;
+; 503  :                     }
+; 504  :                     case 0x20: // JSR - Jump to subroutine
+; 505  :                     {
+; 506  :                         // last byte of jrs (next instruction minus 1) is pushed onto stack
+; 507  :                         // program counter jumps to address
 ; 508  : 
-; 509  :                         setNegative(ANDValue, &Registers.Flags);
-; 510  :                         setZero(ANDValue, &Registers.Flags);
-; 511  : 
-; 512  :                         Registers.A = ANDValue;
-; 513  :                         break;
-; 514  :                     }
-; 515  :                     case 0x4C: // JMP(Absolute) - Jump
-; 516  :                     {
-; 517  :                         uint16 NewAddress = readNextUInt16(CurrentInstr, &BytesRead);
-; 518  :                         Registers.PrgCounter = NewAddress;
-; 519  :                         CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-; 520  :                         BytesRead = 0;
-; 521  :                         break;
-; 522  :                     }
-; 523  :                     case 0x78: // Set Interrupt Disable Flag
-; 524  :                     {
-; 525  :                         Registers.Flags = Registers.Flags | (1 << 2); // Set interrupt flag
-; 526  :                         break;
-; 527  :                     }
-; 528  :                     case 0x8D: // STA(Absolute) - Store Accumulator in Memory
-; 529  :                     {
-; 530  :                         uint16 Address = readNextUInt16(CurrentInstr, &BytesRead);
-; 531  :                         
-; 532  :                         writeMemByte(Registers.A, Address, MemStart);                        
-; 533  :                         break;
-; 534  :                     }
-; 535  :                     case 0x9A: // TXS - Transfer X to Stack Pointer
-; 536  :                     {
-; 537  :                         uint8 Value = Registers.X;
-; 538  :                         setNegative(Value, &Registers.Flags);
-; 539  :                         setZero(Value, &Registers.Flags);
-; 540  :                         Registers.StackPtr = Value;
-; 541  :                         break;
-; 542  :                     }
-; 543  :                     case 0xA2: // LDX(Immediate) - Load X index with memory
-; 544  :                     {
-; 545  :                         uint8 Value = readNextByte(CurrentInstr, &BytesRead);
-; 546  : 
-; 547  :                         setNegative(Value, &Registers.Flags);
-; 548  :                         setZero(Value, &Registers.Flags);
-; 549  : 
-; 550  :                         Registers.X = Value;
-; 551  :                         break;
-; 552  :                     }
-; 553  :                     case 0xAD: // LDA(Absolute) - Load A with 16bit address
-; 554  :                     {
-; 555  :                         uint16 Address = readNextUInt16(CurrentInstr, &BytesRead);                                                
-; 556  :                         uint8 Value = readMemByte(Address, MemStart);
-; 557  :                         
-; 558  :                         setNegative(Value, &Registers.Flags);
-; 559  :                         setZero(Value, &Registers.Flags);
-; 560  :                         Registers.A = Value;                    
-; 561  :                         break;
-; 562  :                     }
-; 563  :                     case 0xA5: // LDA(Zero Page) - load A from zero page
-; 564  :                     {
-; 565  :                         uint8 Address = readNextByte(CurrentInstr, &BytesRead);
-; 566  : 
-; 567  :                         uint8 Value = readMemByte(Address, ZeroPage);
-; 568  :                         
-; 569  :                         setNegative(Value, &Registers.Flags);
-; 570  :                         setZero(Value, &Registers.Flags);
-; 571  :                         
-; 572  :                         Registers.A = Value;
-; 573  :                         break;
-; 574  :                     }
-; 575  :                     case 0xA9: // LDA(Immediate) - Load accumulator with memory
-; 576  :                     {
-; 577  :                         uint8 Value = readNextByte(CurrentInstr, &BytesRead);
-; 578  :    
-; 579  :                         setNegative(Value, &Registers.Flags);
-; 580  :                         setZero(Value, &Registers.Flags);
-; 581  :                         
-; 582  :                         Registers.A = Value;          
-; 583  :                         break;
-; 584  :                     }
-; 585  :                     case 0xB0: // BCS - Branch if Carry is set
-; 586  :                     {
-; 587  :                         uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-; 588  :                         if(Registers.Flags & 1)
-; 589  :                         {
-; 590  :                             Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
-; 591  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-; 592  :                             BytesRead = 0;
-; 593  :                         }
-; 594  :                         break;
-; 595  :                     };
-; 596  :                     case 0xC9: // CMP(Immediate) - Compare value against A
-; 597  :                     {
-; 598  :                         uint8 ByteValue = readNextByte(CurrentInstr, &BytesRead);
-; 599  : 
-; 600  :                         uint8 CmpValue = Registers.A - ByteValue;
-; 601  :                         
-; 602  :                         setNegative(ByteValue, &Registers.Flags);
-; 603  :                         setZero(ByteValue, &Registers.Flags);
+; 509  :                         // TODO: Is absolute addressing from cartridge 0x00, or where program bank starts?
+; 510  :                         uint16 NewAddress = readNextUInt16(CurrentInstr, &BytesRead);
+; 511  :                         
+; 512  :                         uint16 PrevAdrs = ((uint64)(CurrentInstr + 2) - (uint64)PrgStart);                              
+; 513  :                         uint8 HighByte = (uint8)(PrevAdrs >> 8);
+; 514  :                         uint8 LowByte = (uint8)PrevAdrs;
+; 515  :       
+; 516  :                         // Push onto stack, little endian
+; 517  :                         PushByte(HighByte, &Registers.StackPtr, Stack);
+; 518  :                         PushByte(LowByte, &Registers.StackPtr, Stack);
+; 519  : 
+; 520  :                         Registers.PrgCounter = NewAddress;
+; 521  :                         CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
+; 522  :                         BytesRead = 0; // set to zero so does move forward
+; 523  : 
+; 524  :                         break;
+; 525  :                     }
+; 526  :                     case 0x29: // AND(Immediate) - Logical AND with value and A, stores in A
+; 527  :                     {
+; 528  :                         uint8 ByteValue = readNextByte(CurrentInstr, &BytesRead);
+; 529  : 
+; 530  :                         uint8 ANDValue = Registers.A & ByteValue;
+; 531  : 
+; 532  :                         setNegative(ANDValue, &Registers.Flags);
+; 533  :                         setZero(ANDValue, &Registers.Flags);
+; 534  : 
+; 535  :                         Registers.A = ANDValue;
+; 536  :                         break;
+; 537  :                     }
+; 538  :                     case 0x4C: // JMP(Absolute) - Jump
+; 539  :                     {
+; 540  :                         uint16 NewAddress = readNextUInt16(CurrentInstr, &BytesRead);
+; 541  :                         Registers.PrgCounter = NewAddress;
+; 542  :                         CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
+; 543  :                         BytesRead = 0;
+; 544  :                         break;
+; 545  :                     }
+; 546  :                     case 0x78: // Set Interrupt Disable Flag
+; 547  :                     {
+; 548  :                         Registers.Flags = Registers.Flags | (1 << 2); // Set interrupt flag
+; 549  :                         break;
+; 550  :                     }
+; 551  :                     case 0x8D: // STA(Absolute) - Store Accumulator in Memory
+; 552  :                     {
+; 553  :                         uint16 Address = readNextUInt16(CurrentInstr, &BytesRead);
+; 554  :                         
+; 555  :                         writeMemByte(Registers.A, Address, MemStart);                        
+; 556  :                         break;
+; 557  :                     }
+; 558  :                     case 0x9A: // TXS - Transfer X to Stack Pointer
+; 559  :                     {
+; 560  :                         uint8 Value = Registers.X;
+; 561  :                         setNegative(Value, &Registers.Flags);
+; 562  :                         setZero(Value, &Registers.Flags);
+; 563  :                         Registers.StackPtr = Value;
+; 564  :                         break;
+; 565  :                     }
+; 566  :                     case 0xA2: // LDX(Immediate) - Load X index with memory
+; 567  :                     {
+; 568  :                         uint8 Value = readNextByte(CurrentInstr, &BytesRead);
+; 569  : 
+; 570  :                         setNegative(Value, &Registers.Flags);
+; 571  :                         setZero(Value, &Registers.Flags);
+; 572  : 
+; 573  :                         Registers.X = Value;
+; 574  :                         break;
+; 575  :                     }
+; 576  :                     case 0xAD: // LDA(Absolute) - Load A with 16bit address
+; 577  :                     {
+; 578  :                         uint16 Address = readNextUInt16(CurrentInstr, &BytesRead);                                                
+; 579  :                         uint8 Value = readMemByte(Address, MemStart);
+; 580  :                         
+; 581  :                         setNegative(Value, &Registers.Flags);
+; 582  :                         setZero(Value, &Registers.Flags);
+; 583  :                         Registers.A = Value;                    
+; 584  :                         break;
+; 585  :                     }
+; 586  :                     case 0xA5: // LDA(Zero Page) - load A from zero page
+; 587  :                     {
+; 588  :                         uint8 Address = readNextByte(CurrentInstr, &BytesRead);
+; 589  : 
+; 590  :                         uint8 Value = readMemByte(Address, ZeroPage);
+; 591  :                         
+; 592  :                         setNegative(Value, &Registers.Flags);
+; 593  :                         setZero(Value, &Registers.Flags);
+; 594  :                         
+; 595  :                         Registers.A = Value;
+; 596  :                         break;
+; 597  :                     }
+; 598  :                     case 0xA9: // LDA(Immediate) - Load accumulator with memory
+; 599  :                     {
+; 600  :                         uint8 Value = readNextByte(CurrentInstr, &BytesRead);
+; 601  :    
+; 602  :                         setNegative(Value, &Registers.Flags);
+; 603  :                         setZero(Value, &Registers.Flags);
 ; 604  :                         
-; 605  :                         if(Registers.A < ByteValue)
-; 606  :                         {
-; 607  :                             clearCarry(&Registers.Flags);
-; 608  :                         }
-; 609  :                         else
-; 610  :                             setCarry(&Registers.Flags);
-; 611  : 
-; 612  :                         break;
-; 613  :                     }
-; 614  :                     case 0xD0: // BNE - Branch if not equal
-; 615  :                     {
-; 616  :                         // TODO: Might be wrong, where do we branch from, currentinstr or next??
-; 617  :                         uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-; 618  :                         if((Registers.Flags & (1 << 1)))
-; 619  :                         {
-; 620  :                             Registers.PrgCounter += (RelAddress); // Plus two to next instruction
-; 621  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-; 622  :                             BytesRead = 0;
-; 623  :                         }
-; 624  :                         break;
-; 625  :                     }
-; 626  :                     case 0xD8: // Clear decimal flag
-; 627  :                     {
-; 628  :                         Registers.Flags = Registers.Flags & ~(1 << 3); // clear decimal flag
-; 629  :                         break;
-; 630  :                     }
-; 631  :                     case 0xF0: // BEQ - Brach if Equal
-; 632  :                     {
-; 633  :                         uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-; 634  :                         if(Registers.Flags & (1 << 1))
-; 635  :                         {
-; 636  :                             Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
-; 637  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-; 638  :                             BytesRead = 0;
-; 639  :                         }
-; 640  :                         break;    
-; 641  :                     }
-; 642  :                     default:
-; 643  :                     {
-; 644  :                         uint8 MissingValue = *CurrentInstr;
-; 645  :                         char Buffer[8];
-; 646  :                         sprintf(Buffer, "%X\n", MissingValue);
-; 647  :                         OutputDebugString(Buffer);
-; 648  :                         Assert(0);
-; 649  :                         break;
-; 650  :                     }
-; 651  : 
-; 652  :                 }
-; 653  :                 
-; 654  :                 // NOTE: When updating bytesRead, some instruction like branch do not want to advance the progcounter
-; 655  :                 CurrentInstr = getnextInstruction(CurrentInstr, &Registers.PrgCounter, &BytesRead);
-; 656  :                 BytesRead = 1;
-; 657  :                 */
-; 658  :                 
-; 659  : #if 0
-; 660  :                 uint64 EndCycles = __rdtsc();
-; 661  :                 
-; 662  :                 LARGE_INTEGER EndCounter;
-; 663  :                 QueryPerformanceCounter(&EndCounter);
-; 664  :                 
-; 665  :                 uint64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart; 
-; 666  :                 uint64 CyclesElapsed = EndCycles - LastCycles;
-; 667  :                 
-; 668  :                 real32 MSElapsed = ((1000.0f * (real32)CounterElapsed) / (real32)PerfCountFrequency);
-; 669  :                 real32 FPSElapsed = (real32)PerfCountFrequency / (real32)CounterElapsed;
-; 670  :                 real32 MCElapsed = (real32)CyclesElapsed / (1000.0f*1000.0f);                 
-; 671  :                 
-; 672  :                 char TextBuffer[256];
-; 673  :                 _snprintf(TextBuffer, 256, "Cycles: %f, FPS: %f, DeltaTime: %f\n", MCElapsed, FPSElapsed, MSElapsed);
-; 674  :                 OutputDebugString(TextBuffer);
-; 675  :                 
-; 676  :                 LastCounter = EndCounter;
-; 677  :                 LastCycles = EndCycles;
-; 678  : #endif
-; 679  :             }   
+; 605  :                         Registers.A = Value;          
+; 606  :                         break;
+; 607  :                     }
+; 608  :                     case 0xB0: // BCS - Branch if Carry is set
+; 609  :                     {
+; 610  :                         uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
+; 611  :                         if(Registers.Flags & 1)
+; 612  :                         {
+; 613  :                             Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
+; 614  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
+; 615  :                             BytesRead = 0;
+; 616  :                         }
+; 617  :                         break;
+; 618  :                     };
+; 619  :                     case 0xC9: // CMP(Immediate) - Compare value against A
+; 620  :                     {
+; 621  :                         uint8 ByteValue = readNextByte(CurrentInstr, &BytesRead);
+; 622  : 
+; 623  :                         uint8 CmpValue = Registers.A - ByteValue;
+; 624  :                         
+; 625  :                         setNegative(ByteValue, &Registers.Flags);
+; 626  :                         setZero(ByteValue, &Registers.Flags);
+; 627  :                         
+; 628  :                         if(Registers.A < ByteValue)
+; 629  :                         {
+; 630  :                             clearCarry(&Registers.Flags);
+; 631  :                         }
+; 632  :                         else
+; 633  :                             setCarry(&Registers.Flags);
+; 634  : 
+; 635  :                         break;
+; 636  :                     }
+; 637  :                     case 0xD0: // BNE - Branch if not equal
+; 638  :                     {
+; 639  :                         // TODO: Might be wrong, where do we branch from, currentinstr or next??
+; 640  :                         uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
+; 641  :                         if((Registers.Flags & (1 << 1)))
+; 642  :                         {
+; 643  :                             Registers.PrgCounter += (RelAddress); // Plus two to next instruction
+; 644  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
+; 645  :                             BytesRead = 0;
+; 646  :                         }
+; 647  :                         break;
+; 648  :                     }
+; 649  :                     case 0xD8: // Clear decimal flag
+; 650  :                     {
+; 651  :                         Registers.Flags = Registers.Flags & ~(1 << 3); // clear decimal flag
+; 652  :                         break;
+; 653  :                     }
+; 654  :                     case 0xF0: // BEQ - Brach if Equal
+; 655  :                     {
+; 656  :                         uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
+; 657  :                         if(Registers.Flags & (1 << 1))
+; 658  :                         {
+; 659  :                             Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
+; 660  :                             CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
+; 661  :                             BytesRead = 0;
+; 662  :                         }
+; 663  :                         break;    
+; 664  :                     }
+; 665  :                     default:
+; 666  :                     {
+; 667  :                         uint8 MissingValue = *CurrentInstr;
+; 668  :                         char Buffer[8];
+; 669  :                         sprintf(Buffer, "%X\n", MissingValue);
+; 670  :                         OutputDebugString(Buffer);
+; 671  :                         Assert(0);
+; 672  :                         break;
+; 673  :                     }
+; 674  : 
+; 675  :                 }
+; 676  :                 
+; 677  :                 // NOTE: When updating bytesRead, some instruction like branch do not want to advance the progcounter
+; 678  :                 CurrentInstr = getnextInstruction(CurrentInstr, &Registers.PrgCounter, &BytesRead);
+; 679  :                 BytesRead = 1;
+; 680  :                 */
+; 681  :                 
+; 682  : #if 0
+; 683  :                 uint64 EndCycles = __rdtsc();
+; 684  :                 
+; 685  :                 LARGE_INTEGER EndCounter;
+; 686  :                 QueryPerformanceCounter(&EndCounter);
+; 687  :                 
+; 688  :                 uint64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart; 
+; 689  :                 uint64 CyclesElapsed = EndCycles - LastCycles;
+; 690  :                 
+; 691  :                 real32 MSElapsed = ((1000.0f * (real32)CounterElapsed) / (real32)PerfCountFrequency);
+; 692  :                 real32 FPSElapsed = (real32)PerfCountFrequency / (real32)CounterElapsed;
+; 693  :                 real32 MCElapsed = (real32)CyclesElapsed / (1000.0f*1000.0f);                 
+; 694  :                 
+; 695  :                 char TextBuffer[256];
+; 696  :                 _snprintf(TextBuffer, 256, "Cycles: %f, FPS: %f, DeltaTime: %f\n", MCElapsed, FPSElapsed, MSElapsed);
+; 697  :                 OutputDebugString(TextBuffer);
+; 698  :                 
+; 699  :                 LastCounter = EndCounter;
+; 700  :                 LastCycles = EndCycles;
+; 701  : #endif
+; 702  :             }   
 
-  00450	eb 9b		 jmp	 SHORT $LN4@WinMain
+  00486	eb 9b		 jmp	 SHORT $LN4@WinMain
 $LN5@WinMain:
 
-; 680  :         }
-; 681  :         else
+; 703  :         }
+; 704  :         else
 
-  00452	eb 12		 jmp	 SHORT $LN21@WinMain
-$LN20@WinMain:
-
-; 682  :         {
-; 683  :             Assert(0);
-
-  00454	33 c0		 xor	 eax, eax
-  00456	83 f8 01	 cmp	 eax, 1
-  00459	74 0b		 je	 SHORT $LN22@WinMain
-  0045b	c7 04 25 00 00
-	00 00 00 00 00
-	00		 mov	 DWORD PTR ds:0, 0
-$LN22@WinMain:
+  00488	eb 12		 jmp	 SHORT $LN22@WinMain
 $LN21@WinMain:
 
-; 684  :         }
-; 685  :     }
-; 686  :     else
+; 705  :         {
+; 706  :             Assert(0);
 
-  00466	eb 12		 jmp	 SHORT $LN19@WinMain
-$LN18@WinMain:
-
-; 687  :     {
-; 688  :         Assert(0);
-
-  00468	33 c0		 xor	 eax, eax
-  0046a	83 f8 01	 cmp	 eax, 1
-  0046d	74 0b		 je	 SHORT $LN23@WinMain
-  0046f	c7 04 25 00 00
+  0048a	33 c0		 xor	 eax, eax
+  0048c	83 f8 01	 cmp	 eax, 1
+  0048f	74 0b		 je	 SHORT $LN23@WinMain
+  00491	c7 04 25 00 00
 	00 00 00 00 00
 	00		 mov	 DWORD PTR ds:0, 0
 $LN23@WinMain:
+$LN22@WinMain:
+
+; 707  :         }
+; 708  :     }
+; 709  :     else
+
+  0049c	eb 12		 jmp	 SHORT $LN20@WinMain
 $LN19@WinMain:
 
-; 689  :     }
-; 690  : 
-; 691  :     return(0);
+; 710  :     {
+; 711  :         Assert(0);
 
-  0047a	33 c0		 xor	 eax, eax
+  0049e	33 c0		 xor	 eax, eax
+  004a0	83 f8 01	 cmp	 eax, 1
+  004a3	74 0b		 je	 SHORT $LN24@WinMain
+  004a5	c7 04 25 00 00
+	00 00 00 00 00
+	00		 mov	 DWORD PTR ds:0, 0
+$LN24@WinMain:
+$LN20@WinMain:
 
-; 692  : } 
+; 712  :     }
+; 713  : 
+; 714  :     return(0);
 
-  0047c	48 8b 8c 24 78
+  004b0	33 c0		 xor	 eax, eax
+
+; 715  : } 
+
+  004b2	48 8b 8c 24 68
 	01 00 00	 mov	 rcx, QWORD PTR __$ArrayPad$[rsp]
-  00484	48 33 cc	 xor	 rcx, rsp
-  00487	e8 00 00 00 00	 call	 __security_check_cookie
-  0048c	48 81 c4 80 01
-	00 00		 add	 rsp, 384		; 00000180H
-  00493	5f		 pop	 rdi
-  00494	c3		 ret	 0
+  004ba	48 33 cc	 xor	 rcx, rsp
+  004bd	e8 00 00 00 00	 call	 __security_check_cookie
+  004c2	48 81 c4 70 01
+	00 00		 add	 rsp, 368		; 00000170H
+  004c9	5f		 pop	 rdi
+  004ca	c3		 ret	 0
 WinMain	ENDP
 _TEXT	ENDS
 END
