@@ -1,17 +1,15 @@
-
 #include <windows.h>
 
-// Included for sprintf
+// Included for sprintf, TODO: Remove later?
 #include <stdio.h>
 
 #define internal static 
-#define local_persist static 
-#define global_variable static
+#define local_static static 
+#define global static
 
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
-
 
 #define Kilobytes(Value) ((Value)*1024LL)
 #define Megabytes(Value) (Kilobytes(Value)*1024LL)
@@ -44,15 +42,24 @@ struct input {
         B_SELECT,
 
         BUTTON_NUM
-    };
-    
+    };    
     bool32 buttons[BUTTON_NUM];
 };
 
-global_variable input WinInput = {};
-global_variable bool32 GlobalRunning;
 
-global_variable uint64 MemoryStartOffset;
+struct screen_buffer
+{
+    // NOTE: Memory Order BB GG RR XX
+    BITMAPINFO Info;
+    void *Memory;
+    int Width;
+    int Height;
+    int Pitch;
+    int BytesPerPixel;
+};
+
+global input WinInput = {};
+global bool32 GlobalRunning;
 
 LRESULT CALLBACK
 WinInputCallback(HWND WindowHandle, UINT Message,
@@ -75,6 +82,7 @@ WinInputCallback(HWND WindowHandle, UINT Message,
         }
         case WM_CLOSE:
         {
+            GlobalRunning = false;
             break;
         }
         case WM_DESTROY:
@@ -175,21 +183,21 @@ WinInputCallback(HWND WindowHandle, UINT Message,
     return Result;
 }
 
-void * LoadRomData(char * Filename, uint32 *Size)
+internal void * LoadFile(char * Filename, uint32 *Size)
 {
-    void *RomData = 0;
+    void *FileData = 0;
     
-    HANDLE RomHandle = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-    if(RomHandle != INVALID_HANDLE_VALUE)
+    HANDLE FileHandle = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    if(FileHandle != INVALID_HANDLE_VALUE)
     {
         LARGE_INTEGER Filesize;
-        if(GetFileSizeEx(RomHandle, &Filesize))
+        if(GetFileSizeEx(FileHandle, &Filesize))
         {
-            RomData = VirtualAlloc(0, Filesize.LowPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-            if(RomData)
+            FileData = VirtualAlloc(0, Filesize.LowPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            if(FileData)
             {
                 DWORD BytesRead;
-                if(ReadFile(RomHandle, RomData, Filesize.LowPart, &BytesRead, 0) &&
+                if(ReadFile(FileHandle, FileData, Filesize.LowPart, &BytesRead, 0) &&
                    (Filesize.LowPart == BytesRead))
                 {
                     *Size = (uint32)BytesRead;
@@ -212,157 +220,181 @@ void * LoadRomData(char * Filename, uint32 *Size)
     {
         Assert(0);
     }
-    return(RomData);
+    return(FileData);
 }
 
-inline void setNegative(uint8 Value, uint8 *Flags)
-{  
-    if(Value >= 0x00 && Value <= 0x7F)
-        *Flags = *Flags & ~(1 << 7); // clear negative flag
-    else
-        *Flags = *Flags | (1 << 7); // set negative flag
-}
-inline void setZero(uint8 Value, uint8 *Flags)
+
+internal void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
 {
-    if(Value == 0x00)
-        *Flags = *Flags | (1 << 1); // Set zero flag
-    else
-        *Flags = *Flags & ~(1 << 1);
-}
-inline void setCarry(uint8 *Flags)
-{
-    *Flags = *Flags | 1;
-}
-inline void clearCarry(uint8 *Flags)
-{
-    *Flags = *Flags & ~1;
+    // NOTE: Very basic copy. Not bounds protection
+    for(uint16 Byte = 0; Byte < Size; ++Byte)
+        Dest[Byte] = Src[Byte];
 }
 
-void PushByte(uint8 Byte, uint8 *StackPointer, uint8 *StackLocation)
-{
-    // NOTE:
-    // Stack pointer is commonly initialised to 0xFF.
-    // Adding a byte will decrease the pointer.
-    // Poping increases the pointer.
-    // The pointer does wrap if under 0x100
 
-    uint8 *Address = (uint8 *)(*StackPointer + (uint64) StackLocation);
-    *Address = Byte;
+uint8 VRamAdrsWriteCount = 0, VRamDataWriteCount = 0;
 
-    --(*StackPointer);  
+internal void writeMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+{    
+    uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
+    *NewAddress = Byte;
 }
-uint8 PopByte(uint8 *StackPointer, uint8 *StackLocation)
-{
-    uint8 *Address = (uint8 *)(*StackPointer + (uint64) StackLocation);
-    uint8 Value = *Address;
 
-    ++(*StackPointer);
+uint8 InputReadCount = 0;
+uint8 InputReadMax = 24; 
+
+internal void writeCpuMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+{
+    // NOTE: Mirrors the address for the 2kb ram 
+    if(0x800 <= Address && Address < 0x2000)
+        Address = Address & (Kilobytes(2) - 1);  // Modulus for values power of 2
+    // NOTE: Mirror for PPU Registers
+    if(0x2008 <= Address && Address < 0x4000)
+        Address = Address & 7; // Modulus, repeates every 8 bytes
+    if(0x8000 < Address || Address == 0x2002)
+        Assert(0); // Writing to Program ROM, bank switching?     
+    
+    if(Address == 0x2006)
+        VRamAdrsWriteCount++;
+    if(Address == 0x2007)
+        VRamDataWriteCount++;
+
+    if(Address == 0x4016 || Address == 0x4017)
+    {
+        Assert(0); // TODO: This means input reading is restarted by strobing register
+    }
+    
+    writeMemory8(Byte, Address, MemoryOffset);
+}
+
+// A, B, Select, Start, Up, Down, Left, Right
+
+internal uint8 readMemory8(uint16 Address, uint64 MemoryOffset)
+{
+    uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
+    uint8 Value = *NewAddress;
+    return(Value);
+}
+
+internal uint8 readCpuMemory8(uint16 Address, uint64 MemoryOffset)
+{
+    // NOTE: Mirrors the address for the 2kb ram 
+    if(0x800 <= Address && Address < 0x2000)
+        Address = Address & (Kilobytes(2) - 1);  // Modulus for values power of 2
+    // NOTE: Mirror for PPU Registers
+    if(0x2008 <= Address && Address < 0x4000)
+        Address = Address & 7; // Modulus, repeates every 8 bytes        
+
+    
+    uint8 Value = readMemory8(Address, MemoryOffset);
+
+
+    if(Address == 0x2002)
+    {
+        VRamAdrsWriteCount = VRamDataWriteCount = 0; // Clear VRam IO
+        uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
+        *NewAddress = *NewAddress & ~(1 << 7); // Clear bit 7 of status
+    }
     
     return(Value);
 }
 
-void writeMemByte(uint16 Address, uint8 Byte)
-{
-    // NOTE: Mirrors the address for the 2kb ram 
-    if(0x800 <= Address && Address < 0x2000)
-        Address = Address & (Kilobytes(2) - 1);  // Modulus for values power of 2
-    // NOTE: Mirror for PPU Registers
-    if(0x2008 <= Address && Address < 0x4000)
-        Address = Address & 7; // Modulus, repeates every 8 bytes
-    if(0x8000 < Address)
-        Assert(0); // Writing to Program ROM, bank switching? 
-    
-    
-    uint8 *NewAddress = (uint8 *)(Address + MemoryStartOffset);
-    *NewAddress = Byte;
-}
 
-uint8 readMemory(uint16 Address)
-{
-    // NOTE: Mirrors the address for the 2kb ram 
-    if(0x800 <= Address && Address < 0x2000)
-        Address = Address & (Kilobytes(2) - 1);  // Modulus for values power of 2
-    // NOTE: Mirror for PPU Registers
-    if(0x2008 <= Address && Address < 0x4000)
-        Address = Address & 7; // Modulus, repeates every 8 bytes
-    
-
-    uint8 *NewAddress = (uint8 *)(Address + MemoryStartOffset);
-    return(*NewAddress);
-}
-
-
-uint16 readMemory16(uint16 Address)
+internal uint16 readCpuMemory16(uint16 Address, uint64 MemoryOffset)
 {
     // NOTE: Little Endian
-    uint8 LowByte = readMemory(Address);
-    uint8 HighByte = readMemory(Address+1);
+    uint8 LowByte = readCpuMemory8(Address, MemoryOffset);
+    uint8 HighByte = readCpuMemory8(Address+1, MemoryOffset);
         
     uint16 NewAddress = (HighByte << 8) | LowByte;
     return(NewAddress);
 }
 
+bool32 NMICalled = false;
+
+// TODO: This will change location once other functions above get relocated.
+#include "cpu.cpp"
+#include "ppu.cpp"
+
+internal void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
+{
+    RECT ClientRect;
+    GetClientRect(Window, &ClientRect);
+    *Width = ClientRect.right - ClientRect.left;
+    *Height = ClientRect.bottom - ClientRect.top;
+}
+
+
+
+    
+internal void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
+{
+    // TODO: This is based on Handmade Hero code. Will need to reference and look at licences later on
+    //       website: handmadehero.org
+    if(Buffer->Memory)
+    {
+        VirtualFree(Buffer->Memory, 0, MEM_RELEASE);
+    }
+
+    Buffer->Width = Width;
+    Buffer->Height = Height;
+    Buffer->BytesPerPixel = 4;
+
+    Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
+    Buffer->Info.bmiHeader.biWidth = Width;
+    Buffer->Info.bmiHeader.biHeight = -Height; // Negative tells windows that we raster top to bottom
+    Buffer->Info.bmiHeader.biPlanes = 1;
+    Buffer->Info.bmiHeader.biBitCount = 32;
+    Buffer->Info.bmiHeader.biCompression = BI_RGB;
+
+    int MemorySize = Width * Height * Buffer->BytesPerPixel;
+    Buffer->Memory = VirtualAlloc(0, MemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    Buffer->Pitch = Width * Buffer->BytesPerPixel;
+}
+
+internal void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
+                      uint16 WindowWidth, uint16 WindowHeight)
+{                
+    StretchDIBits(DeviceContext,
+                  0, 0, WindowWidth, WindowHeight,
+                  0, 0, BackBuffer->Width, BackBuffer->Height,
+                  BackBuffer->Memory,
+                  &BackBuffer->Info,
+                  DIB_RGB_COLORS, SRCCOPY);
+}
+
+
+
 int CALLBACK
 WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
         LPSTR CommandLine, int CommandShow)
 {
-    struct registers {
-        uint8 A;
-        uint8 X;
-        uint8 Y; 
-        uint8 Flags = 0;
-        uint8 StackPtr;
-        uint16 PrgCounter; // not yet used
-    };
+    // TODO: I could reduce the memory usage as the nes does not actually use 64 kbs,
+    //       the nes mirrors certain sections of address space
+    uint32 CpuMemorySize = Kilobytes(64);
+    uint32 PpuMemorySize = Kilobytes(64);
+    uint32 TotalMemorySize = CpuMemorySize + PpuMemorySize;
+
+    // NOTE: Aiming to have one memory allocation for the whole program.
+    // TODO: Loading the cartridge also creates memory. Figure out to include in this call.
+    uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)TotalMemorySize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+
+    cpu CpuData = {};
+    CpuData.MemoryOffset = (uint64)Memory; 
+
     
-    registers Registers = {};
-
-    // Program will have these
-    uint16 NMIVec = 0xFFFA;
-    uint16 ResetVec = 0xFFFC;
-    uint16 IRQnBRKVec = 0xFFFE; 
+    ppu PpuData = {};    
+    PpuData.MemoryOffset = (uint64)Memory + Kilobytes(64);
+      
+#define PPU_REG_ADRS 0x2000    
+    PpuData.Registers = (ppu_registers *)(CpuData.MemoryOffset + PPU_REG_ADRS);
+    PpuData.Registers->Status = (1 << 7) | (1 << 5); 
     
-    /*
-      CPU Memory Map - taken from nesdev.com
-      $0000-$07FF   $0800   2KB internal RAM
-      $0800-$0FFF   $0800   Mirrors of $0000-$07FF
-      $1000-$17FF   $0800
-      $1800-$1FFF   $0800
-      $2000-$2007   $0008   NES PPU registers
-      $2008-$3FFF   $1FF8   Mirrors of $2000-2007 (repeats every 8 bytes)
-      $4000-$4017   $0018   NES APU and I/O registers
-      $4018-$401F   $0008   APU and I/O functionality that is normally disabled. See CPU Test Mode.
-      $4020-$FFFF   $BFE0   Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note)
-     */
-
-    /*
-      2KB RAM Rough Layout
-      0x0000-0x00FF  Zero Page
-      0x0100-0x01FF  Stack
-      0x0200-0x07FF  Unassigned Memory(free for program to use)
-     */
-
-    uint8 * Memory = (uint8 *)VirtualAlloc(0, Kilobytes(64), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-    MemoryStartOffset = (uint64)Memory; // TODO: Remove from gobal scope?
-    
-    // Ram Memory
-    uint16 RAMAdrs = 0x0;
-    uint16 ZeroPageAdrs = 0x0;
-    uint16 StackAdrs = 0x100;
-
-        
-    uint8 MemPrgBank1 = 0x8000;
-    uint8 MemPrgBank2 = 0xC000;
-
-
-    // NOTE: Not sure if needed yet.
-    //uint16 PPURegAdrs = 0x2000;
-    //uint16 IORegAdrs = 0x4000;
     
     // Reading rom file
-    char * Filename = "ZeldaT.nes";
+    char * Filename = "Pacman.nes";
     uint32 FileSize;
-    uint8 *RomData = (uint8 *)LoadRomData(Filename, &FileSize);
+    uint8 *RomData = (uint8 *)LoadFile(Filename, &FileSize);
 
     // NOTE: Check for correct header
     if(RomData[0] != 'N' || RomData[1] != 'E' || RomData[2] != 'S')
@@ -396,21 +428,15 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     // TODO: Implement Playchoice roms 
 
 
-    // NOTE: This is the two banks of memory that are currently loaded
-    //       The mapper number will specify which initial banks are loaded
-    //       Program will then change these banks while running.
-    //       These pointers reference the rom memory.
-    //       Offset is required to make relative to memory mapped address    
-#define PRG_BANK_NUM 4
-    uint8 PrgRomBanks[PRG_BANK_NUM] = {};
-    uint8 *PrgRamBank;
-    uint8 *ChrBank1;
-    uint8 *ChrBank2;
 
+// NOTE: This is the two banks of memory that are currently loaded
+//       The mapper number will specify which initial banks are loaded
+//       Program will then change these banks while running.
+//       These pointers reference the rom memory.
+//       Offset is required to make relative to memory mapped address    
 
-    uint64 BankRegisters[PRG_BANK_NUM];
-
-
+    
+    // TODO: Mappers
     // NOTE: MY UNDERSTANDING OF HOW BANK REGISTERS WORK (SO FAR)
     //
     //       This is for M001. 
@@ -426,21 +452,25 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     //       This is a byte with a reset bit and the bit just entered.
     //       If reset is hit, then bit entered, plus temporary reg is cleared.
     //       If 5 bits enter through port, then reg is saved
+
+    // TODO: This will change as I add program mappers 
+    uint16 MemPrgBank1 = 0x8000;
+    uint16 MemPrgBank2 = 0xC000;
     
     uint8 MapperNumber = (Flags7 & 0xF0) | (Flags6 >> 4);
     switch(MapperNumber)
     {
         case 0:
         {
-            PrgRomBanks[0] = (uint64)RomPrgData;
-            PrgRomBanks[2] = (uint64)RomPrgData;
+            if(RomPrgBankCount == 1) {
+                cpyMemory((uint8 *)MemPrgBank1 + CpuData.MemoryOffset, RomPrgData, Kilobytes(16));
+                cpyMemory((uint8 *)MemPrgBank2 + CpuData.MemoryOffset, RomPrgData, Kilobytes(16));
+            }
+            else
+                Assert(0);
             break;
         }
-        case 1:
-        {
-            Assert(0);
-            break;
-        }
+        
         default:
         {
             char Buffer[8];
@@ -450,13 +480,19 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             break;
         }
     }
-
     
     // NOTE: Load the program counter with the reset vector
-    Registers.PrgCounter = readMemory16(ResetVec);
-
+    CpuData.Registers.PrgCounter = readCpuMemory16(RESET_VEC, CpuData.MemoryOffset);
 
     
+    // Screen back buffer creation
+    uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
+    uint8 ResScale = 5;
+    uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
+    screen_buffer ScreenBackBuffer = {};
+    createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
+    
+    // Window Creation
     WNDCLASSA WindowClass = {};
     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
     WindowClass.lpfnWndProc = WinInputCallback;
@@ -468,18 +504,19 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
         HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu",
                                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
                                       CW_USEDEFAULT, CW_USEDEFAULT,
-                                      CW_USEDEFAULT,CW_USEDEFAULT,
+                                      WindowWidth, WindowHeight,
                                       0, 0, WindowInstance, 0);
-        if(Window)
-        {            
+        if(Window) // If window was created successfully
+        {
             LARGE_INTEGER LastCounter;
             QueryPerformanceCounter(&LastCounter);                        
             uint64 LastCycles = __rdtsc();
+            
+            // TODO: Must run the emulation at the same speed as the nes would.
+            GlobalRunning = true;
 
+            uint16 TempCount = 0;
             
-            uint8 BytesRead = 1;
-            
-            GlobalRunning = true;            
             while(GlobalRunning)
             {
                 MSG Message = {}; 
@@ -488,199 +525,29 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
                 }
-                /*
-                switch(*CurrentInstr)
+
+                
+                
+                if(TempCount == 0xFF)
+                    NMICalled = true;
+                cpuTick(&CpuData);
+                // TODO: Timing is not complete
+                //       Cpu opcodes execute in a different number of cycles
+                //       Must multiply pputicks to stay synched.
+                for(uint8 i = 0; i < 3; ++i)
                 {
-                    case 0x10: // BPL - Branch if plus.
-                    {
-                        int8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-                        // NOTE: Will change program counter if negative flag is clear.
-                        if(!(Registers.Flags & (1 << 7)))
-                        {
-                            Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
-                            CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-                            BytesRead = 0;
-                        }
-                        break;
-                    }
-                    case 0x20: // JSR - Jump to subroutine
-                    {
-                        // last byte of jrs (next instruction minus 1) is pushed onto stack
-                        // program counter jumps to address
-
-                        // TODO: Is absolute addressing from cartridge 0x00, or where program bank starts?
-                        uint16 NewAddress = readNextUInt16(CurrentInstr, &BytesRead);
-                        
-                        uint16 PrevAdrs = ((uint64)(CurrentInstr + 2) - (uint64)PrgStart);                              
-                        uint8 HighByte = (uint8)(PrevAdrs >> 8);
-                        uint8 LowByte = (uint8)PrevAdrs;
-      
-                        // Push onto stack, little endian
-                        PushByte(HighByte, &Registers.StackPtr, Stack);
-                        PushByte(LowByte, &Registers.StackPtr, Stack);
-
-                        Registers.PrgCounter = NewAddress;
-                        CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-                        BytesRead = 0; // set to zero so does move forward
-
-                        break;
-                    }
-                    case 0x29: // AND(Immediate) - Logical AND with value and A, stores in A
-                    {
-                        uint8 ByteValue = readNextByte(CurrentInstr, &BytesRead);
-
-                        uint8 ANDValue = Registers.A & ByteValue;
-
-                        setNegative(ANDValue, &Registers.Flags);
-                        setZero(ANDValue, &Registers.Flags);
-
-                        Registers.A = ANDValue;
-                        break;
-                    }
-                    case 0x4C: // JMP(Absolute) - Jump
-                    {
-                        uint16 NewAddress = readNextUInt16(CurrentInstr, &BytesRead);
-                        Registers.PrgCounter = NewAddress;
-                        CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-                        BytesRead = 0;
-                        break;
-                    }
-                    case 0x78: // Set Interrupt Disable Flag
-                    {
-                        Registers.Flags = Registers.Flags | (1 << 2); // Set interrupt flag
-                        break;
-                    }
-                    case 0x8D: // STA(Absolute) - Store Accumulator in Memory
-                    {
-                        uint16 Address = readNextUInt16(CurrentInstr, &BytesRead);
-                        
-                        writeMemByte(Registers.A, Address, MemStart);                        
-                        break;
-                    }
-                    case 0x9A: // TXS - Transfer X to Stack Pointer
-                    {
-                        uint8 Value = Registers.X;
-                        setNegative(Value, &Registers.Flags);
-                        setZero(Value, &Registers.Flags);
-                        Registers.StackPtr = Value;
-                        break;
-                    }
-                    case 0xA2: // LDX(Immediate) - Load X index with memory
-                    {
-                        uint8 Value = readNextByte(CurrentInstr, &BytesRead);
-
-                        setNegative(Value, &Registers.Flags);
-                        setZero(Value, &Registers.Flags);
-
-                        Registers.X = Value;
-                        break;
-                    }
-                    case 0xAD: // LDA(Absolute) - Load A with 16bit address
-                    {
-                        uint16 Address = readNextUInt16(CurrentInstr, &BytesRead);                                                
-                        uint8 Value = readMemByte(Address, MemStart);
-                        
-                        setNegative(Value, &Registers.Flags);
-                        setZero(Value, &Registers.Flags);
-                        Registers.A = Value;                    
-                        break;
-                    }
-                    case 0xA5: // LDA(Zero Page) - load A from zero page
-                    {
-                        uint8 Address = readNextByte(CurrentInstr, &BytesRead);
-
-                        uint8 Value = readMemByte(Address, ZeroPage);
-                        
-                        setNegative(Value, &Registers.Flags);
-                        setZero(Value, &Registers.Flags);
-                        
-                        Registers.A = Value;
-                        break;
-                    }
-                    case 0xA9: // LDA(Immediate) - Load accumulator with memory
-                    {
-                        uint8 Value = readNextByte(CurrentInstr, &BytesRead);
-   
-                        setNegative(Value, &Registers.Flags);
-                        setZero(Value, &Registers.Flags);
-                        
-                        Registers.A = Value;          
-                        break;
-                    }
-                    case 0xB0: // BCS - Branch if Carry is set
-                    {
-                        uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-                        if(Registers.Flags & 1)
-                        {
-                            Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
-                            CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-                            BytesRead = 0;
-                        }
-                        break;
-                    };
-                    case 0xC9: // CMP(Immediate) - Compare value against A
-                    {
-                        uint8 ByteValue = readNextByte(CurrentInstr, &BytesRead);
-
-                        uint8 CmpValue = Registers.A - ByteValue;
-                        
-                        setNegative(ByteValue, &Registers.Flags);
-                        setZero(ByteValue, &Registers.Flags);
-                        
-                        if(Registers.A < ByteValue)
-                        {
-                            clearCarry(&Registers.Flags);
-                        }
-                        else
-                            setCarry(&Registers.Flags);
-
-                        break;
-                    }
-                    case 0xD0: // BNE - Branch if not equal
-                    {
-                        // TODO: Might be wrong, where do we branch from, currentinstr or next??
-                        uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-                        if((Registers.Flags & (1 << 1)))
-                        {
-                            Registers.PrgCounter += (RelAddress); // Plus two to next instruction
-                            CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-                            BytesRead = 0;
-                        }
-                        break;
-                    }
-                    case 0xD8: // Clear decimal flag
-                    {
-                        Registers.Flags = Registers.Flags & ~(1 << 3); // clear decimal flag
-                        break;
-                    }
-                    case 0xF0: // BEQ - Brach if Equal
-                    {
-                        uint8 RelAddress = readNextByte(CurrentInstr, &BytesRead);
-                        if(Registers.Flags & (1 << 1))
-                        {
-                            Registers.PrgCounter += (RelAddress + 2); // Plus two to next instruction
-                            CurrentInstr = (uint8 *)((uint64)PrgStart + Registers.PrgCounter);
-                            BytesRead = 0;
-                        }
-                        break;    
-                    }
-                    default:
-                    {
-                        uint8 MissingValue = *CurrentInstr;
-                        char Buffer[8];
-                        sprintf(Buffer, "%X\n", MissingValue);
-                        OutputDebugString(Buffer);
-                        Assert(0);
-                        break;
-                    }
-
+                    ppuTick(&ScreenBackBuffer, &PpuData);
                 }
                 
-                // NOTE: When updating bytesRead, some instruction like branch do not want to advance the progcounter
-                CurrentInstr = getnextInstruction(CurrentInstr, &Registers.PrgCounter, &BytesRead);
-                BytesRead = 1;
-                */
+                getWindowSize(Window, &WindowWidth, &WindowHeight);
                 
+                // NOTE: Drawing the backbuffer to the window 
+                HDC DeviceContext = GetDC(Window);
+                drawScreenBuffer(&ScreenBackBuffer, DeviceContext,
+                                 WindowWidth, WindowHeight);
+                ReleaseDC(Window, DeviceContext);
+
+                TempCount++;
 #if 0
                 uint64 EndCycles = __rdtsc();
                 
