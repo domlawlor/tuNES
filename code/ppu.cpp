@@ -36,7 +36,13 @@ struct ppu
     uint16 FullVRamAdrsIO;
     uint8 PrevAdrsWriteCount;
     uint8 PrevDataWriteCount;
+
+    uint16 ScanLine;
+
+    uint16 VRamIOAdrs;
 };
+
+
 
 /* TODO: Extract these to a struct.
    uint16 NameTableAddress;
@@ -53,6 +59,23 @@ struct ppu
    uint8 ColourIntensity;
 */
 
+internal uint8 readPpuMemory8(uint16 Address, uint64 MemoryOffset)
+{
+    uint8 Result = readMemory8(Address, MemoryOffset);
+    return(Result);
+}
+internal void writePpuMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+{
+    if(0x4000 <= Address)
+        Address = (Address % 0x4000);
+
+#if 0
+    char TextBuffer[256];
+    _snprintf(TextBuffer, 256, "0x%X: %X\n", Address, Byte);
+    OutputDebugString(TextBuffer);
+#endif
+    writeMemory8(Byte, Address, MemoryOffset);
+}
 
 internal void
 getTempColour(uint8 TileX, uint8 TileY, uint8 *Red, uint8 *Green, uint8 *Blue)
@@ -74,7 +97,16 @@ struct palette
 #define BYTES_PER_PATTERN 16
 #define TILE_COUNT_X 32
 #define TILE_COUNT_Y 30
- 
+
+internal uint8 getColourIndex(uint8 CombinedBits, uint64 MemoryOffset)
+{
+    uint8 Result = {};
+    #define PALETTE_ADDRESS 0x3F00
+    uint8 *ColourPaletteAddress =  (uint8 *)((uint64)(PALETTE_ADDRESS + CombinedBits) + MemoryOffset);
+    Result = *ColourPaletteAddress;
+    return(Result);
+}
+
 internal uint8 getAttribute(ppu *PpuData, uint8 BlockX, uint8 BlockY)
 {
     uint8 Result = {};
@@ -120,7 +152,6 @@ internal uint8 getAttribute(ppu *PpuData, uint8 BlockX, uint8 BlockY)
             Result = AtrbByte & 3;
         }
     }
-    
     return(Result);
 }
 
@@ -151,22 +182,20 @@ internal uint8 getNametableValue(ppu *PpuData, uint8 TileX, uint8 TileY)
     return(*Value);
 }
 
+struct prevDraw
+{
+    bkgrd_pattern Pattern;
+    uint8 PatternIndex;
+    uint8 TileX, TileY;
+    uint8 BlockX, BlockY;
+    bool32 Initialised;
+};
+
+prevDraw Prev = {};
+
 void ppuTick(screen_buffer *BackBuffer, ppu *PpuData)
 {
     ppu_registers *Registers = PpuData->Registers; 
-    
-    if(VRamAdrsWriteCount != PpuData->PrevAdrsWriteCount && VRamAdrsWriteCount > 0)
-        PpuData->FullVRamAdrsIO = (PpuData->FullVRamAdrsIO << 8) | Registers->VRamAddress;
-
-    if((VRamDataWriteCount != PpuData->PrevDataWriteCount) && (VRamDataWriteCount > 0) &&
-       (VRamAdrsWriteCount % 2 == 0))
-    {
-        writeMemory8(Registers->VRamIO, PpuData->FullVRamAdrsIO, PpuData->MemoryOffset);
-        PpuData->FullVRamAdrsIO++;
-    }
-    
-    PpuData->PrevAdrsWriteCount = VRamAdrsWriteCount;
-    PpuData->PrevDataWriteCount = VRamDataWriteCount;
     
     uint8 NameTableFlag = Registers->Ctrl1 & 0x03;
     switch(NameTableFlag)
@@ -240,9 +269,49 @@ void ppuTick(screen_buffer *BackBuffer, ppu *PpuData)
 
     uint8 ColourIntensity = Registers->Ctrl2 >> 5;    
 
+    if(VRamIOAdrsCount > PrevVRamIOAdrsCount)
+    {
+        PpuData->VRamIOAdrs = (PpuData->VRamIOAdrs << 8) | Registers->VRamAddress;
+    }
+    PrevVRamIOAdrsCount = VRamIOAdrsCount;
+    
+    if(VRamIOWriteCount > PrevVRamIOWriteCount)
+    {
+        uint8 Value = Registers->VRamIO;        
+        writePpuMemory8(Value, PpuData->VRamIOAdrs, PpuData->MemoryOffset);
+
+        PpuData->VRamIOAdrs += AddressIncrement;
+    }
+    PrevVRamIOWriteCount = VRamIOWriteCount;
+
+    
+    if(ResetScrollIOAdrs) // TODO: Finish this
+    {
+        ResetScrollIOAdrs = false;
+    }
+    if(ResetVRamIOAdrs)
+    {
+        PpuData->VRamIOAdrs = 0;
+        VRamIOAdrsCount = PrevVRamIOAdrsCount = 0;
+        VRamIOWriteCount = PrevVRamIOWriteCount = 0;        
+        ResetVRamIOAdrs = false;
+    }
     
     
+
     
+    if(!Prev.Initialised)
+    {
+        Prev.Pattern.Group1 = (uint8 *)255;
+        Prev.Pattern.Group2 = (uint8 *)255;
+        Prev.PatternIndex = 255;
+        Prev.TileX = 255;
+        Prev.TileY = 255;
+        Prev.BlockX = 255;
+        Prev.BlockY = 255;
+        Prev.Initialised = true;
+    }
+        
     /*
       Palette is stored at 0x3F00 to 0x3F20
       0x3F00 - 0x3F0F is Image Palette
@@ -266,70 +335,105 @@ void ppuTick(screen_buffer *BackBuffer, ppu *PpuData)
       section.
       
      */
-    
-    PpuData->ZeroPixel = (uint32 *)BackBuffer->Memory;
-    
-    uint8 Red, Green, Blue;
-    uint8 TileX, TileY, PrevTileX = 255, PrevTileY = 255;
-    uint8 BlockX, BlockY, PrevBlockX = 255, PrevBlockY = 255;
 
-    bkgrd_pattern Pattern = {};
-
-    palette CurrentPalette = {};
-
-    TileX = PpuData->CurrentXPixel / 8;
-    TileY = PpuData->CurrentYPixel / 8;
-
-    uint8 PatternIndex, PrevPatternIndex = 255;
+    // 341 PPU cycles in a scanline, and 262 scanlines in a frame
     
-    if((TileX != PrevTileX) || (TileY != PrevTileY))
-        PatternIndex = getNametableValue(PpuData, TileX, TileY);
-    if(PatternIndex != PrevPatternIndex)
-        Pattern = getBkgrdPattern(PpuData, PatternIndex);
-    
-    // NOTE: Pixel relative to a tile
-    uint8 TilePixelX = PpuData->CurrentXPixel % 8;
-    uint8 TilePixelY = PpuData->CurrentYPixel % 8; 
-    
-    PrevTileX = TileX;
-    PrevTileY = TileY;
-    PrevPatternIndex = PatternIndex;
+    if(PpuData->ScanLine == 0)
+    {
+        Registers->Status = Registers->Status & ~(1 << 7); // clear vblank
+        Registers->Status = Registers->Status & ~(1 << 6); // clear sprite0
+        Registers->Status = Registers->Status & ~(1 << 5); // clear spriteOverflow
+    }
+    else if(PpuData->ScanLine > 0 && PpuData->ScanLine < 240)
+    {
+        uint8 Red, Green, Blue;
+        palette Palette = {};
+        
+        // NOTE: Pattern Tile
+        uint8 TileX = PpuData->CurrentXPixel / 8;
+        uint8 TileY = PpuData->CurrentYPixel / 8; 
+        // NOTE: Pixel relative to a tile
+        uint8 TilePixelX = PpuData->CurrentXPixel % 8;
+        uint8 TilePixelY = PpuData->CurrentYPixel % 8;
+        // NOTE: Attribute Block
+        uint8 BlockX = PpuData->CurrentXPixel / 16; 
+        uint8 BlockY = PpuData->CurrentYPixel / 16;
 
+        // NOTE: Retrieve the pattern index for this tile 
+        uint8 PatternIndex;
+        if((TileX != Prev.TileX) || (TileY != Prev.TileY))
+            PatternIndex = getNametableValue(PpuData, TileX, TileY);
+        else
+            PatternIndex = Prev.PatternIndex;
+        
+        Prev.TileX = TileX;
+        Prev.TileY = TileY;
+
+        bkgrd_pattern Pattern;
+
+        // Grab the Pattern data based on the index given
+        if(PatternIndex != Prev.PatternIndex)
+            Pattern = getBkgrdPattern(PpuData, PatternIndex);
+        else
+            Pattern = Prev.Pattern;
+        
+        Prev.PatternIndex = PatternIndex;
+        Prev.Pattern = Pattern;
+
+        uint8 Attribute;
+        if((BlockX != Prev.BlockX) || (BlockX != Prev.BlockY))
+            Attribute = getAttribute(PpuData, BlockX, BlockY);
   
-    BlockX = PpuData->CurrentXPixel / 16; 
-    BlockY = PpuData->CurrentYPixel / 16;    
-
-
-    uint8 Attribute;
-    if((BlockX != PrevBlockX) || (BlockX != PrevBlockY))
-         Attribute = getAttribute(PpuData, BlockX, BlockY);
-  
-    PrevBlockX = BlockX;
-    PrevBlockY = BlockY;
-
+        Prev.BlockX = BlockX;
+        Prev.BlockY = BlockY;
     
-    // NOTE: Each pixel for a pattern has 2 bits for colour. The other 3 bits
-    //       for colour are stored in the attribute table. Each bit is stored
-    //       seperately in two seperate groups. This calculation will retrieve the
-    //       required bit for a specific pixel and combine them to make a 2 bits
-    uint8 Group1Bit = (Pattern.Group1[TilePixelY] >> (7 - TilePixelX)) & 1;
-    uint8 Group2Bit = (Pattern.Group2[TilePixelY] >> (7 - TilePixelX)) & 1;
-    uint8 CombinedBits = Group2Bit << 1 | Group1Bit;
+        // NOTE: Each pixel for a pattern has 2 bits for colour. The other 3 bits
+        //       for colour are stored in the attribute table. Each bit is stored
+        //       seperately in two seperate groups. This calculation will retrieve the
+        //       required bit for a specific pixel and combine them to make a 2 bits
+        uint8 Group1Bit = (Pattern.Group1[TilePixelY] >> (7 - TilePixelX)) & 1;
+        uint8 Group2Bit = (Pattern.Group2[TilePixelY] >> (7 - TilePixelX)) & 1;
+        uint8 CombinedBits = Group2Bit << 1 | Group1Bit;
 
-    uint8 FullAttribute = (Attribute << 2) & CombinedBits;
+        uint8 FullAttribute = (Attribute << 2) & CombinedBits;
 
-    // TODO: This should fetch the Colour index from the image palette at 0x3F00
-    uint8 ColourIndex = CombinedBits;
+        // TODO: This should fetch the Colour index from the image palette at 0x3F00
+        uint8 ColourIndex = getColourIndex(CombinedBits, PpuData->MemoryOffset);
 
-    getPaletteValue(ColourIndex, &Red, &Green, &Blue);
-    uint32 *CurrentPixel = (PpuData->ZeroPixel + (PpuData->CurrentYPixel * BackBuffer->Width)) + PpuData->CurrentXPixel;
+        getPaletteValue(ColourIndex, &Red, &Green, &Blue);
+        uint32 *CurrentPixel = (PpuData->ZeroPixel + (PpuData->CurrentYPixel * BackBuffer->Width)) + PpuData->CurrentXPixel;
          
-    *CurrentPixel  = ((Blue << 16) | (Green << 8) | Red);
+        *CurrentPixel  = ((Blue << 16) | (Green << 8) | Red);
 
-    // Advance to the next pixel,
-    // TODO: Make this a loop that updates once before vblank?
-    if((PpuData->CurrentXPixel + 1) >= BackBuffer->Width)
-        PpuData->CurrentYPixel = (PpuData->CurrentYPixel + 1) % BackBuffer->Height;
-    PpuData->CurrentXPixel = (PpuData->CurrentXPixel + 1) % BackBuffer->Width;
+        uint32 *Test = (PpuData->ZeroPixel);
+        
+        
+        // Advance to the next pixel,
+        // TODO: Make this a loop that updates once before vblank?
+        if((PpuData->CurrentXPixel + 1) >= BackBuffer->Width)
+            PpuData->CurrentYPixel = (PpuData->CurrentYPixel + 1) % BackBuffer->Height;
+        PpuData->CurrentXPixel = (PpuData->CurrentXPixel + 1) % BackBuffer->Width;
+    }
+    else if(PpuData->ScanLine == 240) // Idle
+    {
+        
+    }
+    else if(PpuData->ScanLine == 241) // VBlank Start
+    {
+        
+        Registers->Status = Registers->Status | (1 << 7);
+        /*if(NmiOnVBlank)
+            NMICalled = true;
+        */
+    }
     
+    
+
+    // 1 pre-render scanline,               0
+    // 240 scanlines of picture,            1   - 240
+    // 20 scanlines of VBlank               241 - 261   (70 for PAL)
+    // and finally, 1 dummy scanline        262         (51 for Dendy)
+    
+    ++PpuData->ScanLine;
+    PpuData->ScanLine = PpuData->ScanLine % 262;
 }

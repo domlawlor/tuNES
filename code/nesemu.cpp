@@ -28,18 +28,22 @@ typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
 
+typedef float real32;
+
 typedef size_t mem_idx;
 
+
+// A, B, Select, Start, Up, Down, Left, Right
 struct input {
     enum buttons {
-        B_UP = 0,
+        B_A = 0,
+        B_B,
+        B_SELECT,
+        B_START,
+        B_UP,
         B_DOWN,
         B_LEFT,
         B_RIGHT,
-        B_A,
-        B_B,
-        B_START,
-        B_SELECT,
 
         BUTTON_NUM
     };    
@@ -60,6 +64,17 @@ struct screen_buffer
 
 global input WinInput = {};
 global bool32 GlobalRunning;
+
+internal real32 getMilliSeconds(uint64 PerfCountFrequency)
+{
+    LARGE_INTEGER Counter;
+    QueryPerformanceCounter(&Counter);
+    
+    uint64 CounterElapsed = Counter.QuadPart;
+    real32 MSElapsed = ((1000.0f * (real32)CounterElapsed) / (real32)PerfCountFrequency);
+
+    return(MSElapsed);
+}
 
 LRESULT CALLBACK
 WinInputCallback(HWND WindowHandle, UINT Message,
@@ -107,49 +122,41 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                     // NOTE: Up and down changes the octave the keys are in
                     case VK_UP:
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_UP] = !WinInput.buttons[input::B_UP];
                         break;
                     }
                     case VK_DOWN:
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_DOWN] = !WinInput.buttons[input::B_DOWN];
                         break;
                     }
                     case VK_LEFT:
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_LEFT] = !WinInput.buttons[input::B_LEFT];
                         break;
                     }
                     case VK_RIGHT:
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_RIGHT] = !WinInput.buttons[input::B_RIGHT];
                         break;
                     }
                     case 'Z':
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_A] = !WinInput.buttons[input::B_A];
                         break;
                     }
                     case 'X':
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_B] = !WinInput.buttons[input::B_B];
                         break;
                     }
                     case VK_RETURN:
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_START] = !WinInput.buttons[input::B_START];
                         break;
                     }
                     case VK_SHIFT:
                     {
-                        OutputDebugString("Up");
                         WinInput.buttons[input::B_SELECT] = !WinInput.buttons[input::B_SELECT];
                         break;
                     }
@@ -231,43 +238,11 @@ internal void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
         Dest[Byte] = Src[Byte];
 }
 
-
-uint8 VRamAdrsWriteCount = 0, VRamDataWriteCount = 0;
-
 internal void writeMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
-{    
+{   
     uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
     *NewAddress = Byte;
 }
-
-uint8 InputReadCount = 0;
-uint8 InputReadMax = 24; 
-
-internal void writeCpuMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
-{
-    // NOTE: Mirrors the address for the 2kb ram 
-    if(0x800 <= Address && Address < 0x2000)
-        Address = Address & (Kilobytes(2) - 1);  // Modulus for values power of 2
-    // NOTE: Mirror for PPU Registers
-    if(0x2008 <= Address && Address < 0x4000)
-        Address = Address & 7; // Modulus, repeates every 8 bytes
-    if(0x8000 < Address || Address == 0x2002)
-        Assert(0); // Writing to Program ROM, bank switching?     
-    
-    if(Address == 0x2006)
-        VRamAdrsWriteCount++;
-    if(Address == 0x2007)
-        VRamDataWriteCount++;
-
-    if(Address == 0x4016 || Address == 0x4017)
-    {
-        Assert(0); // TODO: This means input reading is restarted by strobing register
-    }
-    
-    writeMemory8(Byte, Address, MemoryOffset);
-}
-
-// A, B, Select, Start, Up, Down, Left, Right
 
 internal uint8 readMemory8(uint16 Address, uint64 MemoryOffset)
 {
@@ -276,41 +251,16 @@ internal uint8 readMemory8(uint16 Address, uint64 MemoryOffset)
     return(Value);
 }
 
-internal uint8 readCpuMemory8(uint16 Address, uint64 MemoryOffset)
-{
-    // NOTE: Mirrors the address for the 2kb ram 
-    if(0x800 <= Address && Address < 0x2000)
-        Address = Address & (Kilobytes(2) - 1);  // Modulus for values power of 2
-    // NOTE: Mirror for PPU Registers
-    if(0x2008 <= Address && Address < 0x4000)
-        Address = Address & 7; // Modulus, repeates every 8 bytes        
-
-    
-    uint8 Value = readMemory8(Address, MemoryOffset);
-
-
-    if(Address == 0x2002)
-    {
-        VRamAdrsWriteCount = VRamDataWriteCount = 0; // Clear VRam IO
-        uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
-        *NewAddress = *NewAddress & ~(1 << 7); // Clear bit 7 of status
-    }
-    
-    return(Value);
-}
-
-
-internal uint16 readCpuMemory16(uint16 Address, uint64 MemoryOffset)
-{
-    // NOTE: Little Endian
-    uint8 LowByte = readCpuMemory8(Address, MemoryOffset);
-    uint8 HighByte = readCpuMemory8(Address+1, MemoryOffset);
-        
-    uint16 NewAddress = (HighByte << 8) | LowByte;
-    return(NewAddress);
-}
-
 bool32 NMICalled = false;
+bool32 ResetScrollIOAdrs = false;
+bool32 ResetVRamIOAdrs = false;
+
+uint8 VRamIOAdrsCount = 0;
+uint8 PrevVRamIOAdrsCount;
+
+uint8 VRamIOWriteCount = 0;
+uint8 PrevVRamIOWriteCount;
+
 
 // TODO: This will change location once other functions above get relocated.
 #include "cpu.cpp"
@@ -323,8 +273,6 @@ internal void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
     *Width = ClientRect.right - ClientRect.left;
     *Height = ClientRect.bottom - ClientRect.top;
 }
-
-
 
     
 internal void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
@@ -363,8 +311,6 @@ internal void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
                   DIB_RGB_COLORS, SRCCOPY);
 }
 
-
-
 int CALLBACK
 WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
         LPSTR CommandLine, int CommandShow)
@@ -381,7 +327,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 
     cpu CpuData = {};
     CpuData.MemoryOffset = (uint64)Memory; 
-
+    CpuData.Registers.StackPtr = 0xFF;
     
     ppu PpuData = {};    
     PpuData.MemoryOffset = (uint64)Memory + Kilobytes(64);
@@ -392,7 +338,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     
     
     // Reading rom file
-    char * Filename = "Pacman.nes";
+    char * Filename = "Baseball.nes";
     uint32 FileSize;
     uint8 *RomData = (uint8 *)LoadFile(Filename, &FileSize);
 
@@ -491,6 +437,10 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
+
+    PpuData.ZeroPixel = (uint32 *)ScreenBackBuffer.Memory;
+
+
     
     // Window Creation
     WNDCLASSA WindowClass = {};
@@ -498,6 +448,11 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     WindowClass.lpfnWndProc = WinInputCallback;
     WindowClass.hInstance = WindowInstance;
     WindowClass.lpszClassName = "NesEmu";
+
+    LARGE_INTEGER WinPerfCountFrequency;
+    QueryPerformanceFrequency(&WinPerfCountFrequency); 
+    uint64 PerfCountFrequency = WinPerfCountFrequency.QuadPart;            
+
     
     if(RegisterClassA(&WindowClass))
     {
@@ -514,9 +469,10 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             
             // TODO: Must run the emulation at the same speed as the nes would.
             GlobalRunning = true;
-
-            uint16 TempCount = 0;
             
+                        
+            real32 CurrentMS, PrevMS = getMilliSeconds(PerfCountFrequency);
+            real32 ElapsedMS = 0;
             while(GlobalRunning)
             {
                 MSG Message = {}; 
@@ -526,10 +482,6 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     DispatchMessage(&Message);
                 }
 
-                
-                
-                if(TempCount == 0xFF)
-                    NMICalled = true;
                 cpuTick(&CpuData);
                 // TODO: Timing is not complete
                 //       Cpu opcodes execute in a different number of cycles
@@ -538,7 +490,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 {
                     ppuTick(&ScreenBackBuffer, &PpuData);
                 }
-                
+          
                 getWindowSize(Window, &WindowWidth, &WindowHeight);
                 
                 // NOTE: Drawing the backbuffer to the window 
@@ -547,7 +499,25 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                                  WindowWidth, WindowHeight);
                 ReleaseDC(Window, DeviceContext);
 
-                TempCount++;
+                CurrentMS = getMilliSeconds(PerfCountFrequency);
+                ElapsedMS = CurrentMS - PrevMS;
+                PrevMS = CurrentMS;
+            }
+        }
+        else
+        {
+            Assert(0);
+        }
+    }
+    else
+    {
+        Assert(0);
+    }
+    return(0);
+} 
+
+
+
 #if 0
                 uint64 EndCycles = __rdtsc();
                 
@@ -568,17 +538,3 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 LastCounter = EndCounter;
                 LastCycles = EndCycles;
 #endif
-            }   
-        }
-        else
-        {
-            Assert(0);
-        }
-    }
-    else
-    {
-        Assert(0);
-    }
-
-    return(0);
-} 
