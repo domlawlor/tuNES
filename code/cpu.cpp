@@ -8,8 +8,10 @@
 #define NMI_VEC     0xFFFA
 #define RESET_VEC   0xFFFC
 #define IRQ_BRK_VEC 0xFFFE 
+#define INSTRUCTION_COUNT 256
+#define STACK_ADDRESS 0x100
 
-struct cpuRegisters
+struct cpu
 {
     uint8 A;
     uint8 X;
@@ -17,118 +19,11 @@ struct cpuRegisters
     uint8 Flags;
     uint8 StackPtr;
     uint16 PrgCounter;
-};
 
-struct cpu
-{
-    cpuRegisters Registers;
     uint64 MemoryOffset;
-    uint8 LastTickCycles;
 };
 
-struct cpuLog
-{
-    uint16 ProgramLine;
-    uint8 Instr;
-    uint8 InstrValue1;
-    uint8 InstrValue2;
-    char *InstrName;
-    uint16 InstrAddress;
-    uint8 AddressValue;
-    uint8 BytesRead;
-};                                 
-
-global cpuLog Log;
-
-inline void setCarry(uint8 *Flags)
-{
-    *Flags = *Flags | 1;
-}
-inline void clearCarry(uint8 *Flags)
-{
-    *Flags = *Flags & ~1;
-}
-inline void setZero(uint8 Value, uint8 *Flags)
-{
-    if(Value == 0x00)
-        *Flags = *Flags | (1 << 1); // Set zero flag
-    else
-        *Flags = *Flags & ~(1 << 1);
-}
-inline void setInterrupt(uint8 *Flags)
-{
-    *Flags = *Flags | (1 << 2);
-}
-inline void clearInterrupt(uint8 *Flags)
-{
-    *Flags = *Flags & ~(1 << 2);
-}
-inline void clearDecimal(uint8 *Flags)
-{
-    *Flags = *Flags & ~(1 << 3);
-}
-inline void setBreak(uint8 *Flags)
-{
-    *Flags = *Flags | (1 << 4);
-}
-inline void clearBreak(uint8 *Flags)
-{
-    *Flags = *Flags & ~(1 << 4);
-}
-inline void setOverflow(uint8 *Flags)
-{
-    *Flags = *Flags | (1 << 6);
-}
-inline void clearOverflow(uint8 *Flags)
-{
-    *Flags = *Flags & ~(1 << 6);
-}
-inline void setNegative(uint8 Value, uint8 *Flags)
-{  
-    if(Value >= 0x00 && Value <= 0x7F)
-        *Flags = *Flags & ~(1 << 7); // clear negative flag
-    else
-        *Flags = *Flags | (1 << 7); // set negative flag
-}
-
-
-enum STATUS_BITS
-{
-    CARRY_BIT = 0,
-    ZERO_BIT,
-    INTERRUPT_BIT,
-    DECIMAL_BIT,
-    BREAK_BIT,
-    BLANK_BIT,
-    OVERFLOW_BIT,
-    NEGATIVE_BIT
-};
-
-internal bool32 isBitSet(STATUS_BITS Bit, uint8 Flags)
-{
-    if(Bit == CARRY_BIT)
-        return(Flags & 1);
-    if(Bit == ZERO_BIT)
-        return(Flags & (1 << 1));
-    if(Bit == INTERRUPT_BIT)
-        return(Flags & (1 << 2));
-    if(Bit == DECIMAL_BIT)
-        return(Flags & (1 << 3));
-    if(Bit == BREAK_BIT)
-        return(Flags & (1 << 4));
-    if(Bit == BLANK_BIT)
-        return(Flags & (1 << 5));
-    if(Bit == OVERFLOW_BIT)
-        return(Flags & (1 << 6));
-    if(Bit == NEGATIVE_BIT)
-        return(Flags & (1 << 7));
-
-    Assert(0);
-    return(0);
-}
-
-
-internal uint8 readCpuMemory8(uint16 Address, uint64 MemoryOffset)
+internal uint8 readCpu8(uint16 Address, uint64 MemoryOffset)
 {
     // NOTE: Mirrors the address for the 2kb ram 
     if(0x800 <= Address && Address < 0x2000)
@@ -138,40 +33,24 @@ internal uint8 readCpuMemory8(uint16 Address, uint64 MemoryOffset)
         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
     
     if(Address == 0x2007) // Reading from the IO of ppu. First read is junk, unless its the colour palette
-    {
-        // 0x0000 - 0x3EFF    First read will be junk, second read will return actual value
-        // 0x3F00 - 0x3FFF    This read will always return straight away.
-        uint8 temp= 1;
-    }
+        IOReadFromCpu = true;
         
-    uint8 Value = readMemory8(Address, MemoryOffset);
+    uint8 Value = read8(Address, MemoryOffset);
             
-    if(Address == 0x2002) // Read status will reset the IO registers
+    if(Address == 0x2002)
     {
-        // Will reset 2005 and 2006 registers, and turn off bit 7 of 0x2002
+        // NOTE: Will reset 2005 and 2006 registers, and turn off bit 7 of 0x2002
         ResetScrollIOAdrs = true;
         ResetVRamIOAdrs = true;
         
         uint8 ResetValue = Value & ~(1 << 7);
-        writeMemory8(ResetValue, Address, MemoryOffset);
+        write8(ResetValue, Address, MemoryOffset);
     }
     
     return(Value);
 }
 
-
-internal uint16 readCpuMemory16(uint16 Address, uint64 MemoryOffset)
-{
-    // NOTE: Little Endian
-    uint8 LowByte = readCpuMemory8(Address, MemoryOffset);
-    uint8 HighByte = readCpuMemory8(Address+1, MemoryOffset);
-        
-    uint16 NewAddress = (HighByte << 8) | LowByte;
-    return(NewAddress);
-}
-
-
-internal void writeCpuMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+internal void writeCpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
 {
     // NOTE: Mirrors the address for the 2kb ram 
     if(0x800 <= Address && Address < 0x2000)
@@ -180,1298 +59,393 @@ internal void writeCpuMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
     if(0x2008 <= Address && Address < 0x4000)
         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
     if(0x8000 < Address || Address == 0x2002)
-        Assert(0); // Writing to Program ROM, bank switching?     
-
+        Assert(0); // TODO: Writing to Program ROM, bank switching?     
     
-    writeMemory8(Byte, Address, MemoryOffset);
+    write8(Byte, Address, MemoryOffset);
     
     if(Address == 0x2005) // Scroll address
-    {
-//        Assert(0);
-    }
-    
+        ScrollAdrsChange = true;
     if(Address == 0x2006) // Writing to ppu io address register
-    {
-        VRamIOAdrsCount++;
-    }
+        VRamAdrsChange = true;
     if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
+        VRamIOChange = true;
+}
+
+internal uint16 readCpu16(uint16 Address, uint64 MemoryOffset)
+{
+    // NOTE: Little Endian
+    uint8 LowByte = readCpu8(Address, MemoryOffset);
+    uint8 HighByte = readCpu8(Address+1, MemoryOffset);
+        
+    uint16 NewAddress = (HighByte << 8) | LowByte;
+    return(NewAddress);
+}
+
+
+internal uint16 bugReadCpu16(uint16 Address, uint64 MemoryOffset)
+{
+    // NOTE: This is a bug in the nes 6502 that will wrap the value instead of going to new page.
+    //       Only happens with indirect addressing.
+    
+    uint8 LowByte = readCpu8(Address, MemoryOffset);
+    uint16 Byte2Adrs = (Address & 0xFF00) | (uint16)((uint8)(Address + 1));
+    uint8 HighByte = readCpu8(Byte2Adrs, MemoryOffset);
+        
+    uint16 NewAddress = (HighByte << 8) | LowByte;
+    return(NewAddress);
+}
+/*
+internal void writeCpu16(uint16 Bytes, uint16 Address, uint64 MemoryOffset)
+{
+    writeCpu8((Bytes >> 8), Address, MemoryOffset);
+    writeCpu8(Bytes, Address, MemoryOffset);
+}
+*/
+
+internal void push(uint8 Byte, cpu *Cpu)
+{
+    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryOffset);
+    --Cpu->StackPtr;  
+}
+internal uint8 pop(cpu *Cpu)
+{
+    ++Cpu->StackPtr;
+    uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryOffset);
+    return(Value);
+}
+
+
+#define CARRY_BIT     0x01
+#define ZERO_BIT      0x02
+#define INTERRUPT_BIT 0x04
+#define DECIMAL_BIT   0x08
+#define BREAK_BIT     0x10
+#define BLANK_BIT     0x20
+#define OVERFLOW_BIT  0x40
+#define NEGATIVE_BIT  0x80
+inline void setCarry(uint8 *Flags)      { *Flags = *Flags | CARRY_BIT; }
+inline void clearCarry(uint8 *Flags)    { *Flags = *Flags & ~CARRY_BIT; }
+inline void setInterrupt(uint8 *Flags)  { *Flags = *Flags | INTERRUPT_BIT; }
+inline void clearInterrupt(uint8 *Flags){ *Flags = *Flags & ~INTERRUPT_BIT; }
+inline void setDecimal(uint8 *Flags)  { *Flags = *Flags | DECIMAL_BIT; }
+inline void clearDecimal(uint8 *Flags)  { *Flags = *Flags & ~DECIMAL_BIT; }
+inline void setBreak(uint8 *Flags)      { *Flags = *Flags | BREAK_BIT; }
+inline void clearBreak(uint8 *Flags)    { *Flags = *Flags & ~BREAK_BIT; }
+inline void setOverflow(uint8 *Flags)   { *Flags = *Flags | OVERFLOW_BIT; }
+inline void clearOverflow(uint8 *Flags) { *Flags = *Flags & ~OVERFLOW_BIT; }
+inline void setZero(uint8 Value, uint8 *Flags)
+{
+    if(Value == 0x00)
+        *Flags = *Flags | ZERO_BIT;
+    else
+        *Flags = *Flags & ~ZERO_BIT;
+}
+inline void setNegative(uint8 Value, uint8 *Flags)
+{  
+    if(Value >= 0x00 && Value <= 0x7F)
+        *Flags = *Flags & ~NEGATIVE_BIT; // clear negative flag
+    else
+        *Flags = *Flags | NEGATIVE_BIT; // set negative flag
+}
+inline bool32 isBitSet(uint8 Bit, uint8 Flags) { return(Bit & Flags); }
+inline bool32 crossedPageCheck(uint16 Before, uint16 Now) { return((Before & 0xFF00) != (Now & 0xFF00));}
+
+enum addressMode
+{
+    NUL = 0, ACM, IMED,
+    ZERO, ZERX, ZERY,
+    ABS, ABSX, ABSY, IMPL, REL,
+    INDX, INDY, INDI
+};
+
+global uint8 instAddressMode[INSTRUCTION_COUNT] =
+{
+    /*         0     1     2     3     4     5     6     7     8     9     A     B     C     D     E     F  */
+    /*0*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,        
+    /*1*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
+    /*2*/    ABS, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,
+    /*3*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
+    /*4*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,
+    /*5*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
+    /*6*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED, INDI,  ABS,  ABS,  ABS,
+    /*7*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
+    /*8*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
+    /*9*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERY, ZERY, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSY, ABSY,
+    /*A*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
+    /*B*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERY, ZERY, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSY, ABSY,
+    /*C*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
+    /*D*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
+    /*E*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
+    /*F*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
+};
+
+global uint8 instLength[INSTRUCTION_COUNT] =
+{
+    /*      0 1 2 3 4 5 6 7 8 9 A B C D E F      */
+    /*0*/   1,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*1*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+    /*2*/   3,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*3*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+    /*4*/   1,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*5*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+    /*6*/   1,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*7*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+    /*8*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*9*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+    /*A*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*B*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+    /*C*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*D*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+    /*E*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*F*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
+};
+
+global char * instName[INSTRUCTION_COUNT] =
+{
+    /*         0     1     2     3     4     5     6     7     8     9     A     B     C     D     E     F        */
+    /*0*/  "BRK","ORA","KIL","SLO","NOP","ORA","ASL","SLO","PHP","ORA","ASL","ANC","NOP","ORA","ASL","SLO",
+    /*1*/  "BPL","ORA","KIL","SLO","NOP","ORA","ASL","SLO","CLC","ORA","NOP","SLO","NOP","ORA","ASL","SLO",
+    /*2*/  "JSR","AND","KIL","RLA","BIT","AND","ROL","RLA","PLP","AND","ROL","ANC","BIT","AND","ROL","RLA", 
+    /*3*/  "BMI","AND","KIL","RLA","NOP","AND","ROL","RLA","SEC","AND","NOP","RLA","NOP","AND","ROL","RLA",
+    /*4*/  "RTI","EOR","KIL","SRE","NOP","EOR","LSR","SRE","PHA","EOR","LSR","ALR","JMP","EOR","LSR","SRE",
+    /*5*/  "BVC","EOR","KIL","SRE","NOP","EOR","LSR","SRE","CLI","EOR","NOP","SRE","NOP","EOR","LSR","SRE",
+    /*6*/  "RTS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","PLA","ADC","ROR","ARR","JMP","ADC","ROR","RRA",
+    /*7*/  "BVS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","SEI","ADC","NOP","RRA","NOP","ADC","ROR","RRA",
+    /*8*/  "NOP","STA","NOP","SAX","STY","STA","STX","SAX","DEY","NOP","TXA","XAA","STY","STA","STX","SAX",
+    /*9*/  "BCC","STA","KIL","AHX","STY","STA","STX","SAX","TYA","STA","TXS","TAS","SHY","STA","SHX","AHX",
+    /*A*/  "LDY","LDA","LDX","LAX","LDY","LDA","LDX","LAX","TAY","LDA","TAX","LAX","LDY","LDA","LDX","LAX",
+    /*B*/  "BCS","LDA","KIL","LAX","LDY","LDA","LDX","LAX","CLV","LDA","TSX","LAS","LDY","LDA","LDX","LAX",
+    /*C*/  "CPY","CMP","NOP","DCP","CPY","CMP","DEC","DCP","INY","CMP","DEX","AXS","CPY","CMP","DEC","DCP",
+    /*D*/  "BNE","CMP","KIL","DCP","NOP","CMP","DEC","DCP","CLD","CMP","NOP","DCP","NOP","CMP","DEC","DCP",
+    /*E*/  "CPX","SBC","NOP","ISC","CPX","SBC","INC","ISC","INX","SBC","NOP","SBC","CPX","SBC","INC","ISC",
+    /*F*/  "BEQ","SBC","KIL","ISC","NOP","SBC","INC","ISC","SED","SBC","NOP","ISC","NOP","SBC","INC","ISC"
+};
+
+global uint8 instCycles[INSTRUCTION_COUNT] =
+{
+    /*     0 1 2 3 4 5 6 7 8 9 A B C D E F      */
+    /*0*/  7,6,0,8,3,3,5,5,3,2,2,2,4,4,6,6,
+    /*1*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7, 
+    /*2*/  6,6,0,8,3,3,5,5,4,2,2,2,4,4,6,6,
+    /*3*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*4*/  6,6,0,8,3,3,5,5,3,2,2,2,3,4,6,6,
+    /*5*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*6*/  6,6,0,8,3,3,5,5,4,2,2,2,5,4,6,6,
+    /*7*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*8*/  2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
+    /*9*/  2,6,0,6,4,4,4,4,2,5,2,5,5,5,5,5,
+    /*A*/  2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
+    /*B*/  2,5,0,5,4,4,4,4,2,4,2,4,4,4,4,4,
+    /*C*/  2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
+    /*D*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
+    /*E*/  2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
+    /*F*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7
+};
+
+global uint8 instBoundaryCheck[INSTRUCTION_COUNT] =
+{
+    /*     0 1 2 3 4 5 6 7 8 9 A B C D E F      */
+    /*0*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*1*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
+    /*2*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*3*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
+    /*4*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*5*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
+    /*6*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*7*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
+    /*8*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*9*/  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*A*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*B*/  1,1,0,1,0,0,0,0,0,1,0,1,1,1,1,1,
+    /*C*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*D*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
+    /*E*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+    /*F*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
+};
+
+#include "operations.cpp"
+
+uint8 (*instrOps[INSTRUCTION_COUNT])(uint16 Address, cpu *Cpu, uint8 AddressMode) =
+{
+    /*         0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F        */
+    /*0*/    brk,ora,kil,slo,nop,ora,asl,slo,php,ora,asl,anc,nop,ora,asl,slo,
+    /*1*/    bpl,ora,kil,slo,nop,ora,asl,slo,clc,ora,nop,slo,nop,ora,asl,slo,
+    /*2*/    jsr,AND,kil,rla,bit,AND,rol,rla,plp,AND,rol,anc,bit,AND,rol,rla,
+    /*3*/    bmi,AND,kil,rla,nop,AND,rol,rla,sec,AND,nop,rla,nop,AND,rol,rla,
+    /*4*/    rti,eor,kil,sre,nop,eor,lsr,sre,pha,eor,lsr,alr,jmp,eor,lsr,sre,
+    /*5*/    bvc,eor,kil,sre,nop,eor,lsr,sre,cli,eor,nop,sre,nop,eor,lsr,sre,
+    /*6*/    rts,adc,kil,rra,nop,adc,ror,rra,pla,adc,ror,arr,jmp,adc,ror,rra,
+    /*7*/    bvs,adc,kil,rra,nop,adc,ror,rra,sei,adc,nop,rra,nop,adc,ror,rra,
+    /*8*/    nop,sta,nop,sax,sty,sta,stx,sax,dey,nop,txa,xaa,sty,sta,stx,sax,
+    /*9*/    bcc,sta,kil,ahx,sty,sta,stx,sax,tya,sta,txs,tas,shy,sta,shx,ahx,
+    /*A*/    ldy,lda,ldx,lax,ldy,lda,ldx,lax,tay,lda,tax,lax,ldy,lda,ldx,lax,
+    /*B*/    bcs,lda,kil,lax,ldy,lda,ldx,lax,clv,lda,tsx,las,ldy,lda,ldx,lax,
+    /*C*/    cpy,cmp,nop,dcp,cpy,cmp,dec,dcp,iny,cmp,dex,axs,cpy,cmp,dec,dcp,
+    /*D*/    bne,cmp,kil,dcp,nop,cmp,dec,dcp,cld,cmp,nop,dcp,nop,cmp,dec,dcp,
+    /*E*/    cpx,sbc,nop,isc,cpx,sbc,inc,isc,inx,sbc,nop,sbc,cpx,sbc,inc,isc,
+    /*F*/    beq,sbc,kil,isc,nop,sbc,inc,isc,sed,sbc,nop,isc,nop,sbc,inc,isc
+};
+
+
+internal uint8 nmi(cpu *Cpu)
+{
+    uint8 Cycles = 7;
+    
+    uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
+    uint8 LowByte = (uint8)Cpu->PrgCounter; 
+    push(HighByte, Cpu);
+    push(LowByte, Cpu);
+    
+    push(Cpu->Flags, Cpu); // TODO: Check if I push the flags on with any changes??
+    setInterrupt(&Cpu->Flags);
+
+    Cpu->PrgCounter = readCpu16(NMI_VEC, Cpu->MemoryOffset);
+    return(Cycles);
+}
+
+internal uint8 irq(cpu *Cpu)
+{
+    uint8 Cycles = 7;
+    
+    uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
+    uint8 LowByte = (uint8)Cpu->PrgCounter; 
+    push(HighByte, Cpu);
+    push(LowByte, Cpu);
+    
+    push(Cpu->Flags, Cpu); // TODO: Check if I push the flags on with any changes??
+    setInterrupt(&Cpu->Flags);
+
+    Cpu->PrgCounter = readCpu16(IRQ_BRK_VEC, Cpu->MemoryOffset);
+    return(Cycles);
+}
+
+
+internal uint8 cpuTick(cpu *Cpu)
+{
+    uint64 MemoryOffset = Cpu->MemoryOffset;
+    uint8 CyclesElapsed = 0;
+
+    uint16 Address = 0;
+    bool32 CrossedPage = 0;
+ 
+    uint8 Instruction = readCpu8(Cpu->PrgCounter, MemoryOffset);
+    uint8 AddressMode = instAddressMode[Instruction];
+    uint8 InstrLength = instLength[Instruction];
+    char *InstrName = instName[Instruction];
+    uint8 InstCycles = instCycles[Instruction];
+
+    uint8 InstrData[3]; // Stores data for each instruction
+    for(int i = 0; i < InstrLength; ++i)
     {
-        VRamIOWriteCount++; 
+        InstrData[i] = readCpu8(Cpu->PrgCounter + i, MemoryOffset); 
     }
-}
-
-void adc(uint8 Value, cpuRegisters* Registers)
-{    
-    uint8 CarryIn = (Registers->Flags & 1);            
-    uint8 AddedValue = Registers->A + Value + CarryIn;
-
-    bool32 ValueBit7 = Value & (1 << 7);
-    bool32 RegABit7 = Registers->A & (1 << 7);
-    bool32 ResultBit6 = AddedValue & (1 << 6);
-
-    if((!ValueBit7 && !RegABit7 && ResultBit6) || (ValueBit7 && RegABit7 && !ResultBit6))
-        setOverflow(&Registers->Flags);
-    else
-        clearOverflow(&Registers->Flags);
-
-    if((!ValueBit7 && RegABit7 && ResultBit6)  || (ValueBit7 && !RegABit7 && ResultBit6) ||
-       (ValueBit7 &&  RegABit7 && !ResultBit6) || (ValueBit7 &&  RegABit7 && ResultBit6))
-        setCarry(&Registers->Flags);
-    else
-        clearCarry(&Registers->Flags);
-    
-    setNegative(AddedValue, &Registers->Flags);
-    setZero(AddedValue, &Registers->Flags);
-}
-void sbc(uint8 Value, cpuRegisters* Registers)
-{
-    adc(~Value, Registers);
-}
-            
-void cmp(uint8 Value, uint8 Register, uint8 *Flags)
-{
-    uint8 CmpValue = Register - Value;
-                        
-    setNegative(CmpValue, Flags);
-    setZero(CmpValue, Flags);
-                        
-    if(Register < Value)
+        
+    switch(AddressMode)
     {
-        clearCarry(Flags);
-    }
-    else
-        setCarry(Flags);
-}
-
-inline uint8 immediate(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint8 Value = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-
-    Log.InstrValue1 = Value;
-    Log.InstrAddress = Value;
-    
-    return(Value);
-}
-inline uint8 zeroPage(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint8 Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-    uint8 Value = readCpuMemory8(Address, MemoryOffset);
-
-    Log.InstrAddress = Log.InstrValue1 = Address;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline uint8 zeroPageX(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint8 Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-    uint8 AddressBefore = Address;
-    Address += Registers->X;
-    uint8 Value = readCpuMemory8(Address, MemoryOffset);
-
-    Log.InstrValue1 = AddressBefore;
-    Log.InstrAddress = Address;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline uint8 zeroPageY(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint8 Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-    uint8 AddressBefore = Address;
-    Address += Registers->Y;
-    uint8 Value = readCpuMemory8(Address, MemoryOffset);
-
-    Log.InstrValue1 = AddressBefore;
-    Log.InstrAddress = Address;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline uint8 abs(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint16 Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-    uint8 Value = readCpuMemory8(Address, MemoryOffset);
-
-    Log.InstrValue1 = Address;
-    Log.InstrValue2 = Address >> 8;
-    Log.InstrAddress = Address;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline uint8 absX(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint16 Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-    uint16 NewAdrs = Address + Registers->X;
-    uint8 Value = readCpuMemory8(NewAdrs, MemoryOffset);
-
-    
-    Log.InstrValue1 = Address;
-    Log.InstrValue2 = Address >> 8;
-    Log.InstrAddress = NewAdrs;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline uint8 absY(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint16 Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-    uint16 NewAdrs = Address + Registers->Y;
-    uint8 Value = readCpuMemory8(NewAdrs, MemoryOffset);
-
-    
-    Log.InstrValue1 = Address;
-    Log.InstrValue2 = Address >> 8;
-    Log.InstrAddress = NewAdrs;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline uint8 indirectX(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint8 ZeroAddress = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-    uint8 NewAddress = ZeroAddress + Registers->X;
-    uint16 IndirectAddress = readCpuMemory16(NewAddress, MemoryOffset);
-    uint8 Value = readCpuMemory8(IndirectAddress, MemoryOffset);
-
-    Log.InstrValue1 = ZeroAddress;
-    Log.InstrAddress = IndirectAddress;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline uint8 indirectY(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    uint8 ZeroAddress = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset); 
-    uint16 IndirectAddress = readCpuMemory16(ZeroAddress, MemoryOffset);
-    uint16 FinalAddress = IndirectAddress + Registers->Y;
-    uint8 Value = readCpuMemory8(FinalAddress, MemoryOffset);
-   
-    Log.InstrValue1 = ZeroAddress;
-    Log.InstrAddress = FinalAddress;
-    Log.AddressValue = Value;
-    
-    return(Value);
-}
-inline int8 relative(cpuRegisters *Registers, uint64 MemoryOffset)
-{
-    int8 Value = (int8)readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-
-    Log.InstrValue1 = Value;
-    Log.InstrAddress = Value;
-    
-    return(Value);
-}
-
-
-#define STACK_ADRS 0x100
-
-internal void pushStack(uint8 Byte, uint8 *StackPointer, uint64 MemoryOffset)
-{
-    uint8 *Address = (uint8 *)((*StackPointer + STACK_ADRS) + MemoryOffset);
-    *Address = Byte;
-    *StackPointer -= 1;  
-}
-internal uint8 popStack(uint8 *StackPointer, uint64 MemoryOffset)
-{
-    *StackPointer += 1;    
-    uint8 *Address = (uint8 *)((*StackPointer + STACK_ADRS) + MemoryOffset);
-    uint8 Value = *Address;
-    *Address = 0;
-    return(Value);
-}
-
-
-
-
-internal void cpuTick(cpu *CpuData)
-{
-    cpuRegisters *Registers = &CpuData->Registers;
-    uint8 *CyclesElapsed = &CpuData->LastTickCycles;
-    uint64 MemoryOffset = CpuData->MemoryOffset; 
-    
-    Log = {};
-    Log.ProgramLine = Registers->PrgCounter;   
-    
-    uint8 BytesRead = 0;
-    
-    uint8 CurrentInstr = readMemory8(Registers->PrgCounter, MemoryOffset);                
-    Log.Instr = CurrentInstr;
-
-    static uint64 linecount = 0;
-    uint64 WantedDebugLine = 330;
-    if(linecount == WantedDebugLine)
-        uint8 Break = 1;
-    
-    switch(CurrentInstr)
-    {
-        case 0x00: // BRK - Break
+        case ACM:
+            break;            
+        case IMPL:
+            break;
+        case IMED:
+            Address = Cpu->PrgCounter + 1;
+            break;
+        case ZERO:
+            Address = (uint16)InstrData[1];
+            break;
+        case ZERX:
+            Address = (uint16)InstrData[1] + Cpu->X;
+            break;
+        case ZERY:
+            Address = (uint16)InstrData[1] + Cpu->Y;
+            break;
+        case ABS:
+            Address = ((uint16)InstrData[2] << 8) | InstrData[1];
+            break;
+        case ABSX:
+            Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->X;
+            CrossedPage = crossedPageCheck(Address - Cpu->X, Address);
+            break;
+        case ABSY:
+            Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->Y;
+            CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
+            break;
+        case REL:
         {
-            Assert(0); // NOTE: Very few games call break, if hit here, then likely to be a bug
-            Registers->PrgCounter += 2;
-            uint8 HighByte = (uint8)(Registers->PrgCounter >> 8);
-            uint8 LowByte = (uint8)Registers->PrgCounter;
-
-            pushStack(HighByte, &Registers->StackPtr, MemoryOffset);
-            pushStack(LowByte, &Registers->StackPtr, MemoryOffset);
-
-            setBreak(&Registers->Flags);
-            setInterrupt(&Registers->Flags);
-            pushStack(Registers->Flags, &Registers->StackPtr, MemoryOffset);
-            
-            Registers->PrgCounter = readCpuMemory16(IRQ_BRK_VEC, MemoryOffset);
-           
-            BytesRead = 0; // TODO: Check this
-            *CyclesElapsed = 7;
-
-            Log.InstrValue1 = (uint8) Registers->PrgCounter;
-            Log.InstrValue2 = (uint8) (Registers->PrgCounter >> 8);
-            Log.InstrName = "BRK";
-            Log.InstrAddress = Registers->PrgCounter;
-            Log.BytesRead = 3;
+            int8 RelOffset = InstrData[1];
+            Address = Cpu->PrgCounter + 2 + RelOffset;
             break;
         }
-        case 0x40: // RTI - Return from Interrupt
+        case INDX:
         {
-            Registers->Flags = popStack(&Registers->StackPtr, MemoryOffset);
-            clearInterrupt(&Registers->Flags);
-            
-            uint8 LowBytes = popStack(&Registers->StackPtr, MemoryOffset);
-            uint8 HighBytes = popStack(&Registers->StackPtr, MemoryOffset);
-            Registers->PrgCounter = (HighBytes << 8) | LowBytes;
-            
-            BytesRead = 0;
-            *CyclesElapsed = 6;
-
-            Log.BytesRead = 1;
-            Log.InstrName = "RTI";
-            break;
-        }               
-                    
-        case 0x20: // JSR - Jump to subroutine
-        {
-            uint16 NewAddress = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-                        
-            uint16 PrevAdrs = Registers->PrgCounter + 2; // Push the next opcode onto the stack                            
-            uint8 HighByte = (uint8)(PrevAdrs >> 8);
-            uint8 LowByte = (uint8)PrevAdrs;
-      
-            // Push onto stack, little endian
-            pushStack(HighByte, &Registers->StackPtr, MemoryOffset);
-            pushStack(LowByte, &Registers->StackPtr, MemoryOffset);
-
-            Registers->PrgCounter = NewAddress;
-            BytesRead = 0; // Moved to the next instruction already
-            *CyclesElapsed = 6;
-
-            
-            Log.InstrValue1 = (uint8) NewAddress;
-            Log.InstrValue2 = (uint8) (NewAddress >> 8);
-            Log.InstrAddress = Registers->PrgCounter;
-            Log.BytesRead = 3;
-            Log.InstrName = "JSR";
+            uint8 ZeroAddress = InstrData[1];
+            Address = bugReadCpu16(ZeroAddress + Cpu->X, Cpu->MemoryOffset);
             break;
         }
-        case 0x60: // RTS - Return from subroutine
+        case INDY:
         {
-            uint8 LowByte = popStack(&Registers->StackPtr, MemoryOffset);
-            uint8 HighByte = popStack(&Registers->StackPtr, MemoryOffset);
-            Registers->PrgCounter = ((uint16)HighByte << 8) | (uint16)LowByte;
-            
-            BytesRead = 1;
-            *CyclesElapsed = 6;
-            
-            Log.InstrName = "RTS";
+            uint8 ZeroAddress = InstrData[1];
+            Address = bugReadCpu16(ZeroAddress, Cpu->MemoryOffset) + Cpu->Y;
+            CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
             break;
         }
-                    
-        case 0x4C: // JMP(Absolute) - Jump
+        case INDI:
         {
-            uint16 NewAddress = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-            Registers->PrgCounter = NewAddress;
-            BytesRead = 0;
-            *CyclesElapsed = 3;
-
-            Log.InstrValue1 = (uint8) NewAddress;
-            Log.InstrValue2 = (uint8) (NewAddress >> 8);
-            Log.InstrAddress = Registers->PrgCounter;
-            Log.BytesRead = 3;
-            Log.InstrName = "JMP";
+            uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
+            Address = bugReadCpu16(IndirectAddress, Cpu->MemoryOffset);
             break;
         }
-        case 0x6C: // JMP(Indirect)
+        case NUL:
         {
-            uint16 IndirectAddress = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-            if((IndirectAddress & 0x00FF) == 0xFF)
-                Assert(0); // TODO: If this ever hits then was on boundary of page. Fix how nes does this
-            uint16 NewAddress = readCpuMemory16(IndirectAddress, MemoryOffset);
-            
-            Registers->PrgCounter = NewAddress;
-            
-            BytesRead = 0;
-            *CyclesElapsed = 5;
-            
-            Log.InstrValue1 = (uint8) IndirectAddress;
-            Log.InstrValue2 = (uint8) (IndirectAddress >> 8);
-            Log.InstrAddress = Registers->PrgCounter;
-            Log.BytesRead = 3;
-            Log.InstrName = "JMP";
-            break;
-        }
-        
-        // Branch Instructions 
-        case 0x10: case 0x30: case 0x50: case 0x70: case 0x90: case 0xB0: case 0xD0: case 0xF0:
-        {
-            BytesRead = 2;
-            *CyclesElapsed = 2;
-
-            uint8 StatusFlag = Registers->Flags;
-            
-            if( (CurrentInstr == 0x10 && !isBitSet(NEGATIVE_BIT, StatusFlag)) || // BPL - Negative is clear
-                (CurrentInstr == 0x30 &&  isBitSet(NEGATIVE_BIT, StatusFlag)) || // BMI - Negative is set
-                (CurrentInstr == 0x50 && !isBitSet(OVERFLOW_BIT, StatusFlag)) || // BVC - Overflow is clear
-                (CurrentInstr == 0x70 &&  isBitSet(OVERFLOW_BIT, StatusFlag)) || // BVS - Overflow is set
-                (CurrentInstr == 0x90 && !isBitSet(CARRY_BIT, StatusFlag))    || // BCC - Carry is clear
-                (CurrentInstr == 0xB0 &&  isBitSet(CARRY_BIT, StatusFlag))    || // BCS - Carry is set
-                (CurrentInstr == 0xD0 && !isBitSet(ZERO_BIT, StatusFlag))     || // BNE - Zero is clear
-                (CurrentInstr == 0xF0 &&  isBitSet(ZERO_BIT, StatusFlag)) )      // BEQ - Zero is set
-            {
-                int8 RelAddress = relative(Registers, MemoryOffset);
-                Registers->PrgCounter += RelAddress; // Plus two to next instruction
-                *CyclesElapsed += 1; // TODO: Add cycles for crossings boundaries
-            }
-            Log.InstrName = "BRC";
-            break;
-        }
-        
-        // NOTE: Load Memory Operations
-             
-        case 0xA9: case 0xA5: case 0xB5: case 0xAD: case 0xBD:   // LDA
-        case 0xB9: case 0xA1: case 0xB1: 
-        case 0xA2: case 0xA6: case 0xB6: case 0xAE: case 0xBE:   // LDX
-        case 0xA0: case 0xA4: case 0xB4: case 0xAC: case 0xBC:   // LDY   
-        {
-            uint8 Value;
-            if(CurrentInstr == 0xA9 || CurrentInstr == 0xA2 || CurrentInstr == 0xA0) // Immediate
-            {
-                Value = immediate(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 2;
-            }           
-            if(CurrentInstr == 0xA5 || CurrentInstr == 0xA6 || CurrentInstr == 0xA4) // Zero Page
-            {
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 3;
-            }
-            if(CurrentInstr == 0xB5 || CurrentInstr == 0xB4) // (Zero Page, X)
-            {
-                Value = zeroPageX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 4;
-            }
-            if(CurrentInstr == 0xB6)
-            {
-                Value = zeroPageY(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 4;
-            }
-            if(CurrentInstr == 0xAD || CurrentInstr == 0xAE || CurrentInstr == 0xAC) // Absolute
-            {
-                Value = abs(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4;                        
-            }
-            if(CurrentInstr == 0xBD || CurrentInstr == 0xBC) // Absolute, X
-            {
-                Value = absX(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4; // TODO: Boundary fix                         
-            }
-            if(CurrentInstr == 0xB9 || CurrentInstr == 0xBE) // Absolute, Y
-            {
-                Value = absY(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4; // TODO: Boundary fix                         
-            }
-            if(CurrentInstr == 0xA1) // Indirect, X
-            {
-                Value = indirectX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 6;
-            }
-            if(CurrentInstr == 0xB1) // (Indirect), Y
-            {
-                Value = indirectY(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 5; // TODO: Boundary fix
-            }
-
-            uint8 RegisterToFill;
-            switch(CurrentInstr)
-            {
-                case 0xA9: case 0xA5: case 0xB5: case 0xAD: // Register A
-                case 0xBD: case 0xB9: case 0xA1: case 0xB1: 
-                    Log.InstrName = "LDA";
-                    Registers->A = Value;
-                    break;
-                case 0xA2: case 0xA6: case 0xB6: case 0xAE: case 0xBE: // Register X
-                    Log.InstrName = "LDX";
-                    Registers->X = Value;
-                    break;
-                case 0xA0: case 0xA4: case 0xB4: case 0xAC: case 0xBC: // Register Y
-                    Log.InstrName = "LDY";
-                    Registers->Y = Value;
-                    break;
-                default:
-                    Assert(0);
-                    break;
-            }
-            
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);                        
-            break;
-        }
-
-        // NOTE: Store Memory Operations
-        
-        case 0x85: case 0x95: case 0x8D: case 0x9D: // STA
-        case 0x99: case 0x81: case 0x91:
-        case 0x86: case 0x96: case 0x8E:            // STX
-        case 0x84: case 0x94: case 0x8C:            // STY
-        {
-            uint16 Address = {};
-            
-            if(CurrentInstr == 0x85 || CurrentInstr == 0x86 || CurrentInstr == 0x84) // Zero Page
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 3;
-            }
-            
-            if(CurrentInstr == 0x95 || CurrentInstr == 0x94) // ZeroPage, X
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-                Address += Registers->X;
-                BytesRead = 2;
-                *CyclesElapsed = 4;
-            }
-            if(CurrentInstr == 0x96) // ZeroPage, Y
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-                Address += Registers->Y;
-                BytesRead = 2;
-                *CyclesElapsed = 4;
-            }
-            
-            if(CurrentInstr == 0x8D || CurrentInstr == 0x8E || CurrentInstr == 0x8C) // Absolute
-            {
-                Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4;
-            }
-
-            if(CurrentInstr == 0x9D) // Absolute, X
-            {
-                Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset); 
-                Address += Registers->X;
-                BytesRead = 3;
-                *CyclesElapsed = 5; 
-            }            
-            if(CurrentInstr == 0x99) // Absolute, Y
-            {
-                Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset); 
-                Address += Registers->Y;
-                BytesRead = 3;
-                *CyclesElapsed = 5; 
-            }
-
-            if(CurrentInstr == 0x91) // (Indirect, X)
-            {
-                uint8 ZeroAddress = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset); 
-                Address = readCpuMemory16(ZeroAddress + Registers->X, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 6; // TODO: Check timing on this           
-            }
-            
-            if(CurrentInstr == 0x91) // (Indirect), Y
-            {
-                uint8 ZeroAddress = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset); 
-                uint16 IndirectAddress = readCpuMemory16(ZeroAddress, MemoryOffset);
-                Address = IndirectAddress + Registers->Y;
-                BytesRead = 2;
-                *CyclesElapsed = 6; // TODO: Check timing on this           
-            }
-
-
-            
-            Log.InstrValue1 = (uint8) Address;
-            Log.InstrValue2 = (uint8) (Address >> 8);
-            Log.InstrAddress = Address;
-            
-            uint8 RegisterValue;
-            switch(CurrentInstr)
-            {
-                case 0x85: case 0x95: case 0x8D: case 0x9D: // Register A
-                case 0x99: case 0x81: case 0x91:
-                    Log.InstrName = "STA";
-                    Log.AddressValue = Registers->A;
-                    RegisterValue = Registers->A;
-                    break;
-                case 0x86: case 0x96: case 0x8E: // Register X
-                    Log.InstrName = "STX";
-                    Log.AddressValue = Registers->X;
-                    RegisterValue = Registers->X;
-                    break;
-                case 0x84: case 0x94: case 0x8C: // Register Y
-                    Log.InstrName = "STY";
-                    Log.AddressValue = Registers->Y;
-                    RegisterValue = Registers->Y;
-                    break;
-                default:
-                    Assert(0);
-                    break;
-            }
-            
-            writeCpuMemory8(RegisterValue, Address, MemoryOffset);
-            break;
-        }
-      
-        
-        // NOTE: Bit Shifts
-        
-        case 0x06: // ASL(ZeroPage) - Shift Mem Left 1 bit
-        {
-            uint8 Address = readCpuMemory8(Registers->PrgCounter+1, MemoryOffset);
-            uint8 Value = readCpuMemory8(Address, MemoryOffset);
-            
-            if(Value & (1 << 7))
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-          
-            Value = Value << 1;
-            writeCpuMemory8(Value, Address, MemoryOffset);
-                        
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-            BytesRead = 2;
-            *CyclesElapsed = 5;
-
-            Log.InstrValue1 = Log.InstrAddress = Address;
-            Log.AddressValue = Value;
-            Log.InstrName = "ASL";
-            break;
-        }
-        case 0x0A: // ASL(Accumulator)
-        {
-            uint8 Value = Registers->A;
-            
-            if(Value & (1 << 7))
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-          
-            Registers->A = Value << 1;
-                        
-            setNegative(Registers->A, &Registers->Flags);
-            setZero(Registers->A, &Registers->Flags);
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-
-            Log.InstrName = "ASL";
-            break;
-        }
-        case 0x4A: // LSR(Accumulator) - logical shift right
-        {
-            uint8 Value = Registers->A;
-            if(Value & 1)
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-            
-            Registers->A = Value >> 1;
-            
-            setNegative(Registers->A, &Registers->Flags);
-            setZero(Registers->A, &Registers->Flags);
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-            
-            Log.InstrName = "LSR";
-            break;
-        }
-        case 0x46: // LSR(ZeroPage)
-        {
-            uint8 Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-            uint8 Value = zeroPage(Registers, MemoryOffset);
-            if(Value & 1)
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-            
-            Value = Value >> 1;
-            
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-            
-            writeCpuMemory8(Value, Address, MemoryOffset);
-            BytesRead = 2;
-            *CyclesElapsed = 5;
-            
-            Log.InstrName = "LSR";
-            break;
-        }
-
-        case 0x2A: // ROL - Accumulator
-        {
-            uint8 Value = Registers->A;
-            
-            bool32 CarryIsSet = Registers->Flags & 1;
-            if(Value & (1 << 7))
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-
-            Value = Value << 1;
-            
-            if(CarryIsSet)
-                Value = Value & 1;
-
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-
-            Registers->A = Value;
-
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-            
-            Log.InstrName = "ROL";
-            break;
-        }
-        
-        case 0x26: case 0x36: // ROL
-        {
-            uint16 Address;
-            uint8 Value;
-            if(CurrentInstr == 0x26) // ZeroPage
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 5;
-            }
-            if(CurrentInstr == 0x36) // ZeroPage, X
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset) + Registers->X;
-                Value = zeroPageX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 6;
-            }
-            
-            bool32 CarryIsSet = Registers->Flags & 1;
-            if(Value & (1 << 7))
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-
-            Value = Value << 1;
-            
-            if(CarryIsSet)
-                Value = Value & 1;
-
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-
-            writeCpuMemory8(Value, Address, MemoryOffset);
-
-            Log.InstrName = "ROL";
-            break;
-        }
-
-        
-        case 0x6A: // ROR - Accumulator
-        {
-            uint8 Value = Registers->A;
-
-            bool32 CarryIsSet = Registers->Flags & 1;
-            if(Value & 1)
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-
-            Value = Value >> 1;
-            
-            if(CarryIsSet)
-                Value = Value & (1 << 7);
-
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-            Registers->A = Value;
-
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-            Log.InstrName = "ROR";
-            break;
-        }
-        
-        case 0x66: case 0x6E: // ROR
-        {
-            uint16 Address;
-            uint8 Value;
-
-            if(CurrentInstr == 0x66) // ZeroPage
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 5;
-            }
-            if(CurrentInstr == 0x6E) // Absolute
-            {
-                Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-                Value = abs(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 6;
-            }
-            
-            bool32 CarryIsSet = Registers->Flags & 1;
-            if(Value & 1)
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-
-            Value = Value >> 1;
-            
-            if(CarryIsSet)
-                Value = Value & (1 << 7);
-
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-
-            writeCpuMemory8(Value, Address, MemoryOffset);
-
-            Log.InstrName = "ROR";
-            break;
-        }
-        
-        case 0x24: // BIT - zeropage
-        {
-            uint8 Value = zeroPage(Registers, MemoryOffset);
-
-            setNegative(Value, &Registers->Flags);
-            setZero(Registers->A & Value, &Registers->Flags);
-
-            if(Value & (1 << 6))
-                setCarry(&Registers->Flags);
-            else
-                clearCarry(&Registers->Flags);
-
-            BytesRead = 2;
-            *CyclesElapsed = 3;
-            Log.InstrName = "BIT";
-            break;
-        }
-
-        
-        // NOTE: Logic Operations          
-                    
-        case 0x29: case 0x25: case 0x35: case 0x2D: // AND  
-        case 0x3D: case 0x39: case 0x21: case 0x31:
-        case 0x49: case 0x45: case 0x55: case 0x4D: // EOR
-        case 0x5D: case 0x59: case 0x41: case 0x51:
-        case 0x09: case 0x05: case 0x15: case 0x0D: // ORA
-        case 0x1D: case 0x19: case 0x01: case 0x11: 
-        {
-            uint8 Value;
-            if(CurrentInstr == 0x29 || CurrentInstr == 0x49 || CurrentInstr == 0x09) // Immediate 
-            {
-                Value = immediate(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 2;
-            }
-            if(CurrentInstr == 0x25 || CurrentInstr == 0x45 || CurrentInstr == 0x05) // Zeropage
-            {
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 3;
-            }                   
-            if(CurrentInstr == 0x35 || CurrentInstr == 0x55 || CurrentInstr == 0x15) // ZeroPage, X
-            {
-                Value = zeroPageX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 4;
-            }
-            if(CurrentInstr == 0x2D || CurrentInstr == 0x4D || CurrentInstr == 0x0D) // Absolute
-            {
-                Value = abs(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4;
-            }          
-            if(CurrentInstr == 0x3D  || CurrentInstr == 0x5D || CurrentInstr == 0x1D) // Absolute, X
-            {
-                Value = absX(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4; // TODO: Boundary
-            }
-            if(CurrentInstr == 0x39 || CurrentInstr == 0x59 || CurrentInstr == 0x19) // Absolute, Y
-            {
-                Value = absY(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4; // TODO: Boundary
-            }
-            if(CurrentInstr == 0x21 || CurrentInstr == 0x41 || CurrentInstr == 0x01) // (Indirect, X)
-            {
-                Value = indirectX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 6;
-            }
-            if(CurrentInstr == 0x31 || CurrentInstr == 0x51 || CurrentInstr == 0x11) // Indirect, Y
-            {
-                Value = indirectY(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 5; //TODO: Boundary 
-            }
-
-            switch(CurrentInstr)
-            {
-                case 0x29: case 0x25: case 0x35: case 0x2D: // AND  
-                case 0x3D: case 0x39: case 0x21: case 0x31:
-                    Log.InstrName = "AND";
-                    Registers->A = Registers->A & Value;
-                    break;
-                case 0x49: case 0x45: case 0x55: case 0x4D: // EOR
-                case 0x5D: case 0x59: case 0x41: case 0x51:
-                    Log.InstrName = "EOR";
-                    Registers->A = Registers->A ^ Value;
-                    break;
-                case 0x09: case 0x05: case 0x15: case 0x0D: // ORA
-                case 0x1D: case 0x19: case 0x01: case 0x11:
-                    Log.InstrName = "ORA";
-                    Registers->A = Registers->A | Value;
-                    break;
-            }            
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-            break;
-        }
-                
-        // NOTE: Transfering Register Values 
-        
-        case 0x8A: case 0xAA: case 0xA8: case 0x98: case 0x9A:
-        {
-            uint8 Value;
-            if(CurrentInstr == 0x8A) // TXA
-            {
-                Log.InstrName = "TXA";
-                Registers->A = Value = Registers->X;
-            }
-            if(CurrentInstr == 0xAA) // TAX
-            {
-                Log.InstrName = "TAX";
-                Registers->X = Value = Registers->A;
-            }
-            if(CurrentInstr == 0xA8) // TAY
-            {
-                Log.InstrName = "TAY";
-                Registers->Y = Value = Registers->A;
-            }
-            if(CurrentInstr == 0x98) // TYA
-            {
-                Log.InstrName = "TYA";
-                Registers->A = Value = Registers->Y;
-            }
-            if(CurrentInstr == 0x9A) // TXS
-            {
-                Log.InstrName = "TXS";
-                Registers->StackPtr = Value = Registers->X;
-            }
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-            break;
-        }
-
-        // NOTE: Stack Operations
-        
-        case 0x48: // PHA - Push accumulator on stack
-        {
-            pushStack(Registers->A, &Registers->StackPtr, MemoryOffset);
-            BytesRead = 1;
-            *CyclesElapsed = 3;
-                   
-            Log.InstrName = "PHA";
-            break;
-        }
-        case 0x68: // PLA - Pop to accumulator
-        {
-            Registers->A = popStack(&Registers->StackPtr, MemoryOffset);
-            BytesRead = 1;
-            *CyclesElapsed = 4;
-
-            Log.InstrName = "PLA";
-            break;
-        }
-
-        // NOTE: Increment and Decrement
-        
-        case 0xCA: case 0x88: case 0xE8: case 0xC8:
-        {
-            uint8 *Register;
-            if(CurrentInstr == 0xCA || CurrentInstr == 0xE8)
-                Register = &Registers->X;
-            if(CurrentInstr == 0x88 || CurrentInstr == 0xC8)
-                Register = &Registers->Y;
-
-            if(CurrentInstr == 0xE8 || CurrentInstr == 0xC8) // Increment
-            {
-                Log.InstrName = "INC";
-                *Register += 1;
-            }
-            if(CurrentInstr == 0xCA || CurrentInstr == 0x88) // Decrement
-            {
-                Log.InstrName = "DEC";
-                *Register -= 1;
-            }
-                        
-            setNegative(*Register, &Registers->Flags);
-            setZero(*Register, &Registers->Flags);
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-            break;
-        }
-
-        case 0xC6: case 0xD6: case 0xCE: // DEC
-        {
-            uint16 Address;
-            uint8 Value;
-            if(CurrentInstr == 0xC6) // ZeroPage
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 5;
-            }
-            if(CurrentInstr == 0xD6) // ZeroPage, X
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset) + Registers->X;
-                Value = zeroPageX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 6;
-            }
-            if(CurrentInstr == 0xCE) // Absolute
-            {
-                Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-                Value = abs(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 6;
-            }
-           
-            --Value;
-            
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-
-            writeCpuMemory8(Value, Address, MemoryOffset);
-
-            Log.InstrName = "DEC";    
-            break;
-        }
-        
-        case 0xE6: case 0xEE: // INC
-        {
-            uint16 Address;
-            uint8 Value;
-            if(CurrentInstr == 0xE6) // Zero Page
-            {
-                Address = readCpuMemory8(Registers->PrgCounter + 1, MemoryOffset);
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 5;
-            }
-            if(CurrentInstr == 0xEE) // Absolute
-            {
-                Address = readCpuMemory16(Registers->PrgCounter + 1, MemoryOffset);
-                Value = abs(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 6;
-            }
-
-            ++Value;
-            
-            setNegative(Value, &Registers->Flags);
-            setZero(Value, &Registers->Flags);
-            writeCpuMemory8(Value, Address, MemoryOffset);
-
-            Log.InstrName = "INC";
-            break;
-        }
-        
-        // NOTE: Add and Subtract with Carry
-        
-        case 0x69: case 0x65: case 0x6D: case 0x7D:// ADC - add with carry
-        {
-            uint8 Value;
-            if(CurrentInstr == 0x69)// Immediate
-            {
-                Value = immediate(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 2;
-            }
-            if(CurrentInstr == 0x65) // zeropage
-            {
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 3;
-            }
-            if(CurrentInstr == 0x6D) // Absolute
-            {
-                Value = abs(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4;
-            }
-            if(CurrentInstr == 0x7D) // Absolute, X
-            {
-                Value = absX(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4; // TODO: Boundary
-            }
-            adc(Value, Registers);
-            Log.InstrName = "ADC";
-            break;
-        }
-        case 0xE1: case 0xF1: // SBC - Subtract with Carry
-        {
-            uint8 Value;
-            if(CurrentInstr == 0xE1) // (Indirect, X)
-            {
-                Value = indirectX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 6;
-            }
-            if(CurrentInstr == 0xF1) // (Indirect), Y
-            {
-                Value = indirectY(Registers, MemoryOffset); 
-                BytesRead = 2;
-                *CyclesElapsed = 5; // TODO: Boundary cross is +1
-            }
-            sbc(Value, Registers);
-            Log.InstrName = "SBC";
-            break;
-        }
-        
-        // NOTE: Compare instructions       
-        case 0xC9: case 0xC5: case 0xD5: case 0xCD: // CMP
-        case 0xDD: case 0xD9: case 0xC1: case 0xD1:
-        case 0xE0: case 0xE4: case 0xEC:            // CPX
-        case 0xC0: case 0xC4: case 0xCC:            // CPY
-        {
-            uint8 Value = {};
-            
-            if(CurrentInstr == 0xC9 || CurrentInstr == 0xE0 || CurrentInstr == 0xC0) // Immediate
-            {
-                Value = immediate(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 2;
-            }
-            if(CurrentInstr == 0xC5 || CurrentInstr == 0xE4 || CurrentInstr == 0xC4) // Zero Page
-            {
-                Value = zeroPage(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 3;
-            }
-            if(CurrentInstr == 0xD5) // ZeroPage, X
-            {
-                Value = zeroPageX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 4;
-            }
-            if(CurrentInstr == 0xCD || CurrentInstr == 0xEC || CurrentInstr == 0xCC) // Absolute
-            {
-                Value = abs(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4;
-            }
-            if(CurrentInstr == 0xDD) // Absolute, X
-            {
-                Value = absX(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4; // TODO: **
-            }
-            if(CurrentInstr == 0xD9) // Absolute, Y
-            {
-                Value = absY(Registers, MemoryOffset);
-                BytesRead = 3;
-                *CyclesElapsed = 4; // TODO: **
-            }
-            if(CurrentInstr == 0xC1) // Indirect, X
-            {
-                Value = indirectX(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 6;
-            }
-            if(CurrentInstr == 0xD1) // Indirect, Y
-            {
-                Value = indirectY(Registers, MemoryOffset);
-                BytesRead = 2;
-                *CyclesElapsed = 5; // TODO: Boundary
-            }            
-
-            uint8 ToCompareAgainst;
-            switch(CurrentInstr)
-            {
-                case 0xC9: case 0xC5: case 0xD5: case 0xCD: // CMP
-                case 0xDD: case 0xD9: case 0xC1: case 0xD1:
-                    Log.InstrName = "CMP";
-                    ToCompareAgainst = Registers->A;
-                    break;
-                case 0xE0: case 0xE4: case 0xEC: // CPX
-                    Log.InstrName = "CPX";
-                    ToCompareAgainst = Registers->X;
-                    break;
-                case 0xC0: case 0xC4: case 0xCC: // CPY
-                    Log.InstrName = "CPY";
-                    ToCompareAgainst = Registers->Y;
-                    break;
-            }
-            cmp(Value, ToCompareAgainst, &Registers->Flags);
-            break;
-        }
-       
-        // NOTE: Status Flag set and clear opcodes
-        case 0x78: case 0xD8: case 0x38: case 0x18: // Set Interrupt Disable Flag
-        {
-            if(CurrentInstr == 0x78)
-                setInterrupt(&Registers->Flags);
-            if(CurrentInstr == 0xD8)
-                clearDecimal(&Registers->Flags);
-            if(CurrentInstr == 0x38)
-                setCarry(&Registers->Flags);
-            if(CurrentInstr == 0x18)
-                clearCarry(&Registers->Flags);
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-            Log.InstrName = "FLG";
-            break;
-        }
-
-        case 0xEA: // NOP
-        {
-            BytesRead = 1;
-            *CyclesElapsed = 2;
-            Log.InstrName = "NOP";
-            break;
-        }
-
-        default:
-        {
-            uint8 MissingValue = CurrentInstr;
-            char Buffer[8];
-            sprintf(Buffer, "%X\n", MissingValue);
-            OutputDebugString(Buffer);
             Assert(0);
             break;
         }
+        
     }
-
-#if 1
     
-    char LogBuffer[512];
-
-    if(BytesRead != 0)
-        Log.BytesRead = BytesRead;
-
+    Cpu->PrgCounter += InstrLength;
+    CyclesElapsed += InstCycles;
     
+    if(CrossedPage)
+        CyclesElapsed += instBoundaryCheck[Instruction];
+
+    // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
+    uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
+    CyclesElapsed += AdditionalCycles;
     
-    switch(Log.BytesRead)
+    if(NmiTriggered)
     {
-        case 1:
-        {
-            if(Log.AddressValue)
-                sprintf(LogBuffer, "$%.4X:%.2X        %s $%.4X = $%.2X        A:%.2X X:%.2X, Y:%.2X S:%.2X P:%X\n",
-                        Log.ProgramLine, Log.Instr, Log.InstrName, Log.InstrAddress, Log.AddressValue,
-                        Registers->A, Registers->X, Registers->Y, Registers->StackPtr, Registers->Flags);
-            else
-                sprintf(LogBuffer, "$%.4X:%.2X        %s                      A:%.2X X:%2X, Y:%.2X S:%.2X P:%X\n",
-                        Log.ProgramLine, Log.Instr, Log.InstrName,
-                        Registers->A, Registers->X, Registers->Y, Registers->StackPtr, Registers->Flags);
-            
-
-            break;
-        }
-        case 2:
-        {
-            if(Log.AddressValue)
-                sprintf(LogBuffer, "$%.4X:%2X %2X     %s $%.4X = $%.2X          A:%.2X X:%.2X, Y:%.2X S:%.2X P:%X\n",
-                        Log.ProgramLine, Log.Instr, Log.InstrValue1, Log.InstrName, Log.InstrAddress, Log.AddressValue,
-                        Registers->A, Registers->X, Registers->Y, Registers->StackPtr, Registers->Flags);
-            else
-                sprintf(LogBuffer, "$%.4X:%2X %2X     %s $%.4X                A:%.2X X:%.2X, Y:%.2X S:%.2X P:%X\n",
-                        Log.ProgramLine, Log.Instr, Log.InstrValue1, Log.InstrName, Log.InstrAddress, 
-                        Registers->A, Registers->X, Registers->Y, Registers->StackPtr, Registers->Flags);
-            
-                break;
-        }
-        case 3:
-        {
-            if(Log.AddressValue)
-                sprintf(LogBuffer, "$%.4X:%.2X %.2X %.2X  %s $%.4X = $%.2X          A:%.2X X:%.2X, Y:%.2X S:%.2X P:%X\n",
-                    Log.ProgramLine, Log.Instr, Log.InstrValue1, Log.InstrValue2, Log.InstrName, Log.InstrAddress, Log.AddressValue,
-                        Registers->A, Registers->X, Registers->Y, Registers->StackPtr, Registers->Flags);
-            
-            else
-                sprintf(LogBuffer, "$%.4X:%.2X %.2X %.2X  %s $%.4X                A:%.2X X:%.2X, Y:%.2X S:%.2X P:%X\n",
-                        Log.ProgramLine, Log.Instr, Log.InstrValue1, Log.InstrValue2, Log.InstrName, Log.InstrAddress,
-                        Registers->A, Registers->X, Registers->Y, Registers->StackPtr, Registers->Flags);
-                
-            break;
-        }
+        NmiTriggered = false;
+        CyclesElapsed += nmi(Cpu);
     }
-    
+    if(IrqTriggered)
+    {
+        IrqTriggered = false;
+        CyclesElapsed += irq(Cpu);
+    }
 
+
+    char LogInstrData[16];
+    if(InstrLength == 3)
+        sprintf(LogInstrData, "%2X %2X %2X", InstrData[0], InstrData[1], InstrData[2]);
+    else if(InstrLength == 2)
+        sprintf(LogInstrData, "%2X %2X   ", InstrData[0], InstrData[1]);
+    else
+        sprintf(LogInstrData, "%2X      ", InstrData[0]);
+
+    char LogOpInfo[64];
+//    sprintf(LogOpInfo, ""
+    
+    char LogCpuInfo[64];
+    sprintf(LogCpuInfo, "A:%2X X:%2X Y:%2X P:%2X SP:%2X CYC:    SL:", Cpu->A, Cpu->X, Cpu->Y, Cpu->Flags, Cpu->StackPtr);
+
+    // NOTE: CPU Log options
+    char LogBuffer[1024];
+    sprintf(LogBuffer, "%4X %s  %s    %s\n", Cpu->PrgCounter, LogInstrData, LogOpInfo, LogCpuInfo);
     OutputDebugString(LogBuffer);
-
-
-#endif
-   
-    Registers->PrgCounter += BytesRead;
-    linecount++;
-    /*
-    if(NMICalled)
-    {
-        NMICalled = false;
-
-        uint8 HighByte = (uint8)(Registers->PrgCounter >> 8);
-        uint8 LowByte = (uint8)Registers->PrgCounter;
-                        
-        pushStack(HighByte, &Registers->StackPtr, MemoryOffset);
-        pushStack(LowByte, &Registers->StackPtr, MemoryOffset);
-
-        setInterrupt(&Registers->Flags);
-        pushStack(Registers->Flags, &Registers->StackPtr, MemoryOffset);
-
-        Registers->PrgCounter = readCpuMemory16(NMI_VEC, MemoryOffset);
-           
-        BytesRead = 0; // TODO: Check this
-        *CyclesElapsed = *CyclesElapsed + 7;        
-    }
-    */
+#
+    
+    return(CyclesElapsed);
 }
 
 
 
-
-// NOTE: DEBUG FUNCTIONS IF NEEDED LATER
-
-void debugPrintStack(uint8 StackPointer, uint64 MemoryOffset)
-{
-    for(uint8 Element = StackPointer; Element != 0; Element++)
-    {
-        uint8 *Address = (uint8 *)((Element + STACK_ADRS) + MemoryOffset);
-        char StackBuffer[512];
-        sprintf(StackBuffer, "%X: %X, ", (uint8)Element, *Address);
-        OutputDebugString(StackBuffer);
-    }
-    OutputDebugString("\n");
-}

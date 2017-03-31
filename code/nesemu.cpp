@@ -231,36 +231,41 @@ internal void * LoadFile(char * Filename, uint32 *Size)
 }
 
 
-internal void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
+internal void cpyMem(uint8 *Dest, uint8 *Src, uint16 Size)
 {
     // NOTE: Very basic copy. Not bounds protection
     for(uint16 Byte = 0; Byte < Size; ++Byte)
         Dest[Byte] = Src[Byte];
 }
 
-internal void writeMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+internal void write8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
 {   
     uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
     *NewAddress = Byte;
 }
 
-internal uint8 readMemory8(uint16 Address, uint64 MemoryOffset)
+internal uint8 read8(uint16 Address, uint64 MemoryOffset)
 {
     uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
     uint8 Value = *NewAddress;
     return(Value);
 }
 
-bool32 NMICalled = false;
-bool32 ResetScrollIOAdrs = false;
+bool32 NmiTriggered = false;
+bool32 IrqTriggered = false;
+
+bool32 VRamAdrsChange = false;
+bool32 VRamIOChange = false;
+
+bool32 ScrollAdrsChange = false;
+
+bool32 VRamAdrsOnPalette = false;
+bool32 IOReadFromCpu = false;
+
 bool32 ResetVRamIOAdrs = false;
+bool32 ResetScrollIOAdrs = false;
 
-uint8 VRamIOAdrsCount = 0;
-uint8 PrevVRamIOAdrsCount;
-
-uint8 VRamIOWriteCount = 0;
-uint8 PrevVRamIOWriteCount;
-
+bool32 DrawScreen = false;
 
 // TODO: This will change location once other functions above get relocated.
 #include "cpu.cpp"
@@ -325,20 +330,20 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     // TODO: Loading the cartridge also creates memory. Figure out to include in this call.
     uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)TotalMemorySize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
-    cpu CpuData = {};
-    CpuData.MemoryOffset = (uint64)Memory; 
-    CpuData.Registers.StackPtr = 0xFF;
+    cpu Cpu = {};
+    Cpu.MemoryOffset = (uint64)Memory; 
     
-    ppu PpuData = {};    
-    PpuData.MemoryOffset = (uint64)Memory + Kilobytes(64);
+    ppu Ppu = {};    
+    Ppu.MemoryOffset = (uint64)Memory + Kilobytes(64);
       
 #define PPU_REG_ADRS 0x2000    
-    PpuData.Registers = (ppu_registers *)(CpuData.MemoryOffset + PPU_REG_ADRS);
-    PpuData.Registers->Status = (1 << 7) | (1 << 5); 
+    Ppu.Registers = (ppu_registers *)(Cpu.MemoryOffset + PPU_REG_ADRS);
+    //Ppu.Registers->Status = (1 << 7) | (1 << 5); // TODO: Pull out into the PPU? An initalilising function? 
     
+    Ppu.Scanline = 261; // Start here as its prerender line
     
     // Reading rom file
-    char * Filename = "Baseball.nes";
+    char * Filename = "nestest.nes";
     uint32 FileSize;
     uint8 *RomData = (uint8 *)LoadFile(Filename, &FileSize);
 
@@ -363,7 +368,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     // NOTE: If trainer present. Data after header and before program data
     if(Flags6 & (1 << 2))
     {
-        Assert(1); 
+        Assert(0); 
     }
     else
     {
@@ -408,12 +413,26 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     {
         case 0:
         {
-            if(RomPrgBankCount == 1) {
-                cpyMemory((uint8 *)MemPrgBank1 + CpuData.MemoryOffset, RomPrgData, Kilobytes(16));
-                cpyMemory((uint8 *)MemPrgBank2 + CpuData.MemoryOffset, RomPrgData, Kilobytes(16));
+            switch(RomPrgBankCount)
+            {
+                case 1:
+                {
+                    cpyMem((uint8 *)MemPrgBank1 + Cpu.MemoryOffset, RomPrgData, Kilobytes(16));
+                    cpyMem((uint8 *)MemPrgBank2 + Cpu.MemoryOffset, RomPrgData, Kilobytes(16));
+                    break;
+                }
+                case 2:
+                {
+                    cpyMem((uint8 *)MemPrgBank1 + Cpu.MemoryOffset, RomPrgData, Kilobytes(16));
+                    cpyMem((uint8 *)MemPrgBank2 + Cpu.MemoryOffset, RomPrgData + Kilobytes(16), Kilobytes(16));
+                    break;
+                }
+                default:
+                {
+                    Assert(0);
+                    break;
+                }
             }
-            else
-                Assert(0);
             break;
         }
         
@@ -426,10 +445,17 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             break;
         }
     }
+
+
+    // NOTE: Map CHR Data to Ppu // TODO: Will change when Mapper Numbers are introduced
+    if(RomChrBankCount == 1)
+    {
+        cpyMem((uint8 *)Ppu.MemoryOffset, RomChrData, Kilobytes(8));
+    }
+    
     
     // NOTE: Load the program counter with the reset vector
-    CpuData.Registers.PrgCounter = readCpuMemory16(RESET_VEC, CpuData.MemoryOffset);
-
+    Cpu.PrgCounter = readCpu16(RESET_VEC, Cpu.MemoryOffset);
     
     // Screen back buffer creation
     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
@@ -438,11 +464,9 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
 
-    PpuData.ZeroPixel = (uint32 *)ScreenBackBuffer.Memory;
-
-
+    Ppu.BasePixel = (uint32 *)ScreenBackBuffer.Memory;
     
-    // Window Creation
+    // NOTE: Window Creation
     WNDCLASSA WindowClass = {};
     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
     WindowClass.lpfnWndProc = WinInputCallback;
@@ -453,52 +477,73 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     QueryPerformanceFrequency(&WinPerfCountFrequency); 
     uint64 PerfCountFrequency = WinPerfCountFrequency.QuadPart;            
 
+    uint16 InitialWindowPosX = 0;
+    uint16 InitialWindowPosY = 0;
     
     if(RegisterClassA(&WindowClass))
     {
         HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu",
                                       WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-                                      CW_USEDEFAULT, CW_USEDEFAULT,
+                                      InitialWindowPosX, InitialWindowPosY,
                                       WindowWidth, WindowHeight,
                                       0, 0, WindowInstance, 0);
         if(Window) // If window was created successfully
         {
-            LARGE_INTEGER LastCounter;
-            QueryPerformanceCounter(&LastCounter);                        
-            uint64 LastCycles = __rdtsc();
             
-            // TODO: Must run the emulation at the same speed as the nes would.
-            GlobalRunning = true;
-            
-                        
-            real32 CurrentMS, PrevMS = getMilliSeconds(PerfCountFrequency);
+            real32 FramesPerSecond = 60.0;
+            real32 CpuClockRateHz = 1789772.727272728;
+            real32 CpuCyclesPerMS = CpuClockRateHz / 1000.0;
+       
+            uint8 CpuCyclesElapsed = 0;
+
             real32 ElapsedMS = 0;
+            real32 CurrentMS, PrevMS = getMilliSeconds(PerfCountFrequency);
+
+            GlobalRunning = true; 
             while(GlobalRunning)
             {
-                MSG Message = {}; 
-                while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
+                if(ElapsedMS < 1)
                 {
-                    TranslateMessage(&Message);
-                    DispatchMessage(&Message);
-                }
-
-                cpuTick(&CpuData);
-                // TODO: Timing is not complete
-                //       Cpu opcodes execute in a different number of cycles
-                //       Must multiply pputicks to stay synched.
-                for(uint8 i = 0; i < 3; ++i)
-                {
-                    ppuTick(&ScreenBackBuffer, &PpuData);
-                }
-          
-                getWindowSize(Window, &WindowWidth, &WindowHeight);
+                    MSG Message = {}; 
+                    while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
+                    {
+                        TranslateMessage(&Message);
+                        DispatchMessage(&Message);
+                    }
                 
-                // NOTE: Drawing the backbuffer to the window 
-                HDC DeviceContext = GetDC(Window);
-                drawScreenBuffer(&ScreenBackBuffer, DeviceContext,
-                                 WindowWidth, WindowHeight);
-                ReleaseDC(Window, DeviceContext);
+                    if(CpuCyclesElapsed < CpuCyclesPerMS)
+                    {
+                        CpuCyclesElapsed += cpuTick(&Cpu);
+                    
+                        for(uint8 i = 0; i < 3; ++i)
+                        {
+                            ppuTick(&ScreenBackBuffer, &Ppu);
+                        }
+                    }
+                    else
+                    {
+                        //   Sleep(1);
+                    }
 
+                    if(DrawScreen)
+                    {
+                        DrawScreen = false; 
+                        getWindowSize(Window, &WindowWidth, &WindowHeight);
+                
+                        // NOTE: Drawing the backbuffer to the window 
+                        HDC DeviceContext = GetDC(Window);
+                        drawScreenBuffer(&ScreenBackBuffer, DeviceContext,
+                                         WindowWidth, WindowHeight);
+                        ReleaseDC(Window, DeviceContext);
+                    }
+                }
+                else
+                {
+                    ElapsedMS = 0;
+                    CpuCyclesElapsed = CpuCyclesPerMS - CpuCyclesElapsed;
+                }
+                
+                
                 CurrentMS = getMilliSeconds(PerfCountFrequency);
                 ElapsedMS = CurrentMS - PrevMS;
                 PrevMS = CurrentMS;

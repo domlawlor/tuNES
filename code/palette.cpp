@@ -27,9 +27,9 @@ uint8 Palette[PALETTE_ENTRIES][3] =
 }; 
 
 
-void getPaletteValue(uint8 Entry, uint8 *Red, uint8 *Green, uint8 *Blue)
+void getPaletteValue(uint8 Entry, uint8 *Colour)
 {
-    *Red   = Palette[Entry][0];
-    *Green = Palette[Entry][1];
-    *Blue  = Palette[Entry][2];
+    Colour[0] = Palette[Entry][0];
+    Colour[1] = Palette[Entry][1];
+    Colour[2]  = Palette[Entry][2];
 }

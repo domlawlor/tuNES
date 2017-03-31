@@ -7,6 +7,18 @@
 
 #include "palette.cpp"
 
+#define PIXEL_WIDTH 256
+#define PIXEL_HEIGHT 240
+
+#define TILES_COUNT_X 32
+#define TILES_COUNT_Y 30
+
+#define PIXEL_PER_TILE 8
+
+
+#define BGRD_PALETTE_ADRS 0x3F00
+
+#define ATTRIBUTE_OFFSET 0x3C0
 
 struct ppu_registers
 {
@@ -25,415 +37,303 @@ struct ppu
     ppu_registers *Registers; // NOTE: Pointer because points to cpu memory
     uint64 MemoryOffset;
 
-    uint16 CurrentXPixel;
-    uint16 CurrentYPixel;
-    uint32 *ZeroPixel;
+    uint16 Scanline;
+    uint16 ScanlineCycle;
 
-    uint16 NameTableAddress;
-    uint16 BkgrdPatAddress;
-    uint16 SprtPatAddress;
+    uint16 VRamIOAddress;
+    
+    uint32 *BasePixel;
 
-    uint16 FullVRamAdrsIO;
-    uint8 PrevAdrsWriteCount;
-    uint8 PrevDataWriteCount;
+    uint8 PixelFetchX;
+    uint8 PixelFetchY;
+    
+    uint8 NameTableByte1;
+    uint8 NameTableByte2;
 
-    uint16 ScanLine;
+    uint8 AtrbTableByte1;
+    uint8 AtrbTableByte2;
 
-    uint16 VRamIOAdrs;
+    uint8 LowBGTileByte1;
+    uint8 LowBGTileByte2;
 };
 
-
-
-/* TODO: Extract these to a struct.
-   uint16 NameTableAddress;
-   uint8 AddressIncrement;
-   uint16 PatTblSprites;
-   uint16 PatTblBackground;
-   bool32 SpritesAre8x16;
-   bool32 NmiOnVBlank;
-   bool32 ColourMode;
-   bool32 ClipBackground;
-   bool32 ClipSprites;
-   bool32 HideBackground;
-   bool32 HideSprites;
-   uint8 ColourIntensity;
-*/
-
-internal uint8 readPpuMemory8(uint16 Address, uint64 MemoryOffset)
+inline void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
 {
-    uint8 Result = readMemory8(Address, MemoryOffset);
+    uint32 *CurrentPixel = (Ppu->BasePixel + (Y * PIXEL_WIDTH)) + X;
+    *CurrentPixel  = ((Colour[0] << 16) | (Colour[1] << 8) | Colour[2]);
+}
+
+internal uint8 readPpu8(uint16 Address, uint64 MemoryOffset)
+{
+    // TODO: Finish memory mirror
+    if(0x3000 <= Address && Address < 0x3F00)
+    {
+        Assert(0);
+    }
+    if(0x3F20 <= Address && Address < 0x4000)
+    {
+        Assert(0);
+    }
+    if(Address >= 0x4000)
+        Assert(0);
+    uint8 Result = read8(Address, MemoryOffset);
     return(Result);
 }
-internal void writePpuMemory8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+internal void writePpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
 {
-    if(0x4000 <= Address)
-        Address = (Address % 0x4000);
+    // TODO: Finish memory mirror
+    if(0x3000 <= Address && Address < 0x3F00)
+    {
+        Assert(0);
+    }
+    if(0x3F20 <= Address && Address < 0x4000)
+    {
+        Assert(0);
+    }
+    if(Address >= 0x4000)
+        Assert(0);
+    
+    write8(Byte, Address, MemoryOffset);
+}
 
+
+internal uint8 getNameTableValue(uint16 X, uint16 Y, uint16 TableBaseAddress, uint64 MemoryOffset)
+{
+    uint16 TileX = X / PIXEL_PER_TILE;
+    uint16 TileY = Y / PIXEL_PER_TILE;
+    
+    Assert(0 <= TileX && TileX < TILES_COUNT_X);
+    Assert(0 <= TileY && TileY < TILES_COUNT_Y);
+
+    uint16 Address = (TableBaseAddress + (TileY * TILES_COUNT_X)) + TileX;
+    uint8 Value = readPpu8(Address, MemoryOffset);
+    return(Value);
+}
+
+#define PIXELS_PER_TILE 8
+
+internal uint8 getPatternValue(uint16 X, uint16 Y, uint8 NameTableValue, uint16 PatternBase, uint64 MemoryOffset)
+{
+    uint8 TileRelX = X % PIXEL_PER_TILE;
+    uint8 TileRelY = Y % PIXEL_PER_TILE;
+    
+    Assert(0 <= TileRelX && TileRelX < PIXEL_PER_TILE);
+    Assert(0 <= TileRelY && TileRelY < PIXEL_PER_TILE);
+  
+    uint64 LowAddress = (PatternBase + (NameTableValue * 16)) + TileRelY;
+    uint64 HighAddress = (PatternBase + (NameTableValue * 16) + 8) + TileRelY;
+    
+    uint8 LowPattern = readPpu8(LowAddress, MemoryOffset);
+    uint8 HighPattern = readPpu8(HighAddress, MemoryOffset);
+
+    LowPattern  = (LowPattern >> (7 - TileRelX)) & 1;
+    HighPattern = (HighPattern >> (7 - TileRelX)) & 1;
+
+    uint8 Value = (HighPattern << 1) | LowPattern;
+    
+    return(Value);
+}
+
+#define PIXELS_PER_ATRB_BYTE 32
+#define ATRB_BYTE_PER_ROW 8
+
+internal uint8 getAttributeValue(uint16 X, uint16 Y, uint16 AtrbTableBaseAdrs, uint64 MemoryOffset)
+{
+    uint8 AttributeByteX = X / PIXELS_PER_ATRB_BYTE;
+    uint8 AttributeByteY = Y / PIXELS_PER_ATRB_BYTE;
+    
+    uint16 AtrbByteAdrs = (AtrbTableBaseAdrs + (AttributeByteY * ATRB_BYTE_PER_ROW)) + AttributeByteX;
+    uint8 Attribute = readPpu8(AtrbByteAdrs, MemoryOffset);
+    
+    uint8 BlockRelX = (X % PIXELS_PER_ATRB_BYTE) / 16;
+    uint8 BlockRelY = (Y % PIXELS_PER_ATRB_BYTE) / 16;
+
+    uint8 Value;
+    
+    if(BlockRelX == 0)
+        if(BlockRelY == 0)
+            Value = Attribute;
+        else if(BlockRelY == 1)
+            Value = Attribute >> 4;
+    if(BlockRelX == 1)
+        if(BlockRelY == 0)
+            Value = Attribute >> 2;
+        else if(BlockRelY == 1)
+            Value = Attribute >> 6;
+    
+    Value = Value & 3;
+    
+    return(Value);
+}
+
+void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
+{    
+    ppu_registers *Registers = Ppu->Registers;
+    
+    // NOTE: This is where data is transferred from Cpu via IO registers
+    if(VRamAdrsChange)
+    {
+        Ppu->VRamIOAddress = (Ppu->VRamIOAddress << 8) | (uint16)Registers->VRamAddress;
+        
+        // NOTE: If address is on the pallette. Then IO register is updated immediately
+        if(0x3F00 <= Ppu->VRamIOAddress && Ppu->VRamIOAddress <= 0x3FFF)
+            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryOffset);
+
+        VRamAdrsChange = false;
+    }
+    if(VRamIOChange)
+    {
 #if 0
-    char TextBuffer[256];
-    _snprintf(TextBuffer, 256, "0x%X: %X\n", Address, Byte);
-    OutputDebugString(TextBuffer);
-#endif
-    writeMemory8(Byte, Address, MemoryOffset);
-}
-
-internal void
-getTempColour(uint8 TileX, uint8 TileY, uint8 *Red, uint8 *Green, uint8 *Blue)
-{
-    *Red = ((TileX << 4) + (TileY & 0x0F)) * 10; 
-    *Green = ((TileY << 4) + (TileX & 0x0F)) * 10;
-    *Blue = (TileX) * 20;
-}
-
-
-#define NAMETABLE_BYTE_COUNT 960
-
-struct palette
-{
-    uint8 Colours[4][3];
-};
-
-
-#define BYTES_PER_PATTERN 16
-#define TILE_COUNT_X 32
-#define TILE_COUNT_Y 30
-
-internal uint8 getColourIndex(uint8 CombinedBits, uint64 MemoryOffset)
-{
-    uint8 Result = {};
-    #define PALETTE_ADDRESS 0x3F00
-    uint8 *ColourPaletteAddress =  (uint8 *)((uint64)(PALETTE_ADDRESS + CombinedBits) + MemoryOffset);
-    Result = *ColourPaletteAddress;
-    return(Result);
-}
-
-internal uint8 getAttribute(ppu *PpuData, uint8 BlockX, uint8 BlockY)
-{
-    uint8 Result = {};
-    
-    uint64 AttributeAddress = PpuData->NameTableAddress + PpuData->MemoryOffset + NAMETABLE_BYTE_COUNT;
-
-    // NOTE: Attribute data is condensed into one byte per 4x4 tiles.
-    //       I have the blockX and Y which is a 2x2 Tile, Dividing this by 2 will give 4x4
-    //       One byte is 0011 2233 where the attribute data is layout as following
-    //       00 11         Each 2 bits represents a block
-    //       22 33
-
-    uint8 Tile4x4Width = TILE_COUNT_X / 4;
-    
-    uint8 Tile4x4X = BlockX / 2;
-    uint8 Tile4x4Y = BlockY / 2;
-
-    uint8 *Attribute = (uint8 *)(AttributeAddress + (Tile4x4Y * Tile4x4Width) + Tile4x4X);
-    uint8 AtrbByte = *Attribute;
-
-    uint8 TileNumX = BlockX % 2;
-    uint8 TileNumY = BlockY % 2;
-
-    if(TileNumX == 0)
-    {
-        if(TileNumY == 0)
-        {
-            Result = (AtrbByte << 6) & 3;
-        }
-        else if(TileNumY == 1)
-        {
-            Result = (AtrbByte << 2) & 3;
-        }
+        char TextBuffer[256];
+        _snprintf(TextBuffer, 256, "Address: %X Data: %X \n", Ppu->VRamIOAddress, Registers->VRamIO);
+        OutputDebugString(TextBuffer);
+#endif   
+        writePpu8(Registers->VRamIO, Ppu->VRamIOAddress, Ppu->MemoryOffset);
+        if(Registers->Ctrl1 & (1 << 2))
+            Ppu->VRamIOAddress += 32;
+        else
+            ++Ppu->VRamIOAddress;
+        VRamIOChange = false;
     }
-    else if(TileNumX == 1)
+
+    VRamAdrsOnPalette = (0x3F00 <= Ppu->VRamIOAddress && Ppu->VRamIOAddress <= 0x3FFF);
+    
+    if(IOReadFromCpu)
     {
-        if(TileNumY == 0)
+        if(VRamAdrsOnPalette)
         {
-            Result = (AtrbByte << 4) & 3;
+            if(Registers->Ctrl1 & (1 << 2))
+                Ppu->VRamIOAddress += 32;
+            else
+                ++Ppu->VRamIOAddress;
+            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryOffset);
         }
-        else if(TileNumY == 1)
+        else
         {
-            Result = AtrbByte & 3;
+            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryOffset);
+            if(Registers->Ctrl1 & (1 << 2))
+                Ppu->VRamIOAddress += 32;
+            else
+                ++Ppu->VRamIOAddress;
+            
         }
-    }
-    return(Result);
-}
-
-struct bkgrd_pattern
-{
-    uint8 *Group1;
-    uint8 *Group2;
-};
-
-internal bkgrd_pattern getBkgrdPattern(ppu *PpuData, uint8 PatternIndex)
-{   
-    bkgrd_pattern Result = {};
-    
-    uint64 PatTableAddress = PpuData->BkgrdPatAddress + PpuData->MemoryOffset;
-
-    uint8 *PatAddress = (uint8 *)(PatTableAddress + (PatternIndex * BYTES_PER_PATTERN));
-
-    Result.Group1 = PatAddress;
-    Result.Group2 = PatAddress + (BYTES_PER_PATTERN / 2);
-    
-    return(Result);
-}
-
-internal uint8 getNametableValue(ppu *PpuData, uint8 TileX, uint8 TileY)
-{
-    uint64 NameTableAddress = PpuData->NameTableAddress + PpuData->MemoryOffset;
-    uint8 *Value = (uint8 *)(NameTableAddress + (TileY * TILE_COUNT_X) + TileX);    
-    return(*Value);
-}
-
-struct prevDraw
-{
-    bkgrd_pattern Pattern;
-    uint8 PatternIndex;
-    uint8 TileX, TileY;
-    uint8 BlockX, BlockY;
-    bool32 Initialised;
-};
-
-prevDraw Prev = {};
-
-void ppuTick(screen_buffer *BackBuffer, ppu *PpuData)
-{
-    ppu_registers *Registers = PpuData->Registers; 
-    
-    uint8 NameTableFlag = Registers->Ctrl1 & 0x03;
-    switch(NameTableFlag)
-    {
-        case 0:
-        {
-            PpuData->NameTableAddress = 0x2000;
-            break;
-        }
-        case 1:
-        {
-            PpuData->NameTableAddress = 0x2400;
-            break;
-        }
-        case 2:
-        {
-            PpuData->NameTableAddress = 0x2800;
-            break;
-        }
-        case 3:
-        {
-            PpuData->NameTableAddress = 0x2C00;
-            break;
-        }
+        IOReadFromCpu = false;
     }
     
-    uint8 AddressIncrement = 1;
-    if(Registers->Ctrl1 & (1 << 2))
-        AddressIncrement = 32;
-
-    
-    if(Registers->Ctrl1 & (1 << 3))
-        PpuData->SprtPatAddress = 0x1000;
-    else
-        PpuData->SprtPatAddress = 0x0000;
-    
-    if(Registers->Ctrl1 & (1 << 4))
-        PpuData->BkgrdPatAddress = 0x1000;
-    else
-        PpuData->BkgrdPatAddress = 0x0000;
-
-    
-    bool32 SpritesAre8x16 = false;
-    if(Registers->Ctrl1 & (1 << 5))
-        SpritesAre8x16 = true;
-
-    bool32 NmiOnVBlank = false;
-    if(Registers->Ctrl1 & (1 << 7))
-        NmiOnVBlank = true;
-
-
-    bool32 ColourMode = true;
-    if(Registers->Ctrl2 & 1)
-        ColourMode = false;
-
-    bool32 ClipBackground = false;
-    if(Registers->Ctrl2 & (1 << 1))
-        ClipBackground = true;
-
-    bool32 ClipSprites = false;
-    if(Registers->Ctrl2 & (1 << 2))
-        ClipSprites = true;
-
-    bool32 HideBackground = true;
-    if(Registers->Ctrl2 & (1 << 3))
-        HideBackground = false;
-
-    bool32 HideSprites = true;
-    if(Registers->Ctrl2 & (1 << 4))
-        HideSprites = false;
-
-    uint8 ColourIntensity = Registers->Ctrl2 >> 5;    
-
-    if(VRamIOAdrsCount > PrevVRamIOAdrsCount)
-    {
-        PpuData->VRamIOAdrs = (PpuData->VRamIOAdrs << 8) | Registers->VRamAddress;
-    }
-    PrevVRamIOAdrsCount = VRamIOAdrsCount;
-    
-    if(VRamIOWriteCount > PrevVRamIOWriteCount)
-    {
-        uint8 Value = Registers->VRamIO;        
-        writePpuMemory8(Value, PpuData->VRamIOAdrs, PpuData->MemoryOffset);
-
-        PpuData->VRamIOAdrs += AddressIncrement;
-    }
-    PrevVRamIOWriteCount = VRamIOWriteCount;
-
-    
-    if(ResetScrollIOAdrs) // TODO: Finish this
-    {
-        ResetScrollIOAdrs = false;
-    }
     if(ResetVRamIOAdrs)
     {
-        PpuData->VRamIOAdrs = 0;
-        VRamIOAdrsCount = PrevVRamIOAdrsCount = 0;
-        VRamIOWriteCount = PrevVRamIOWriteCount = 0;        
+        Ppu->VRamIOAddress = 0;
         ResetVRamIOAdrs = false;
     }
-    
-    
-
-    
-    if(!Prev.Initialised)
+    if(ResetScrollIOAdrs)
     {
-        Prev.Pattern.Group1 = (uint8 *)255;
-        Prev.Pattern.Group2 = (uint8 *)255;
-        Prev.PatternIndex = 255;
-        Prev.TileX = 255;
-        Prev.TileY = 255;
-        Prev.BlockX = 255;
-        Prev.BlockY = 255;
-        Prev.Initialised = true;
+        // TODO:
+        ResetScrollIOAdrs = false;
     }
-        
-    /*
-      Palette is stored at 0x3F00 to 0x3F20
-      0x3F00 - 0x3F0F is Image Palette
-      0x3F10 - 0x3F1F is Sprie Palette
 
-      This is mirrored from 0x3F20 to 0x4000
-
-      A palette is 16 indexes to colours stored
-      in the colour palette. This does not mean 16
-      seperate colours however as a shared colour is
-      found every 4 bytes. So 0x3F00 = 0x3F04 = 0x3F08 = 0x3F0C
-
-      Each group of palette is 4 colours.
-      There are 4 groups.
-      Attribute tables will name one of the four groups
-      This is the 4 colours used by a 2x2 tile section
-      Tiles are 8x8 pixels.
-      Pattern Tables hold the 8x8 pixel data. Each pattern is
-      16 bytes.
-      The nametable points to which pattern is used for a 8x8 pixeled
-      section.
-      
-     */
-
-    // 341 PPU cycles in a scanline, and 262 scanlines in a frame
     
-    if(PpuData->ScanLine == 0)
+    
+    uint16 PatternBase = 0x0000;
+    if(Registers->Ctrl1 & (1 << 4))
+        PatternBase = 0x1000;
+
+    uint8 NameTableBaseNum = Registers->Ctrl1 & 3;
+    uint16 NameTableBaseAdrs; 
+    if(NameTableBaseNum == 0)
+        NameTableBaseAdrs = 0x2000;
+    else if(NameTableBaseNum == 1)
+        NameTableBaseAdrs = 0x2400;
+    else if(NameTableBaseNum == 2)
+        NameTableBaseAdrs = 0x2800;
+    else if(NameTableBaseNum == 3)
+        NameTableBaseAdrs = 0x2C00;
+
+    
+    
+    bool32 VisibleLine = (0 <= Ppu->Scanline && Ppu->Scanline <= 239);
+    bool32 PostRenderLine = (Ppu->Scanline == 240);
+    bool32 VBlankLine = (241 <= Ppu->Scanline && Ppu->Scanline <= 260);
+    bool32 PreRenderLine = (Ppu->Scanline == 261);
+    
+    if(VisibleLine)
     {
-        Registers->Status = Registers->Status & ~(1 << 7); // clear vblank
-        Registers->Status = Registers->Status & ~(1 << 6); // clear sprite0
-        Registers->Status = Registers->Status & ~(1 << 5); // clear spriteOverflow
+        // NOTE: At the moment I am going to just produce a pixel per cycle with fetching happening each time.
+        // TODO: Timing of fetches so less loading happens, using fine X scrolling to move through bytes
+
+        if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= PIXEL_WIDTH)
+        {
+            uint16 PixelX = Ppu->ScanlineCycle - 1;
+            uint16 PixelY = Ppu->Scanline;
+
+            
+            uint8 NameTableValue = getNameTableValue(PixelX, PixelY, NameTableBaseAdrs, Ppu->MemoryOffset);
+            uint8 PatternPixelValue = getPatternValue(PixelX, PixelY, NameTableValue, PatternBase, Ppu->MemoryOffset);
+            uint8 AttributeValue = getAttributeValue(PixelX, PixelY, NameTableBaseAdrs + ATTRIBUTE_OFFSET, Ppu->MemoryOffset);
+
+            uint8 PixelColourIndex = (AttributeValue << 2) | PatternPixelValue;
+
+            uint8 PaletteIndex = readPpu8(BGRD_PALETTE_ADRS + PixelColourIndex, Ppu->MemoryOffset);
+            
+            uint8 Colour[3] = {};
+            getPaletteValue(PaletteIndex, Colour);
+           
+            drawPixel(Ppu, PixelX, PixelY, Colour);
+            
+#if 0 
+            char TextBuffer[256];
+            _snprintf(TextBuffer, 256, "PixelPattern: %X AtrbValue: %X Complete: %X PaletteIndex: %X RGB: %d, %d, %d\n",
+                      PatternPixelValue, AttributeValue, PixelColourIndex, PaletteIndex, Colour[0], Colour[1], Colour[2]);
+            OutputDebugString(TextBuffer);
+
+#endif
+        }
     }
-    else if(PpuData->ScanLine > 0 && PpuData->ScanLine < 240)
+    if(PostRenderLine)
     {
-        uint8 Red, Green, Blue;
-        palette Palette = {};
-        
-        // NOTE: Pattern Tile
-        uint8 TileX = PpuData->CurrentXPixel / 8;
-        uint8 TileY = PpuData->CurrentYPixel / 8; 
-        // NOTE: Pixel relative to a tile
-        uint8 TilePixelX = PpuData->CurrentXPixel % 8;
-        uint8 TilePixelY = PpuData->CurrentYPixel % 8;
-        // NOTE: Attribute Block
-        uint8 BlockX = PpuData->CurrentXPixel / 16; 
-        uint8 BlockY = PpuData->CurrentYPixel / 16;
-
-        // NOTE: Retrieve the pattern index for this tile 
-        uint8 PatternIndex;
-        if((TileX != Prev.TileX) || (TileY != Prev.TileY))
-            PatternIndex = getNametableValue(PpuData, TileX, TileY);
-        else
-            PatternIndex = Prev.PatternIndex;
-        
-        Prev.TileX = TileX;
-        Prev.TileY = TileY;
-
-        bkgrd_pattern Pattern;
-
-        // Grab the Pattern data based on the index given
-        if(PatternIndex != Prev.PatternIndex)
-            Pattern = getBkgrdPattern(PpuData, PatternIndex);
-        else
-            Pattern = Prev.Pattern;
-        
-        Prev.PatternIndex = PatternIndex;
-        Prev.Pattern = Pattern;
-
-        uint8 Attribute;
-        if((BlockX != Prev.BlockX) || (BlockX != Prev.BlockY))
-            Attribute = getAttribute(PpuData, BlockX, BlockY);
-  
-        Prev.BlockX = BlockX;
-        Prev.BlockY = BlockY;
-    
-        // NOTE: Each pixel for a pattern has 2 bits for colour. The other 3 bits
-        //       for colour are stored in the attribute table. Each bit is stored
-        //       seperately in two seperate groups. This calculation will retrieve the
-        //       required bit for a specific pixel and combine them to make a 2 bits
-        uint8 Group1Bit = (Pattern.Group1[TilePixelY] >> (7 - TilePixelX)) & 1;
-        uint8 Group2Bit = (Pattern.Group2[TilePixelY] >> (7 - TilePixelX)) & 1;
-        uint8 CombinedBits = Group2Bit << 1 | Group1Bit;
-
-        uint8 FullAttribute = (Attribute << 2) & CombinedBits;
-
-        // TODO: This should fetch the Colour index from the image palette at 0x3F00
-        uint8 ColourIndex = getColourIndex(CombinedBits, PpuData->MemoryOffset);
-
-        getPaletteValue(ColourIndex, &Red, &Green, &Blue);
-        uint32 *CurrentPixel = (PpuData->ZeroPixel + (PpuData->CurrentYPixel * BackBuffer->Width)) + PpuData->CurrentXPixel;
-         
-        *CurrentPixel  = ((Blue << 16) | (Green << 8) | Red);
-
-        uint32 *Test = (PpuData->ZeroPixel);
-        
-        
-        // Advance to the next pixel,
-        // TODO: Make this a loop that updates once before vblank?
-        if((PpuData->CurrentXPixel + 1) >= BackBuffer->Width)
-            PpuData->CurrentYPixel = (PpuData->CurrentYPixel + 1) % BackBuffer->Height;
-        PpuData->CurrentXPixel = (PpuData->CurrentXPixel + 1) % BackBuffer->Width;
+        DrawScreen = true;
+        // NOTE: Ppu sits idle for this scanline
     }
-    else if(PpuData->ScanLine == 240) // Idle
+    if(VBlankLine)
     {
-        
+        if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
+        {
+            NmiTriggered = true;
+            Registers->Status = Registers->Status | (1 << 7); // Set VBlank Status
+        }
     }
-    else if(PpuData->ScanLine == 241) // VBlank Start
+    if(PreRenderLine)
     {
-        
-        Registers->Status = Registers->Status | (1 << 7);
-        /*if(NmiOnVBlank)
-            NMICalled = true;
-        */
+        switch(Ppu->ScanlineCycle)
+        {
+            case 1:
+            {
+                Registers->Status = Registers->Status & ~(1 << 5); // Clear Sprite Overflow
+                Registers->Status = Registers->Status & ~(1 << 6); // Clear Sprite Zero Hit
+                Registers->Status = Registers->Status & ~(1 << 7); // Clear Vblank status
+                break;
+            }
+            case 321:
+            case 329:
+            {
+                Ppu->NameTableByte1 = Ppu->NameTableByte2;
+                //Ppu->NameTableByte2 = getNameTableValue(PixelFetchX, PixelFetchY, TableBaseNum, Ppu->MemoryOffset);
+                break;
+            }
+        }
     }
-    
-    
 
-    // 1 pre-render scanline,               0
-    // 240 scanlines of picture,            1   - 240
-    // 20 scanlines of VBlank               241 - 261   (70 for PAL)
-    // and finally, 1 dummy scanline        262         (51 for Dendy)
-    
-    ++PpuData->ScanLine;
-    PpuData->ScanLine = PpuData->ScanLine % 262;
+    ++Ppu->ScanlineCycle;
+
+    if(Ppu->ScanlineCycle > 341)
+    {
+        Ppu->Scanline += 1;
+        Ppu->ScanlineCycle = 0;
+    }
+
+    if(Ppu->Scanline == 262)
+    {
+        Ppu->Scanline = 0;
+    }
 }
+
+
