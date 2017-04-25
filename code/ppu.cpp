@@ -15,9 +15,7 @@
 
 #define PIXEL_PER_TILE 8
 
-
 #define BGRD_PALETTE_ADRS 0x3F00
-
 #define ATTRIBUTE_OFFSET 0x3C0
 
 struct ppu_registers
@@ -25,8 +23,8 @@ struct ppu_registers
     uint8 Ctrl1;
     uint8 Ctrl2;
     uint8 Status;
-    uint8 SprAddress;
-    uint8 SprIO;
+    uint8 OamAddress;
+    uint8 OamIO;
     uint8 ScrollAddress;
     uint8 VRamAddress;
     uint8 VRamIO;
@@ -34,15 +32,20 @@ struct ppu_registers
 
 struct ppu
 {
+    uint64 MemoryBase;
+    uint32 *BasePixel;
+    
     ppu_registers *Registers; // NOTE: Pointer because points to cpu memory
-    uint64 MemoryOffset;
 
+    uint8 *OamDma;
+    
+    uint8 Oam[OAM_SIZE];
+    
     uint16 Scanline;
     uint16 ScanlineCycle;
 
     uint16 VRamIOAddress;
-    
-    uint32 *BasePixel;
+    uint16 ScrollPosition;
 
     uint8 PixelFetchX;
     uint8 PixelFetchY;
@@ -65,33 +68,24 @@ inline void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
 
 internal uint8 readPpu8(uint16 Address, uint64 MemoryOffset)
 {
-    // TODO: Finish memory mirror
     if(0x3000 <= Address && Address < 0x3F00)
-    {
-        Assert(0);
-    }
+        Address = (Address % (0x3000 - 0x2000)) + 0x2000;
     if(0x3F20 <= Address && Address < 0x4000)
-    {
-        Assert(0);
-    }
+        Address = (Address % (0x3F20 - 0x3F00)) + 0x3F00;
     if(Address >= 0x4000)
-        Assert(0);
+        Address = Address % 0x4000; 
+
     uint8 Result = read8(Address, MemoryOffset);
     return(Result);
 }
 internal void writePpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
 {
-    // TODO: Finish memory mirror
     if(0x3000 <= Address && Address < 0x3F00)
-    {
-        Assert(0);
-    }
+        Address = (Address % (0x3000 - 0x2000)) + 0x2000;
     if(0x3F20 <= Address && Address < 0x4000)
-    {
-        Assert(0);
-    }
+        Address = (Address % (0x3F20 - 0x3F00)) + 0x3F00;
     if(Address >= 0x4000)
-        Assert(0);
+        Address = Address % 0x4000; 
     
     write8(Byte, Address, MemoryOffset);
 }
@@ -169,55 +163,64 @@ internal uint8 getAttributeValue(uint16 X, uint16 Y, uint16 AtrbTableBaseAdrs, u
 void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 {    
     ppu_registers *Registers = Ppu->Registers;
+
+    if(OamDataChange)
+    {
+        OamDataChange = false;
+        Ppu->Oam[Registers->OamAddress] = Registers->OamIO;
+        ++Registers->OamAddress;
+    }
+    
+    if(ScrollAdrsChange)
+    {
+        ScrollAdrsChange = false;
+        Ppu->ScrollPosition = (Ppu->ScrollPosition << 8) | (uint16)Registers->ScrollAddress;
+    }
     
     // NOTE: This is where data is transferred from Cpu via IO registers
     if(VRamAdrsChange)
     {
+        VRamAdrsChange = false;
         Ppu->VRamIOAddress = (Ppu->VRamIOAddress << 8) | (uint16)Registers->VRamAddress;
         
         // NOTE: If address is on the pallette. Then IO register is updated immediately
         if(0x3F00 <= Ppu->VRamIOAddress && Ppu->VRamIOAddress <= 0x3FFF)
-            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryOffset);
-
-        VRamAdrsChange = false;
+            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryBase);
     }
-    if(VRamIOChange)
+
+    if(IOWriteFromCpu)
     {
-#if 0
-        char TextBuffer[256];
-        _snprintf(TextBuffer, 256, "Address: %X Data: %X \n", Ppu->VRamIOAddress, Registers->VRamIO);
-        OutputDebugString(TextBuffer);
-#endif   
-        writePpu8(Registers->VRamIO, Ppu->VRamIOAddress, Ppu->MemoryOffset);
+        IOWriteFromCpu = false;
+        
+        writePpu8(Registers->VRamIO, Ppu->VRamIOAddress, Ppu->MemoryBase);
         if(Registers->Ctrl1 & (1 << 2))
             Ppu->VRamIOAddress += 32;
         else
             ++Ppu->VRamIOAddress;
-        VRamIOChange = false;
     }
 
     VRamAdrsOnPalette = (0x3F00 <= Ppu->VRamIOAddress && Ppu->VRamIOAddress <= 0x3FFF);
     
     if(IOReadFromCpu)
     {
+        IOReadFromCpu = false;
+
         if(VRamAdrsOnPalette)
         {
             if(Registers->Ctrl1 & (1 << 2))
                 Ppu->VRamIOAddress += 32;
             else
                 ++Ppu->VRamIOAddress;
-            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryOffset);
+            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryBase);
         }
         else
         {
-            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryOffset);
+            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryBase);
             if(Registers->Ctrl1 & (1 << 2))
                 Ppu->VRamIOAddress += 32;
             else
                 ++Ppu->VRamIOAddress;
-            
         }
-        IOReadFromCpu = false;
     }
     
     if(ResetVRamIOAdrs)
@@ -227,11 +230,19 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     }
     if(ResetScrollIOAdrs)
     {
-        // TODO:
+        Ppu->ScrollPosition = 0;
         ResetScrollIOAdrs = false;
     }
-
     
+
+    uint16 Sprite8x16 = Registers->Ctrl1 & (1 << 5);
+
+        
+    uint16 TempPatternBase = 0x0000;
+    if(Registers->Ctrl1 & (1 << 3))
+        TempPatternBase = 0x1000;
+
+
     
     uint16 PatternBase = 0x0000;
     if(Registers->Ctrl1 & (1 << 4))
@@ -248,12 +259,15 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     else if(NameTableBaseNum == 3)
         NameTableBaseAdrs = 0x2C00;
 
-    
+    bool32 BackgroundEnabled = Registers->Ctrl2 & (1 << 3);
+    bool32 SpritesEnabled = Registers->Ctrl2 & (1 << 4);
     
     bool32 VisibleLine = (0 <= Ppu->Scanline && Ppu->Scanline <= 239);
     bool32 PostRenderLine = (Ppu->Scanline == 240);
     bool32 VBlankLine = (241 <= Ppu->Scanline && Ppu->Scanline <= 260);
     bool32 PreRenderLine = (Ppu->Scanline == 261);
+
+    uint32 * SpriteInfoPtr;
     
     if(VisibleLine)
     {
@@ -265,20 +279,73 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             uint16 PixelX = Ppu->ScanlineCycle - 1;
             uint16 PixelY = Ppu->Scanline;
 
-            
-            uint8 NameTableValue = getNameTableValue(PixelX, PixelY, NameTableBaseAdrs, Ppu->MemoryOffset);
-            uint8 PatternPixelValue = getPatternValue(PixelX, PixelY, NameTableValue, PatternBase, Ppu->MemoryOffset);
-            uint8 AttributeValue = getAttributeValue(PixelX, PixelY, NameTableBaseAdrs + ATTRIBUTE_OFFSET, Ppu->MemoryOffset);
+            // NOTE: If set, draw background
+            if(BackgroundEnabled)
+            {
+                uint8 NameTableValue = getNameTableValue(PixelX, PixelY, NameTableBaseAdrs, Ppu->MemoryBase);
+                uint8 PatternPixelValue = getPatternValue(PixelX, PixelY, NameTableValue, PatternBase, Ppu->MemoryBase);
+                uint8 AttributeValue = getAttributeValue(PixelX, PixelY, NameTableBaseAdrs + ATTRIBUTE_OFFSET, Ppu->MemoryBase);
 
-            uint8 PixelColourIndex = (AttributeValue << 2) | PatternPixelValue;
+                uint8 PixelColourIndex = (AttributeValue << 2) | PatternPixelValue;
 
-            uint8 PaletteIndex = readPpu8(BGRD_PALETTE_ADRS + PixelColourIndex, Ppu->MemoryOffset);
+                uint8 PaletteIndex = readPpu8(BGRD_PALETTE_ADRS + PixelColourIndex, Ppu->MemoryBase);
             
-            uint8 Colour[3] = {};
-            getPaletteValue(PaletteIndex, Colour);
+                uint8 Colour[3] = {};
+                getPaletteValue(PaletteIndex, Colour);
            
-            drawPixel(Ppu, PixelX, PixelY, Colour);
-            
+                drawPixel(Ppu, PixelX, PixelY, Colour);
+            }            
+
+
+
+            // NOTE: I am drawing the sprite at the end of the frame.
+            if(SpritesEnabled && Ppu->Scanline == 239 && Ppu->ScanlineCycle == PIXEL_WIDTH)
+            {
+                // Loop through each pixel, if sprite top left is there...draw!
+                for(uint8 SprtPixY = 0; SprtPixY < 240; ++SprtPixY)
+                {
+                    for(uint8 SprtPixX = 1; SprtPixX <= PIXEL_WIDTH; ++SprtPixX)
+                    {
+                
+                        if(!Sprite8x16)
+                        {
+                            SpriteInfoPtr = (uint32 *)Ppu->Oam;
+                            for(int i = 0; i < 5; ++i)
+                            {
+                                uint32 SpriteInfo = SpriteInfoPtr[i]; 
+                        
+                                uint8 SpriteY = SpriteInfo & 0xFF;
+                                uint8 SpriteTile = (SpriteInfo >> 8)  & 0xFF;
+                                uint8 SpriteAttrib = (SpriteInfo >> 16)  & 0xFF;
+                                uint8 SpriteX = (SpriteInfo >> 24)  & 0xFF;
+
+                                if((SpriteY + 1) == SprtPixY && SpriteX == SprtPixX)
+                                {
+                                    for(int y = 0; y < 8; ++y)
+                                    {
+                                        for(int x = 0; x < 8; ++x)
+                                        {
+                                            uint8 PatternValue = getPatternValue(x, y, SpriteTile, TempPatternBase, Ppu->MemoryBase);
+                                            
+                                            uint8 TempColour[3] = {};
+                                            if(PatternValue == 1)
+                                                TempColour[0] = 255;
+                                            if(PatternValue == 2)
+                                                TempColour[1] = 255;
+                                            if(PatternValue == 3)
+                                                TempColour[2] = 255;
+                                            drawPixel(Ppu, x + SprtPixX, y + SprtPixY, TempColour);
+                                        }
+                                    }
+                                }
+                        
+                            }
+                        }
+                    }
+
+                }
+            }
+
 #if 0 
             char TextBuffer[256];
             _snprintf(TextBuffer, 256, "PixelPattern: %X AtrbValue: %X Complete: %X PaletteIndex: %X RGB: %d, %d, %d\n",
@@ -297,7 +364,11 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     {
         if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
         {
-            NmiTriggered = true;
+            // TODO: if turning on NMI when in vblank. The nmi will be generated immediately.
+            if(Registers->Ctrl1 & (1 << 7))
+            {
+                NmiTriggered = true;
+            }
             Registers->Status = Registers->Status | (1 << 7); // Set VBlank Status
         }
     }
@@ -316,7 +387,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             case 329:
             {
                 Ppu->NameTableByte1 = Ppu->NameTableByte2;
-                //Ppu->NameTableByte2 = getNameTableValue(PixelFetchX, PixelFetchY, TableBaseNum, Ppu->MemoryOffset);
+                //Ppu->NameTableByte2 = getNameTableValue(PixelFetchX, PixelFetchY, TableBaseNum, Ppu->MemoryBase);
                 break;
             }
         }

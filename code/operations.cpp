@@ -8,31 +8,32 @@
 uint8 adc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
     uint8 A = Cpu->A;
-    uint8 B = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 B = readCpu8(Address, Cpu->MemoryBase);
     uint8 C = isBitSet(CARRY_BIT, Cpu->Flags);
 
-    Cpu->A = A + B + C;
-
-    uint16 CarryTest = (uint16)A + (uint16)B + (uint16)C;
-    if(CarryTest > 0xFF)
-        setCarry(&Cpu->Flags);
-    else
-        clearCarry(&Cpu->Flags);
+    uint16 Sum = (uint16)A + (uint16)B + (uint16)C;
 
     // Overflow check, taken from the web. One day find out how this works
-    if(((A ^ B) & 0x80 == 0) && ((A ^ Cpu->A) & 0x80 != 0))
+    if(((A ^ Sum) & (B ^ Sum) & 0x80) == 0x80)
         setOverflow(&Cpu->Flags);
     else
         clearOverflow(&Cpu->Flags);
 
-    setZero(Cpu->A, &Cpu->Flags);
-    setNegative(Cpu->A, &Cpu->Flags);
+    if(Sum & 0x100)
+        setCarry(&Cpu->Flags);
+    else
+        clearCarry(&Cpu->Flags);
+
+    setZero(Sum, &Cpu->Flags);
+    setNegative(Sum, &Cpu->Flags);
+
+    Cpu->A = (uint8)Sum;
     return(0);
 }
 
 uint8 AND(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
     Cpu->A = Cpu->A & Value;
     setZero(Cpu->A, &Cpu->Flags);
     setNegative(Cpu->A, &Cpu->Flags);
@@ -53,13 +54,13 @@ uint8 asl(uint16 Address, cpu *Cpu, uint8 AddressMode)
     }
     else
     {
-        Value = readCpu8(Address, Cpu->MemoryOffset);
+        Value = readCpu8(Address, Cpu->MemoryBase);
         if(Value & (1 << 7))
             setCarry(&Cpu->Flags);
         else
             clearCarry(&Cpu->Flags);
         Value = Value << 1;
-        writeCpu8(Value, Address, Cpu->MemoryOffset);
+        writeCpu8(Value, Address, Cpu->MemoryBase);
     }
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
@@ -109,7 +110,7 @@ uint8 beq(uint16 Address, cpu *Cpu, uint8 AddressMode)
 
 uint8 bit(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
     if(Value & (1 << 6))
         setOverflow(&Cpu->Flags);
     else
@@ -164,9 +165,13 @@ uint8 brk(uint16 Address, cpu *Cpu, uint8 AddressMode)
     uint8 LowByte = (uint8)Cpu->PrgCounter; 
     push(HighByte, Cpu);
     push(LowByte, Cpu);
-    push(Cpu->Flags, Cpu);
 
-    Cpu->PrgCounter = readCpu16(IRQ_BRK_VEC, Cpu->MemoryOffset);
+    setBlank(&Cpu->Flags);
+    setBreak(&Cpu->Flags);
+    push(Cpu->Flags, Cpu);
+    setInterrupt(&Cpu->Flags);
+
+    Cpu->PrgCounter = readCpu16(IRQ_BRK_VEC, Cpu->MemoryBase);
     return(0);
 }
 
@@ -218,7 +223,7 @@ uint8 clv(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 cmp(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
 
     if(Cpu->A >= Value)
         setCarry(&Cpu->Flags);
@@ -232,7 +237,7 @@ uint8 cmp(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 cpx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
 
     if(Cpu->X >= Value)
         setCarry(&Cpu->Flags);
@@ -246,7 +251,7 @@ uint8 cpx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 cpy(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
 
     if(Cpu->Y >= Value)
         setCarry(&Cpu->Flags);
@@ -260,8 +265,8 @@ uint8 cpy(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 dec(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset) - 1;
-    writeCpu8(Value, Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase) - 1;
+    writeCpu8(Value, Address, Cpu->MemoryBase);
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
     return(0);
@@ -282,7 +287,7 @@ uint8 dey(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 eor(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
     Cpu->A = Cpu->A ^ Value;
     setZero(Cpu->A, &Cpu->Flags);
     setNegative(Cpu->A, &Cpu->Flags);
@@ -290,8 +295,8 @@ uint8 eor(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 inc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset) + 1;
-    writeCpu8(Value, Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase) + 1;
+    writeCpu8(Value, Address, Cpu->MemoryBase);
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
     return(0);
@@ -329,7 +334,7 @@ uint8 jsr(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 lda(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
     Cpu->A = Value;
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
@@ -337,7 +342,7 @@ uint8 lda(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 ldx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
     Cpu->X = Value;
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
@@ -345,7 +350,7 @@ uint8 ldx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 ldy(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
     Cpu->Y = Value;
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
@@ -365,13 +370,13 @@ uint8 lsr(uint16 Address, cpu *Cpu, uint8 AddressMode)
     }
     else
     {
-        Value = readCpu8(Address, Cpu->MemoryOffset);
+        Value = readCpu8(Address, Cpu->MemoryBase);
         if(Value & 1)
             setCarry(&Cpu->Flags);
         else
             clearCarry(&Cpu->Flags);
         Value = Value >> 1;
-        writeCpu8(Value, Address, Cpu->MemoryOffset);
+        writeCpu8(Value, Address, Cpu->MemoryBase);
     }
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
@@ -383,7 +388,7 @@ uint8 nop(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 ora(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Value = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
     Cpu->A = Cpu->A | Value;
     setZero(Cpu->A, &Cpu->Flags);
     setNegative(Cpu->A, &Cpu->Flags);
@@ -396,6 +401,8 @@ uint8 pha(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 php(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    setBreak(&Cpu->Flags);
+    setBlank(&Cpu->Flags);
     push(Cpu->Flags, Cpu);
     return(0);
 }
@@ -426,13 +433,13 @@ uint8 rol(uint16 Address, cpu *Cpu, uint8 AddressMode)
         Value = Cpu->A << 1;
         
         if(CarrySet)
-            Value = Value & 1;
+            Value = Value | 1;
         
         Cpu->A = Value;
     }
     else
     {
-        Value = readCpu8(Address, Cpu->MemoryOffset);
+        Value = readCpu8(Address, Cpu->MemoryBase);
         if(Value & (1 << 7))
             setCarry(&Cpu->Flags);
         else
@@ -441,14 +448,15 @@ uint8 rol(uint16 Address, cpu *Cpu, uint8 AddressMode)
         Value = Value << 1;
         
         if(CarrySet)
-            Value = Value & 1;
+            Value = Value | 1;
         
-        writeCpu8(Value, Address, Cpu->MemoryOffset);
+        writeCpu8(Value, Address, Cpu->MemoryBase);
     }
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
     return(0);
 }
+
 uint8 ror(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
     uint8 Value = 0;
@@ -464,13 +472,13 @@ uint8 ror(uint16 Address, cpu *Cpu, uint8 AddressMode)
         Value = Cpu->A >> 1;
         
         if(CarrySet)
-            Value = Value & (1 << 7);
+            Value = Value | (1 << 7);
         
         Cpu->A = Value;
     }
     else
     {
-        Value = readCpu8(Address, Cpu->MemoryOffset);
+        Value = readCpu8(Address, Cpu->MemoryBase);
         if(Value & 1)
             setCarry(&Cpu->Flags);
         else
@@ -479,20 +487,18 @@ uint8 ror(uint16 Address, cpu *Cpu, uint8 AddressMode)
         Value = Value >> 1;
         
         if(CarrySet)
-            Value = Value & (1 << 7);
+            Value = Value | (1 << 7);
         
-        writeCpu8(Value, Address, Cpu->MemoryOffset);
+        writeCpu8(Value, Address, Cpu->MemoryBase);
     }
     setZero(Value, &Cpu->Flags);
     setNegative(Value, &Cpu->Flags);
     return(0);
 }
+
 uint8 rti(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    // TODO: Double check if problems arise
     uint8 Flags = pop(Cpu);
-    clearBreak(&Flags);
-    setInterrupt(&Flags);
     Cpu->Flags = Flags;
     
     uint8 LowByte = pop(Cpu);
@@ -510,27 +516,28 @@ uint8 rts(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 sbc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    // TODO: Revisit this to double check if it is correct
     uint8 A = Cpu->A;
-    uint8 B = readCpu8(Address, Cpu->MemoryOffset);
+    uint8 B = ~readCpu8(Address, Cpu->MemoryBase); // NOTE: Using the inverse
     uint8 C = isBitSet(CARRY_BIT, Cpu->Flags);
 
-    Cpu->A = A - B - (1-C);
-
-    uint16 CarryTest = (int16)A - (int16)B - (int16)(1-C);
-    if(CarryTest >= 0)
-        setCarry(&Cpu->Flags);
-    else
-        clearCarry(&Cpu->Flags);
+    uint16 Sum = (uint16)A + (uint16)B + (uint16)C;
 
     // Overflow check, taken from the web. One day find out how this works
-    if(((A ^ B) & 0x80 != 0) && ((A ^ Cpu->A) & 0x80 != 0))
+    if(((A ^ Sum) & (B ^ Sum) & 0x80) == 0x80)
         setOverflow(&Cpu->Flags);
     else
         clearOverflow(&Cpu->Flags);
 
-    setZero(Cpu->A, &Cpu->Flags);
-    setNegative(Cpu->A, &Cpu->Flags);
+    if(Sum & 0x100)
+        setCarry(&Cpu->Flags);
+    else
+        clearCarry(&Cpu->Flags);
+
+    setZero(Sum, &Cpu->Flags);
+    setNegative(Sum, &Cpu->Flags);
+
+    Cpu->A = (uint8)Sum;
+
     return(0);
 }
 uint8 sec(uint16 Address, cpu *Cpu, uint8 AddressMode)
@@ -550,17 +557,17 @@ uint8 sei(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 sta(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    writeCpu8(Cpu->A, Address, Cpu->MemoryOffset);
+    writeCpu8(Cpu->A, Address, Cpu->MemoryBase);
     return(0);
 }
 uint8 stx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    writeCpu8(Cpu->X, Address, Cpu->MemoryOffset);
+    writeCpu8(Cpu->X, Address, Cpu->MemoryBase);
     return(0);
 }
 uint8 sty(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    writeCpu8(Cpu->Y, Address, Cpu->MemoryOffset);
+    writeCpu8(Cpu->Y, Address, Cpu->MemoryBase);
     return(0);
 }
 uint8 tax(uint16 Address, cpu *Cpu, uint8 AddressMode)
@@ -601,8 +608,6 @@ uint8 tya(uint16 Address, cpu *Cpu, uint8 AddressMode)
 uint8 txs(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
     Cpu->StackPtr = Cpu->X;
-    setZero(Cpu->StackPtr, &Cpu->Flags);
-    setNegative(Cpu->StackPtr, &Cpu->Flags);
     return(0);
 }
 
@@ -610,42 +615,82 @@ uint8 txs(uint16 Address, cpu *Cpu, uint8 AddressMode)
 
 uint8 ahx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    //Assert(0);
     return(0);
 }
 uint8 alr(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    AND(Address, Cpu, AddressMode);
+    lsr(Address, Cpu, ACM);
     return(0);
 }
 uint8 anc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    AND(Address, Cpu, AddressMode);
+    
+    if(isBitSet(NEGATIVE_BIT, Cpu->Flags))
+        setCarry(&Cpu->Flags);
+    else
+        clearCarry(&Cpu->Flags);
+    
     return(0);
 }
 uint8 arr(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    AND(Address, Cpu, AddressMode);    
+    ror(Address, Cpu, ACM);
+
+    uint8 bit5 = Cpu->A & (1<<5);
+    uint8 bit6 = Cpu->A & (1<<6);
+
+    if(bit6)
+        setCarry(&Cpu->Flags);
+    else
+        clearCarry(&Cpu->Flags);
+
+    if((bit5 && !bit6) || (!bit5 && bit6))
+        setOverflow(&Cpu->Flags);
+    else
+        clearOverflow(&Cpu->Flags);
+        
+    setZero(Cpu->A, &Cpu->Flags);
+    setNegative(Cpu->A, &Cpu->Flags);
+
+    
     return(0);
 }
 uint8 axs(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    uint8 Value = readCpu8(Address, Cpu->MemoryBase);
+
+    uint8 ANDValue = (Cpu->A & Cpu->X);
+    Cpu->X = ANDValue - Value;
+
+    if(ANDValue >= Value)
+        setCarry(&Cpu->Flags);
+    else
+        clearCarry(&Cpu->Flags);
+    
+    setZero(Cpu->X, &Cpu->Flags);
+    setNegative(Cpu->X, &Cpu->Flags);
+    
     return(0);
 }
 uint8 dcp(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    dec(Address, Cpu, AddressMode);
+    cmp(Address, Cpu, AddressMode);
     return(0);
 }
 uint8 isc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    inc(Address, Cpu, AddressMode);
+    sbc(Address, Cpu, AddressMode);
     return(0);
 }
 uint8 kil(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    //Assert(0);
     return(0);
 }
 uint8 las(uint16 Address, cpu *Cpu, uint8 AddressMode)
@@ -654,26 +699,26 @@ uint8 las(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 lax(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    lda(Address, Cpu, AddressMode);
+    ldx(Address, Cpu, AddressMode);
     return(0);
 }
 uint8 rla(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    /*
-    Rotate one bit left in memory, then AND accumulator with memory. Status
-    flags: N,Z,C
-    */
-        
+    rol(Address, Cpu, AddressMode);
+    AND(Address, Cpu, AddressMode);
     return(0);
 }
 uint8 rra(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    ror(Address, Cpu, AddressMode);
+    adc(Address, Cpu, AddressMode);
     return(0);
 }
 uint8 sax(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    uint8 Value = Cpu->A & Cpu->X;
+    writeCpu8(Value, Address, Cpu->MemoryBase);    
     return(0);
 }
 uint8 shx(uint16 Address, cpu *Cpu, uint8 AddressMode)
@@ -688,12 +733,14 @@ uint8 shy(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 slo(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-//    Assert(0);
+    asl(Address, Cpu, AddressMode);
+    ora(Address, Cpu, AddressMode);
     return(0);
 }
 uint8 sre(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    lsr(Address, Cpu, AddressMode);
+    eor(Address, Cpu, AddressMode);
     return(0);
 }
 uint8 tas(uint16 Address, cpu *Cpu, uint8 AddressMode)

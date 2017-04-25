@@ -19,8 +19,7 @@ struct cpu
     uint8 Flags;
     uint8 StackPtr;
     uint16 PrgCounter;
-
-    uint64 MemoryOffset;
+    uint64 MemoryBase;
 };
 
 internal uint8 readCpu8(uint16 Address, uint64 MemoryOffset)
@@ -62,13 +61,34 @@ internal void writeCpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
         Assert(0); // TODO: Writing to Program ROM, bank switching?     
     
     write8(Byte, Address, MemoryOffset);
-    
+
+    if(Address == 0x2004) // OAM data
+        OamDataChange = true;
     if(Address == 0x2005) // Scroll address
         ScrollAdrsChange = true;
     if(Address == 0x2006) // Writing to ppu io address register
         VRamAdrsChange = true;
     if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
-        VRamIOChange = true;
+        IOWriteFromCpu = true;
+
+
+    // NOTE: OAM DMA Write
+    if(Address == 0x4014)
+    {
+        uint8 OamAddress = read8(0x2003, MemoryOffset);
+
+        if(OamData == 0)
+        {
+            Assert(0);
+        }
+        
+        for(uint16 index = OamAddress; index < OAM_SIZE; ++index)
+        {
+            uint16 NewAddress = (Byte << 8) | index; 
+            OamData[index] = read8(NewAddress, MemoryOffset);
+        }
+        
+    }
 }
 
 internal uint16 readCpu16(uint16 Address, uint64 MemoryOffset)
@@ -94,23 +114,16 @@ internal uint16 bugReadCpu16(uint16 Address, uint64 MemoryOffset)
     uint16 NewAddress = (HighByte << 8) | LowByte;
     return(NewAddress);
 }
-/*
-internal void writeCpu16(uint16 Bytes, uint16 Address, uint64 MemoryOffset)
-{
-    writeCpu8((Bytes >> 8), Address, MemoryOffset);
-    writeCpu8(Bytes, Address, MemoryOffset);
-}
-*/
 
 internal void push(uint8 Byte, cpu *Cpu)
 {
-    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryOffset);
+    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryBase);
     --Cpu->StackPtr;  
 }
 internal uint8 pop(cpu *Cpu)
 {
     ++Cpu->StackPtr;
-    uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryOffset);
+    uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryBase);
     return(Value);
 }
 
@@ -123,16 +136,18 @@ internal uint8 pop(cpu *Cpu)
 #define BLANK_BIT     0x20
 #define OVERFLOW_BIT  0x40
 #define NEGATIVE_BIT  0x80
-inline void setCarry(uint8 *Flags)      { *Flags = *Flags | CARRY_BIT; }
-inline void clearCarry(uint8 *Flags)    { *Flags = *Flags & ~CARRY_BIT; }
-inline void setInterrupt(uint8 *Flags)  { *Flags = *Flags | INTERRUPT_BIT; }
-inline void clearInterrupt(uint8 *Flags){ *Flags = *Flags & ~INTERRUPT_BIT; }
-inline void setDecimal(uint8 *Flags)  { *Flags = *Flags | DECIMAL_BIT; }
-inline void clearDecimal(uint8 *Flags)  { *Flags = *Flags & ~DECIMAL_BIT; }
-inline void setBreak(uint8 *Flags)      { *Flags = *Flags | BREAK_BIT; }
-inline void clearBreak(uint8 *Flags)    { *Flags = *Flags & ~BREAK_BIT; }
-inline void setOverflow(uint8 *Flags)   { *Flags = *Flags | OVERFLOW_BIT; }
-inline void clearOverflow(uint8 *Flags) { *Flags = *Flags & ~OVERFLOW_BIT; }
+inline void setCarry(uint8 *Flags)       { *Flags = *Flags | CARRY_BIT; }
+inline void clearCarry(uint8 *Flags)     { *Flags = *Flags & ~CARRY_BIT; }
+inline void setInterrupt(uint8 *Flags)   { *Flags = *Flags | INTERRUPT_BIT; }
+inline void clearInterrupt(uint8 *Flags) { *Flags = *Flags & ~INTERRUPT_BIT; }
+inline void setDecimal(uint8 *Flags)     { *Flags = *Flags | DECIMAL_BIT; }
+inline void clearDecimal(uint8 *Flags)   { *Flags = *Flags & ~DECIMAL_BIT; }
+inline void setBreak(uint8 *Flags)       { *Flags = *Flags | BREAK_BIT; }
+inline void clearBreak(uint8 *Flags)     { *Flags = *Flags & ~BREAK_BIT; }
+inline void setBlank(uint8 *Flags)       { *Flags = *Flags | BLANK_BIT; }
+inline void clearBlank(uint8 *Flags)     { *Flags = *Flags & ~BLANK_BIT; }
+inline void setOverflow(uint8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
+inline void clearOverflow(uint8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
 inline void setZero(uint8 Value, uint8 *Flags)
 {
     if(Value == 0x00)
@@ -182,7 +197,7 @@ global uint8 instAddressMode[INSTRUCTION_COUNT] =
 global uint8 instLength[INSTRUCTION_COUNT] =
 {
     /*      0 1 2 3 4 5 6 7 8 9 A B C D E F      */
-    /*0*/   1,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
+    /*0*/   2,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
     /*1*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
     /*2*/   3,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
     /*3*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
@@ -287,59 +302,73 @@ uint8 (*instrOps[INSTRUCTION_COUNT])(uint16 Address, cpu *Cpu, uint8 AddressMode
 };
 
 
-internal uint8 nmi(cpu *Cpu)
+internal uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    uint8 Cycles = 7;
-    
     uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
     uint8 LowByte = (uint8)Cpu->PrgCounter; 
     push(HighByte, Cpu);
     push(LowByte, Cpu);
-    
-    push(Cpu->Flags, Cpu); // TODO: Check if I push the flags on with any changes??
+
+    clearBreak(&Cpu->Flags);
+    push(Cpu->Flags, Cpu); 
     setInterrupt(&Cpu->Flags);
 
-    Cpu->PrgCounter = readCpu16(NMI_VEC, Cpu->MemoryOffset);
-    return(Cycles);
+    Cpu->PrgCounter = readCpu16(Address, Cpu->MemoryBase);
+    return(0);
 }
-
-internal uint8 irq(cpu *Cpu)
-{
-    uint8 Cycles = 7;
-    
-    uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
-    uint8 LowByte = (uint8)Cpu->PrgCounter; 
-    push(HighByte, Cpu);
-    push(LowByte, Cpu);
-    
-    push(Cpu->Flags, Cpu); // TODO: Check if I push the flags on with any changes??
-    setInterrupt(&Cpu->Flags);
-
-    Cpu->PrgCounter = readCpu16(IRQ_BRK_VEC, Cpu->MemoryOffset);
-    return(Cycles);
-}
-
 
 internal uint8 cpuTick(cpu *Cpu)
 {
-    uint64 MemoryOffset = Cpu->MemoryOffset;
+    uint64 MemoryBase = Cpu->MemoryBase;
     uint8 CyclesElapsed = 0;
 
     uint16 Address = 0;
     bool32 CrossedPage = 0;
- 
-    uint8 Instruction = readCpu8(Cpu->PrgCounter, MemoryOffset);
-    uint8 AddressMode = instAddressMode[Instruction];
-    uint8 InstrLength = instLength[Instruction];
-    char *InstrName = instName[Instruction];
-    uint8 InstCycles = instCycles[Instruction];
-
+    
+    uint8 Instruction;
+    uint8 AddressMode;
+    uint8 InstrLength;
+    char *InstrName;
+    uint8 InstrCycles;
     uint8 InstrData[3]; // Stores data for each instruction
-    for(int i = 0; i < InstrLength; ++i)
+
+    // NOTE: Logging: Save Cpu before changes. Print out later
+    cpu LogCpu = *Cpu;
+    
+    if(NmiTriggered)
     {
-        InstrData[i] = readCpu8(Cpu->PrgCounter + i, MemoryOffset); 
+        LogCpu.PrgCounter = NMI_VEC;
+        Address = NMI_VEC;
+        AddressMode = IMPL;
+        InstrLength = 0;
+        InstrName = "NMI";
+        InstrCycles = 7;
+        InstrData[0] = 0;
     }
-        
+    else if(IrqTriggered)
+    {
+        LogCpu.PrgCounter = IRQ_BRK_VEC;
+        Address = IRQ_BRK_VEC;
+        AddressMode = IMPL;
+        InstrLength = 0;
+        InstrName = "IRQ";
+        InstrCycles = 7;
+        InstrData[0] = 0;
+    }
+    else
+    {    
+        Instruction = readCpu8(Cpu->PrgCounter, MemoryBase);
+        AddressMode = instAddressMode[Instruction];
+        InstrLength = instLength[Instruction];
+        InstrName = instName[Instruction];
+        InstrCycles = instCycles[Instruction];
+
+        for(int i = 0; i < InstrLength; ++i)
+        {
+            InstrData[i] = readCpu8(Cpu->PrgCounter + i, MemoryBase); 
+        }
+    }
+    
     switch(AddressMode)
     {
         case ACM:
@@ -353,10 +382,10 @@ internal uint8 cpuTick(cpu *Cpu)
             Address = (uint16)InstrData[1];
             break;
         case ZERX:
-            Address = (uint16)InstrData[1] + Cpu->X;
+            Address = ((uint16)InstrData[1] + Cpu->X) & 0xFF;
             break;
         case ZERY:
-            Address = (uint16)InstrData[1] + Cpu->Y;
+            Address = ((uint16)InstrData[1] + Cpu->Y) & 0xFF;
             break;
         case ABS:
             Address = ((uint16)InstrData[2] << 8) | InstrData[1];
@@ -378,52 +407,56 @@ internal uint8 cpuTick(cpu *Cpu)
         case INDX:
         {
             uint8 ZeroAddress = InstrData[1];
-            Address = bugReadCpu16(ZeroAddress + Cpu->X, Cpu->MemoryOffset);
+            uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
+            Address = bugReadCpu16(AddedAddress, Cpu->MemoryBase);
             break;
         }
         case INDY:
         {
             uint8 ZeroAddress = InstrData[1];
-            Address = bugReadCpu16(ZeroAddress, Cpu->MemoryOffset) + Cpu->Y;
+            Address = bugReadCpu16(ZeroAddress, Cpu->MemoryBase) + Cpu->Y;
             CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
             break;
         }
         case INDI:
         {
             uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
-            Address = bugReadCpu16(IndirectAddress, Cpu->MemoryOffset);
+            Address = bugReadCpu16(IndirectAddress, Cpu->MemoryBase);
             break;
         }
         case NUL:
         {
             Assert(0);
             break;
-        }
-        
+        }        
     }
     
     Cpu->PrgCounter += InstrLength;
-    CyclesElapsed += InstCycles;
-    
-    if(CrossedPage)
-        CyclesElapsed += instBoundaryCheck[Instruction];
+    CyclesElapsed += InstrCycles;
 
-    // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
-    uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
-    CyclesElapsed += AdditionalCycles;
-    
-    if(NmiTriggered)
+    if(NmiTriggered || IrqTriggered)
     {
-        NmiTriggered = false;
-        CyclesElapsed += nmi(Cpu);
+        if(NmiTriggered)
+        {
+            NmiTriggered = false;
+        }
+        else
+        {
+            IrqTriggered = false;
+        }
+        nmi_irq(Address, Cpu, AddressMode);
     }
-    if(IrqTriggered)
+    else
     {
-        IrqTriggered = false;
-        CyclesElapsed += irq(Cpu);
+        // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
+        if(CrossedPage)
+            CyclesElapsed += instBoundaryCheck[Instruction];
+     
+        uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
+        CyclesElapsed += AdditionalCycles;
     }
 
-
+    #if 0
     char LogInstrData[16];
     if(InstrLength == 3)
         sprintf(LogInstrData, "%2X %2X %2X", InstrData[0], InstrData[1], InstrData[2]);
@@ -436,13 +469,14 @@ internal uint8 cpuTick(cpu *Cpu)
 //    sprintf(LogOpInfo, ""
     
     char LogCpuInfo[64];
-    sprintf(LogCpuInfo, "A:%2X X:%2X Y:%2X P:%2X SP:%2X CYC:    SL:", Cpu->A, Cpu->X, Cpu->Y, Cpu->Flags, Cpu->StackPtr);
+    sprintf(LogCpuInfo, "A:%2X X:%2X Y:%2X P:%2X SP:%2X  CYC: %d",
+            LogCpu.A, LogCpu.X, LogCpu.Y, LogCpu.Flags, LogCpu.StackPtr, CyclesElapsed);
 
     // NOTE: CPU Log options
     char LogBuffer[1024];
-    sprintf(LogBuffer, "%4X %s  %s    %s\n", Cpu->PrgCounter, LogInstrData, LogOpInfo, LogCpuInfo);
+    sprintf(LogBuffer, "%4X %s    %s\n", LogCpu.PrgCounter, LogInstrData, LogCpuInfo);
     OutputDebugString(LogBuffer);
-#
+#endif
     
     return(CyclesElapsed);
 }
