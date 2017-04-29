@@ -35,6 +35,7 @@ typedef size_t mem_idx;
 #define PPU_REG_ADRS 0x2000    
 
 #define OAM_SIZE 0x100
+#define OAM_SPRITE_TOTAL 64
 
 // A, B, Select, Start, Up, Down, Left, Right
 struct input {
@@ -51,7 +52,6 @@ struct input {
     };    
     bool32 buttons[BUTTON_NUM];
 };
-
 
 struct screen_buffer
 {
@@ -105,6 +105,10 @@ internal uint8 read8(uint16 Address, uint64 MemoryOffset)
 
 #define MAX_ROM_NAME_SIZE 256
 
+
+global bool32 MapperExtWrite = false;
+
+
 global bool32 PowerOn = true;
 global bool32 PowerHit = false;
 global bool32 ResetHit = false;
@@ -148,50 +152,49 @@ WinInputCallback(HWND WindowHandle, UINT Message,
 
             // NOTE: Alt only on SYSDOWN messages
             bool32 AltPressed = ((lParam & (1<<29)) != 0);
-              
+            
             if(IsDown != WasDown)
-            {               
+            {  
                 switch(wParam)
                 {
-                    // NOTE: Up and down changes the octave the keys are in
                     case VK_UP:
                     {
-                        WinInput.buttons[input::B_UP] = !WinInput.buttons[input::B_UP];
+                        WinInput.buttons[input::B_UP] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_DOWN:
                     {
-                        WinInput.buttons[input::B_DOWN] = !WinInput.buttons[input::B_DOWN];
+                        WinInput.buttons[input::B_DOWN] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_LEFT:
                     {
-                        WinInput.buttons[input::B_LEFT] = !WinInput.buttons[input::B_LEFT];
+                        WinInput.buttons[input::B_LEFT] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_RIGHT:
                     {
-                        WinInput.buttons[input::B_RIGHT] = !WinInput.buttons[input::B_RIGHT];
+                        WinInput.buttons[input::B_RIGHT] = IsDown ? 1 : 0;
                         break;
                     }
                     case 'Z':
                     {
-                        WinInput.buttons[input::B_A] = !WinInput.buttons[input::B_A];
+                        WinInput.buttons[input::B_A] = IsDown ? 1 : 0;
                         break;
                     }
                     case 'X':
                     {
-                        WinInput.buttons[input::B_B] = !WinInput.buttons[input::B_B];
+                        WinInput.buttons[input::B_B] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_RETURN:
                     {
-                        WinInput.buttons[input::B_START] = !WinInput.buttons[input::B_START];
+                        WinInput.buttons[input::B_START] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_SHIFT:
                     {
-                        WinInput.buttons[input::B_SELECT] = !WinInput.buttons[input::B_SELECT];
+                        WinInput.buttons[input::B_SELECT] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_SPACE:
@@ -316,12 +319,10 @@ internal void * LoadFile(char * Filename, uint32 *Size)
     }
     else
     {
-        Assert(0);
+//        Assert(0);
     }
     return(FileData);
 }
-
-
 
 global uint8 *OamData = 0;
 
@@ -355,7 +356,7 @@ internal void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
     *Height = ClientRect.bottom - ClientRect.top;
 }
 
-    
+
 internal void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
 {
     // TODO: This is based on Handmade Hero code. Will need to reference and look at licences later on
@@ -367,7 +368,7 @@ internal void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Heigh
 
     Buffer->Width = Width;
     Buffer->Height = Height;
-    Buffer->BytesPerPixel = 4;
+    Buffer->BytesPerPixel = 4; // TODO: Check if this is wrong. Should it be 3 instead? No alpha value
 
     Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
     Buffer->Info.bmiHeader.biWidth = Width;
@@ -377,7 +378,7 @@ internal void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Heigh
     Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
     int MemorySize = Width * Height * Buffer->BytesPerPixel;
-    Buffer->Memory = VirtualAlloc(0, MemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    Buffer->Memory = VirtualAlloc(0, MemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); 
     Buffer->Pitch = Width * Buffer->BytesPerPixel;
 }
 
@@ -394,7 +395,7 @@ internal void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
 
     
 static void
-initCPU(cpu *Cpu, uint64 MemoryBase)
+initCpu(cpu *Cpu, uint64 MemoryBase)
 {
     Cpu->MemoryBase = MemoryBase;
 }
@@ -406,7 +407,7 @@ initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel, ppu_registers * PpuRegi
     OamData = Ppu->Oam;
 
     Ppu->MemoryBase = MemoryBase;
-    Ppu->Registers = PpuRegisters;    
+    Ppu->Registers = PpuRegisters;
     Ppu->BasePixel = BasePixel;
 }
 
@@ -427,6 +428,8 @@ struct cartridge
 
     uint8 MapperNum;
 
+    uint16 ExtRegister;
+    
     bool32 UseVertMirror;
     bool32 HasBatteryRam;
     bool32 HasTrainer;
@@ -467,11 +470,35 @@ void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
 }
 
 
-#define MAPPER_TOTAL 1
+void mmc1Init(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+{
+    uint16 MemPrgBank1 = 0x8000;
+    uint16 MemPrgBank2 = 0xC000;
+
+    uint8 * BankToCpy1 = Cartridge->PrgData;
+    uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
+           
+    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+ }
+
+void unromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+{
+    uint16 MemPrgBank1 = 0x8000;
+    uint16 MemPrgBank2 = 0xC000;
+
+    uint8 * BankToCpy1 = Cartridge->PrgData;
+    uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
+           
+    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+}
+
+#define MAPPER_TOTAL 3
 
 void (*mapperInit[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
 {
-    nromInit
+    nromInit, mmc1Init, unromInit, 
 };
 
 
@@ -482,35 +509,47 @@ static void loadCartridge(cartridge * Cartridge, char * FileName, cpu *Cpu, ppu 
     Cartridge->FileSize;
     Cartridge->Data = (uint8 *)LoadFile(FileName, &Cartridge->FileSize);
 
-    uint8 * RomData = Cartridge->Data;
-        
-    // NOTE: Check for correct header
-    if(RomData[0] != 'N' || RomData[1] != 'E' || RomData[2] != 'S' || RomData[3] != 0x1A)
-        Assert(0);   
-
-    // NOTE: Read header
-    Cartridge->PrgBankCount = RomData[4];
-    Cartridge->ChrBankCount = RomData[5];
-    uint8 Flags6            = RomData[6];        
-    uint8 Flags7            = RomData[7];
-    Cartridge->PrgRamSize   = RomData[8];
-        
-    Cartridge->UseVertMirror       = Flags6 & (1);
-    Cartridge->HasBatteryRam       = Flags6 & (1 << 1);
-    Cartridge->HasTrainer          = Flags6 & (1 << 2);
-    Cartridge->UseFourScreenMirror = Flags6 & (1 << 3);
-    Cartridge->MapperNum           = (Flags7 & 0xF0) | (Flags6 >> 4);
-
-    Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
-
-    if(Cartridge->HasTrainer)
+    if(Cartridge->FileSize == 0)
     {
-        Cartridge->PrgData += 512; // Trainer size 512 bytes
+        PowerOn = false;
+        return;
     }
+    else
+    {
+        PowerOn = true;
+    
+        uint8 * RomData = Cartridge->Data;
+        
+        // NOTE: Check for correct header
+        if(RomData[0] != 'N' || RomData[1] != 'E' || RomData[2] != 'S' || RomData[3] != 0x1A)
+            Assert(0);   
 
-    Cartridge->ChrData = Cartridge->PrgData + (Cartridge->PrgBankCount * Kilobytes(16));
+        // NOTE: Read header
+        Cartridge->PrgBankCount = RomData[4];
+        Cartridge->ChrBankCount = RomData[5];
+        uint8 Flags6            = RomData[6];        
+        uint8 Flags7            = RomData[7];
+        Cartridge->PrgRamSize   = RomData[8];
+        
+        Cartridge->UseVertMirror       = Flags6 & (1);
+        Cartridge->HasBatteryRam       = Flags6 & (1 << 1);
+        Cartridge->HasTrainer          = Flags6 & (1 << 2);
+        Cartridge->UseFourScreenMirror = Flags6 & (1 << 3);
+        Cartridge->MapperNum           = (Flags7 & 0xF0) | (Flags6 >> 4);
 
-    mapperInit[Cartridge->MapperNum](Cartridge, Cpu, Ppu);
+        Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
+
+        if(Cartridge->HasTrainer)
+        {
+            Cartridge->PrgData += 512; // Trainer size 512 bytes
+        }
+
+        Cartridge->ChrData = Cartridge->PrgData + (Cartridge->PrgBankCount * Kilobytes(16));
+
+        mapperInit[Cartridge->MapperNum](Cartridge, Cpu, Ppu);
+
+        Cpu->MapperReg = &Cartridge->ExtRegister;
+    }
 }
 
 static void
@@ -521,7 +560,7 @@ power(cpu *Cpu, ppu *Ppu, cartridge *Cartridge)
     if(PowerOn)
     {
         loadCartridge(Cartridge, RomFileName, Cpu, Ppu);
-        Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu->MemoryBase);        
+        Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu);        
     }
     else
     {
@@ -542,7 +581,7 @@ power(cpu *Cpu, ppu *Ppu, cartridge *Cartridge)
 static void
 reset(cpu *Cpu, ppu *Ppu, cartridge *Cartridge)
 {
-    Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu->MemoryBase);
+    Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu);
 
     // NOTE: The status after reset was taken from nesdev
     Cpu->StackPtr -= 3;
@@ -567,7 +606,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
-        
+
     /**************************/
     /* NOTE : Window creation */
 
@@ -610,12 +649,12 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 
             uint64 CpuMemoryBase = (uint64)Memory;
             uint64 PpuMemoryBase = (uint64)Memory + CpuMemorySize;
-
+            
             // Cpu Init             
             cpu Cpu = {};
-
-            initCPU(&Cpu, CpuMemoryBase);
-
+            
+            initCpu(&Cpu, CpuMemoryBase);
+            
             // Ppu Init            
             ppu Ppu = {};
             
@@ -625,10 +664,10 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             // Cartidge Loading            
             cartridge Cartridge = {};
 
-            loadCartridge(&Cartridge, "Donkey Kong.nes", &Cpu, &Ppu);
+            loadCartridge(&Cartridge, "Balloon Fight.nes", &Cpu, &Ppu);
 
             // NOTE: Load the program counter with the reset vector
-            Cpu.PrgCounter = readCpu16(RESET_VEC, Cpu.MemoryBase);
+            Cpu.PrgCounter = readCpu16(RESET_VEC, &Cpu);
 
 
             /*****************/
@@ -669,10 +708,17 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     reset(&Cpu, &Ppu, &Cartridge);
                 }
 
+                if(MapperExtWrite)
+                {
+                    MapperExtWrite = false;
+                    
+                    
+
+                }
                 
                 if(PowerOn)
                 {
-                    TickCycles = cpuTick(&Cpu);
+                    TickCycles = cpuTick(&Cpu, &WinInput);
                     
                     for(uint8 i = 0; i < (3*TickCycles); ++i)
                     {

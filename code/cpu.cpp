@@ -11,6 +11,7 @@
 #define INSTRUCTION_COUNT 256
 #define STACK_ADDRESS 0x100
 
+
 struct cpu
 {
     uint8 A;
@@ -20,9 +21,23 @@ struct cpu
     uint8 StackPtr;
     uint16 PrgCounter;
     uint64 MemoryBase;
+
+    uint16 *MapperReg;
+    uint16 *MapperWriteAddress;
+    
+    bool32 PadStrobe; 
+    
+    input InputPad1;
+    uint8 Pad1CurrentButton;
+
+    input InputPad2;
+    uint8 Pad2CurrentButton;
+
 };
 
-internal uint8 readCpu8(uint16 Address, uint64 MemoryOffset)
+
+
+internal uint8 readCpu8(uint16 Address, cpu *Cpu)
 {
     // NOTE: Mirrors the address for the 2kb ram 
     if(0x800 <= Address && Address < 0x2000)
@@ -34,7 +49,7 @@ internal uint8 readCpu8(uint16 Address, uint64 MemoryOffset)
     if(Address == 0x2007) // Reading from the IO of ppu. First read is junk, unless its the colour palette
         IOReadFromCpu = true;
         
-    uint8 Value = read8(Address, MemoryOffset);
+    uint8 Value = read8(Address, Cpu->MemoryBase);
             
     if(Address == 0x2002)
     {
@@ -43,13 +58,43 @@ internal uint8 readCpu8(uint16 Address, uint64 MemoryOffset)
         ResetVRamIOAdrs = true;
         
         uint8 ResetValue = Value & ~(1 << 7);
-        write8(ResetValue, Address, MemoryOffset);
+        write8(ResetValue, Address, Cpu->MemoryBase);
     }
+
+    // Input
+    if(Address == 0x4016 || Address == 0x4017)
+    {
+        if( !Cpu->PadStrobe )
+        {
+            if(Address == 0x4016)
+                Cpu->Pad1CurrentButton = ++(Cpu->Pad1CurrentButton);
+            else
+                Cpu->Pad2CurrentButton = ++(Cpu->Pad2CurrentButton);
+        }
+        
+        uint16 InputAddress;
+        uint8 BtnValue;
+        if(Address == 0x4016)
+        {
+            InputAddress = 0x4016;
+            BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
+        }
+        else
+        {
+            InputAddress = 0x4017;
+            BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
+        }
+
+        uint8 CurrentValue = read8(InputAddress, Cpu->MemoryBase);
+        uint8 NewValue = (CurrentValue & 0xFE) | BtnValue;
+        write8(NewValue, InputAddress, Cpu->MemoryBase);
+    }
+    
     
     return(Value);
 }
 
-internal void writeCpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
 {
     // NOTE: Mirrors the address for the 2kb ram 
     if(0x800 <= Address && Address < 0x2000)
@@ -57,10 +102,10 @@ internal void writeCpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
     // NOTE: Mirror for PPU Registers
     if(0x2008 <= Address && Address < 0x4000)
         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
-    if(0x8000 < Address || Address == 0x2002)
-        Assert(0); // TODO: Writing to Program ROM, bank switching?     
+    if(Address == 0x2002)
+        Assert(0);
     
-    write8(Byte, Address, MemoryOffset);
+    write8(Byte, Address, Cpu->MemoryBase);
 
     if(Address == 0x2004) // OAM data
         OamDataChange = true;
@@ -75,7 +120,7 @@ internal void writeCpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
     // NOTE: OAM DMA Write
     if(Address == 0x4014)
     {
-        uint8 OamAddress = read8(0x2003, MemoryOffset);
+        uint8 OamAddress = read8(0x2003, Cpu->MemoryBase);
 
         if(OamData == 0)
         {
@@ -85,31 +130,74 @@ internal void writeCpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
         for(uint16 index = OamAddress; index < OAM_SIZE; ++index)
         {
             uint16 NewAddress = (Byte << 8) | index; 
-            OamData[index] = read8(NewAddress, MemoryOffset);
+            OamData[index] = read8(NewAddress, Cpu->MemoryBase);
+        }
+    }
+    
+    // Input
+    if(Address == 0x4016 || Address == 0x4017)
+    {
+        uint8 Reg1Value = read8(0x4016, Cpu->MemoryBase);
+        uint8 Reg2Value = read8(0x4017, Cpu->MemoryBase);
+
+        uint8 Bit0 = (Reg1Value | Reg2Value) & 1;
+
+        if(Bit0 == 0)
+        {
+            if(Cpu->PadStrobe)
+            {
+                Cpu->Pad1CurrentButton = Cpu->Pad2CurrentButton = input::B_A;
+            }
+            Cpu->PadStrobe = false;
+        }
+        else if(Bit0 == 1)
+        {
+            Cpu->PadStrobe = true;
+        }        
+
+        uint8 BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
+        write8(BtnValue, 0x4016, Cpu->MemoryBase);
+
+        BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
+        write8(BtnValue, 0x4017, Cpu->MemoryBase);
+    }
+
+
+    if(Address >= 0x8000)
+    {
+        MapperExtWrite = true;
+
+        if(Byte & 0x80)
+        {
+            *(Cpu->MapperWriteAddress) = Address;
+            *(Cpu->MapperReg) = 0;
         }
         
     }
+
+
+    
 }
 
-internal uint16 readCpu16(uint16 Address, uint64 MemoryOffset)
+internal uint16 readCpu16(uint16 Address, cpu * Cpu)
 {
     // NOTE: Little Endian
-    uint8 LowByte = readCpu8(Address, MemoryOffset);
-    uint8 HighByte = readCpu8(Address+1, MemoryOffset);
+    uint8 LowByte = readCpu8(Address, Cpu);
+    uint8 HighByte = readCpu8(Address+1, Cpu);
         
     uint16 NewAddress = (HighByte << 8) | LowByte;
     return(NewAddress);
 }
 
 
-internal uint16 bugReadCpu16(uint16 Address, uint64 MemoryOffset)
+internal uint16 bugReadCpu16(uint16 Address, cpu * Cpu)
 {
     // NOTE: This is a bug in the nes 6502 that will wrap the value instead of going to new page.
     //       Only happens with indirect addressing.
     
-    uint8 LowByte = readCpu8(Address, MemoryOffset);
+    uint8 LowByte = readCpu8(Address, Cpu);
     uint16 Byte2Adrs = (Address & 0xFF00) | (uint16)((uint8)(Address + 1));
-    uint8 HighByte = readCpu8(Byte2Adrs, MemoryOffset);
+    uint8 HighByte = readCpu8(Byte2Adrs, Cpu);
         
     uint16 NewAddress = (HighByte << 8) | LowByte;
     return(NewAddress);
@@ -117,13 +205,13 @@ internal uint16 bugReadCpu16(uint16 Address, uint64 MemoryOffset)
 
 internal void push(uint8 Byte, cpu *Cpu)
 {
-    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryBase);
+    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
     --Cpu->StackPtr;  
 }
 internal uint8 pop(cpu *Cpu)
 {
     ++Cpu->StackPtr;
-    uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu->MemoryBase);
+    uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
     return(Value);
 }
 
@@ -313,13 +401,18 @@ internal uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
     push(Cpu->Flags, Cpu); 
     setInterrupt(&Cpu->Flags);
 
-    Cpu->PrgCounter = readCpu16(Address, Cpu->MemoryBase);
+    Cpu->PrgCounter = readCpu16(Address, Cpu);
     return(0);
 }
 
-internal uint8 cpuTick(cpu *Cpu)
-{
-    uint64 MemoryBase = Cpu->MemoryBase;
+#if 0
+        char Buf[1024];
+        sprintf(Buf, "%X\n", WriteValue);
+        OutputDebugString(Buf);
+#endif   
+
+internal uint8 cpuTick(cpu *Cpu, input *NewInput)
+{        
     uint8 CyclesElapsed = 0;
 
     uint16 Address = 0;
@@ -334,6 +427,12 @@ internal uint8 cpuTick(cpu *Cpu)
 
     // NOTE: Logging: Save Cpu before changes. Print out later
     cpu LogCpu = *Cpu;
+
+    if(Cpu->PadStrobe)
+    {
+        for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
+            Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
+    }
     
     if(NmiTriggered)
     {
@@ -357,7 +456,7 @@ internal uint8 cpuTick(cpu *Cpu)
     }
     else
     {    
-        Instruction = readCpu8(Cpu->PrgCounter, MemoryBase);
+        Instruction = readCpu8(Cpu->PrgCounter, Cpu);
         AddressMode = instAddressMode[Instruction];
         InstrLength = instLength[Instruction];
         InstrName = instName[Instruction];
@@ -365,7 +464,7 @@ internal uint8 cpuTick(cpu *Cpu)
 
         for(int i = 0; i < InstrLength; ++i)
         {
-            InstrData[i] = readCpu8(Cpu->PrgCounter + i, MemoryBase); 
+            InstrData[i] = readCpu8(Cpu->PrgCounter + i, Cpu); 
         }
     }
     
@@ -408,20 +507,20 @@ internal uint8 cpuTick(cpu *Cpu)
         {
             uint8 ZeroAddress = InstrData[1];
             uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
-            Address = bugReadCpu16(AddedAddress, Cpu->MemoryBase);
+            Address = bugReadCpu16(AddedAddress, Cpu);
             break;
         }
         case INDY:
         {
             uint8 ZeroAddress = InstrData[1];
-            Address = bugReadCpu16(ZeroAddress, Cpu->MemoryBase) + Cpu->Y;
+            Address = bugReadCpu16(ZeroAddress, Cpu) + Cpu->Y;
             CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
             break;
         }
         case INDI:
         {
             uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
-            Address = bugReadCpu16(IndirectAddress, Cpu->MemoryBase);
+            Address = bugReadCpu16(IndirectAddress, Cpu);
             break;
         }
         case NUL:
