@@ -439,9 +439,6 @@ struct cartridge
 
 void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
 {
-    if(Cartridge->PrgBankCount != 1 && Cartridge->PrgBankCount != 2 )
-        Assert(0);
-
     uint16 MemPrgBank1 = 0x8000;
     uint16 MemPrgBank2 = 0xC000;
 
@@ -468,7 +465,6 @@ void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
         cpyMemory((uint8 *)Ppu->MemoryBase, Cartridge->ChrData, Kilobytes(8));
     }
 }
-
 
 void mmc1Init(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
 {
@@ -498,9 +494,40 @@ void unromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
 
 void (*mapperInit[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
 {
-    nromInit, mmc1Init, unromInit, 
+    nromInit, mmc1Init, unromInit
 };
 
+
+void nromUpdate(cpu *Cpu, cartridge *Cartridge)
+{
+    Assert(0);
+}
+
+void mmc1Update(cpu *Cpu, cartridge *Cartridge)
+{
+    uint16 MemPrgBank1 = 0x8000;
+    uint16 MemPrgBank2 = 0xC000;
+/*
+    uint8 * BankToCpy1 = Cartridge->PrgData;
+    uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));       
+    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+*/  
+ }
+
+void unromUpdate(cpu *Cpu, cartridge *Cartridge)
+{
+    uint16 MemPrgBank1 = 0x8000;
+    uint8 BankNumber = Cpu->MapperReg;
+    
+    uint8 * BankToCpy = Cartridge->PrgData + (BankNumber * Kilobytes(16));
+    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy, Kilobytes(16));
+}
+
+void (*mapperUpdate[MAPPER_TOTAL])(cpu *Cpu, cartridge *Cartridge) =
+{
+    nromUpdate, mmc1Update, unromUpdate
+};
 
 static void loadCartridge(cartridge * Cartridge, char * FileName, cpu *Cpu, ppu *Ppu)
 {    
@@ -547,8 +574,6 @@ static void loadCartridge(cartridge * Cartridge, char * FileName, cpu *Cpu, ppu 
         Cartridge->ChrData = Cartridge->PrgData + (Cartridge->PrgBankCount * Kilobytes(16));
 
         mapperInit[Cartridge->MapperNum](Cartridge, Cpu, Ppu);
-
-        Cpu->MapperReg = &Cartridge->ExtRegister;
     }
 }
 
@@ -708,12 +733,10 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     reset(&Cpu, &Ppu, &Cartridge);
                 }
 
-                if(MapperExtWrite)
+                if(Cpu.MapperWrite)
                 {
-                    MapperExtWrite = false;
-                    
-                    
-
+                    Cpu.MapperWrite = false;
+                    mapperUpdate[Cartridge.MapperNum](&Cpu, &Cartridge);
                 }
                 
                 if(PowerOn)

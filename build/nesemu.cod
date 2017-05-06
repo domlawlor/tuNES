@@ -9,6 +9,10 @@ PUBLIC	?nromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z ; nromInit
 PUBLIC	?mmc1Init@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z ; mmc1Init
 PUBLIC	?unromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z ; unromInit
 PUBLIC	?mapperInit@@3PAP6AXPEAUcartridge@@PEAUcpu@@PEAUppu@@@ZA ; mapperInit
+PUBLIC	?nromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z	; nromUpdate
+PUBLIC	?mmc1Update@@YAXPEAUcpu@@PEAUcartridge@@@Z	; mmc1Update
+PUBLIC	?unromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z	; unromUpdate
+PUBLIC	?mapperUpdate@@3PAP6AXPEAUcpu@@PEAUcartridge@@@ZA ; mapperUpdate
 PUBLIC	?adc@@YAEGPEAUcpu@@E@Z				; adc
 PUBLIC	?AND@@YAEGPEAUcpu@@E@Z				; AND
 PUBLIC	?asl@@YAEGPEAUcpu@@E@Z				; asl
@@ -121,8 +125,9 @@ _DATA	SEGMENT
 ?mapperInit@@3PAP6AXPEAUcartridge@@PEAUcpu@@PEAUppu@@@ZA DQ FLAT:?nromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z ; mapperInit
 	DQ	FLAT:?mmc1Init@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z
 	DQ	FLAT:?unromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z
-?PowerOn@@3HA DD 01H					; PowerOn
-	ORG $+4
+?mapperUpdate@@3PAP6AXPEAUcpu@@PEAUcartridge@@@ZA DQ FLAT:?nromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z ; mapperUpdate
+	DQ	FLAT:?mmc1Update@@YAXPEAUcpu@@PEAUcartridge@@@Z
+	DQ	FLAT:?unromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z
 ?instCycles@@3PAEA DB 07H				; instCycles
 	DB	06H
 	DB	00H
@@ -635,6 +640,8 @@ _DATA	SEGMENT
 	DB	01H
 	DB	00H
 	DB	00H
+?PowerOn@@3HA DD 01H					; PowerOn
+	ORG $+12
 ?instrOps@@3PAP6AEGPEAUcpu@@E@ZA DQ FLAT:?brk@@YAEGPEAUcpu@@E@Z ; instrOps
 	DQ	FLAT:?ora@@YAEGPEAUcpu@@E@Z
 	DQ	FLAT:?kil@@YAEGPEAUcpu@@E@Z
@@ -1937,21 +1944,21 @@ $SG88144 DB	'NOP', 00H
 $SG88145 DB	'SBC', 00H
 $SG88146 DB	'INC', 00H
 $SG88147 DB	'ISC', 00H
-$SG89236 DB	'NesEmu', 00H
+$SG89256 DB	'NesEmu', 00H
 	ORG $+1
-$SG89239 DB	'NesEmu', 00H
+$SG89259 DB	'NesEmu', 00H
 	ORG $+1
-$SG89242 DB	'&Open Rom', 00H
+$SG89262 DB	'&Open Rom', 00H
 	ORG $+2
 $SG88730 DB	'NMI', 00H
-$SG89243 DB	'&Close Rom', 00H
+$SG89263 DB	'&Close Rom', 00H
 	ORG $+1
-$SG89244 DB	'&Quit', 00H
+$SG89264 DB	'&Quit', 00H
 	ORG $+2
-$SG89245 DB	'&File', 00H
+$SG89265 DB	'&File', 00H
 	ORG $+2
 $SG88733 DB	'IRQ', 00H
-$SG89246 DB	'Balloon Fight.nes', 00H
+$SG89266 DB	'Balloon Fight.nes', 00H
 	ORG $+2
 $SG87892 DB	'BRK', 00H
 $SG87668 DB	'.nes', 00H, '*.nes', 00H, 00H
@@ -2187,7 +2194,7 @@ _BSS	SEGMENT
 _BSS	ENDS
 pdata	SEGMENT
 $pdata$WinMain DD imagerel $LN21
-	DD	imagerel $LN21+1665
+	DD	imagerel $LN21+1717
 	DD	imagerel $unwind$WinMain
 $pdata$?getMilliSeconds@@YAM_K@Z DD imagerel ?getMilliSeconds@@YAM_K@Z
 	DD	imagerel ?getMilliSeconds@@YAM_K@Z+112
@@ -2211,7 +2218,7 @@ $pdata$?readCpu8@@YAEGPEAUcpu@@@Z DD imagerel ?readCpu8@@YAEGPEAUcpu@@@Z
 	DD	imagerel ?readCpu8@@YAEGPEAUcpu@@@Z+525
 	DD	imagerel $unwind$?readCpu8@@YAEGPEAUcpu@@@Z
 $pdata$?writeCpu8@@YAXEGPEAUcpu@@@Z DD imagerel ?writeCpu8@@YAXEGPEAUcpu@@@Z
-	DD	imagerel ?writeCpu8@@YAXEGPEAUcpu@@@Z+752
+	DD	imagerel ?writeCpu8@@YAXEGPEAUcpu@@@Z+736
 	DD	imagerel $unwind$?writeCpu8@@YAXEGPEAUcpu@@@Z
 $pdata$?readCpu16@@YAGGPEAUcpu@@@Z DD imagerel ?readCpu16@@YAGGPEAUcpu@@@Z
 	DD	imagerel ?readCpu16@@YAGGPEAUcpu@@@Z+87
@@ -2475,8 +2482,8 @@ $pdata$?createBackBuffer@@YAXPEAUscreen_buffer@@GG@Z DD imagerel ?createBackBuff
 $pdata$?drawScreenBuffer@@YAXPEAUscreen_buffer@@PEAUHDC__@@GG@Z DD imagerel ?drawScreenBuffer@@YAXPEAUscreen_buffer@@PEAUHDC__@@GG@Z
 	DD	imagerel ?drawScreenBuffer@@YAXPEAUscreen_buffer@@PEAUHDC__@@GG@Z+165
 	DD	imagerel $unwind$?drawScreenBuffer@@YAXPEAUscreen_buffer@@PEAUHDC__@@GG@Z
-$pdata$?nromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z DD imagerel $LN9
-	DD	imagerel $LN9+287
+$pdata$?nromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z DD imagerel $LN7
+	DD	imagerel $LN7+241
 	DD	imagerel $unwind$?nromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z
 $pdata$?mmc1Init@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z DD imagerel $LN3
 	DD	imagerel $LN3+156
@@ -2484,8 +2491,14 @@ $pdata$?mmc1Init@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z DD imagerel $LN3
 $pdata$?unromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z DD imagerel $LN3
 	DD	imagerel $LN3+156
 	DD	imagerel $unwind$?unromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z
+$pdata$?mmc1Update@@YAXPEAUcpu@@PEAUcartridge@@@Z DD imagerel $LN3
+	DD	imagerel $LN3+38
+	DD	imagerel $unwind$?mmc1Update@@YAXPEAUcpu@@PEAUcartridge@@@Z
+$pdata$?unromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z DD imagerel $LN3
+	DD	imagerel $LN3+100
+	DD	imagerel $unwind$?unromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z
 $pdata$?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z DD imagerel ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z
-	DD	imagerel ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z+602
+	DD	imagerel ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z+584
 	DD	imagerel $unwind$?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z
 $pdata$?power@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z DD imagerel ?power@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z
 	DD	imagerel ?power@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z+404
@@ -2721,6 +2734,10 @@ $unwind$?mmc1Init@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z DD 011301H
 	DD	08213H
 $unwind$?unromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z DD 011301H
 	DD	08213H
+$unwind$?mmc1Update@@YAXPEAUcpu@@PEAUcartridge@@@Z DD 010e01H
+	DD	0220eH
+$unwind$?unromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z DD 010e01H
+	DD	0620eH
 $unwind$?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z DD 011801H
 	DD	08218H
 $unwind$?power@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z DD 042a19H
@@ -2739,14 +2756,14 @@ Ppu$ = 56
 Cartridge$ = 64
 ?reset@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z PROC	; reset
 
-; 583  : {
+; 608  : {
 
   00000	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
   00005	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   0000a	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   0000f	48 83 ec 28	 sub	 rsp, 40			; 00000028H
 
-; 584  :     Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu);
+; 609  :     Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu);
 
   00013	48 8b 54 24 30	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00018	66 b9 fc ff	 mov	 cx, 65532		; 0000fffcH
@@ -2754,9 +2771,9 @@ Cartridge$ = 64
   00021	48 8b 4c 24 30	 mov	 rcx, QWORD PTR Cpu$[rsp]
   00026	66 89 41 06	 mov	 WORD PTR [rcx+6], ax
 
-; 585  : 
-; 586  :     // NOTE: The status after reset was taken from nesdev
-; 587  :     Cpu->StackPtr -= 3;
+; 610  : 
+; 611  :     // NOTE: The status after reset was taken from nesdev
+; 612  :     Cpu->StackPtr -= 3;
 
   0002a	48 8b 44 24 30	 mov	 rax, QWORD PTR Cpu$[rsp]
   0002f	0f b6 40 04	 movzx	 eax, BYTE PTR [rax+4]
@@ -2764,15 +2781,15 @@ Cartridge$ = 64
   00036	48 8b 4c 24 30	 mov	 rcx, QWORD PTR Cpu$[rsp]
   0003b	88 41 04	 mov	 BYTE PTR [rcx+4], al
 
-; 588  :     setInterrupt(&Cpu->Flags);
+; 613  :     setInterrupt(&Cpu->Flags);
 
   0003e	48 8b 44 24 30	 mov	 rax, QWORD PTR Cpu$[rsp]
   00043	48 83 c0 03	 add	 rax, 3
   00047	48 8b c8	 mov	 rcx, rax
   0004a	e8 00 00 00 00	 call	 ?setInterrupt@@YAXPEAE@Z ; setInterrupt
 
-; 589  :     // TODO: APU on reset
-; 590  : }
+; 614  :     // TODO: APU on reset
+; 615  : }
 
   0004f	48 83 c4 28	 add	 rsp, 40			; 00000028H
   00053	c3		 ret	 0
@@ -2793,7 +2810,7 @@ Ppu$ = 616
 Cartridge$ = 624
 ?power@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z PROC	; power
 
-; 557  : {
+; 582  : {
 
   00000	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
   00005	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
@@ -2808,7 +2825,7 @@ Cartridge$ = 624
   00022	48 89 84 24 30
 	02 00 00	 mov	 QWORD PTR __$ArrayPad$[rsp], rax
 
-; 558  :     PowerOn = !PowerOn;
+; 583  :     PowerOn = !PowerOn;
 
   0002a	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?PowerOn@@3HA, 0
@@ -2824,15 +2841,15 @@ $LN6@power:
   00049	89 05 00 00 00
 	00		 mov	 DWORD PTR ?PowerOn@@3HA, eax
 
-; 559  : 
-; 560  :     if(PowerOn)
+; 584  : 
+; 585  :     if(PowerOn)
 
   0004f	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?PowerOn@@3HA, 0
   00056	74 46		 je	 SHORT $LN2@power
 
-; 561  :     {
-; 562  :         loadCartridge(Cartridge, RomFileName, Cpu, Ppu);
+; 586  :     {
+; 587  :         loadCartridge(Cartridge, RomFileName, Cpu, Ppu);
 
   00058	4c 8b 8c 24 68
 	02 00 00	 mov	 r9, QWORD PTR Ppu$[rsp]
@@ -2844,7 +2861,7 @@ $LN6@power:
 	02 00 00	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   00077	e8 00 00 00 00	 call	 ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z ; loadCartridge
 
-; 563  :         Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu);        
+; 588  :         Cpu->PrgCounter = readCpu16(RESET_VEC, Cpu);        
 
   0007c	48 8b 94 24 60
 	02 00 00	 mov	 rdx, QWORD PTR Cpu$[rsp]
@@ -2854,64 +2871,64 @@ $LN6@power:
 	02 00 00	 mov	 rcx, QWORD PTR Cpu$[rsp]
   00095	66 89 41 06	 mov	 WORD PTR [rcx+6], ax
 
-; 564  :     }
-; 565  :     else
+; 589  :     }
+; 590  :     else
 
   00099	e9 dc 00 00 00	 jmp	 $LN3@power
 $LN2@power:
 
-; 566  :     {
-; 567  :         uint64 MemoryBase = Cpu->MemoryBase;
+; 591  :     {
+; 592  :         uint64 MemoryBase = Cpu->MemoryBase;
 
   0009e	48 8b 84 24 60
 	02 00 00	 mov	 rax, QWORD PTR Cpu$[rsp]
   000a6	48 8b 40 08	 mov	 rax, QWORD PTR [rax+8]
   000aa	48 89 44 24 28	 mov	 QWORD PTR MemoryBase$1[rsp], rax
 
-; 568  :         *Cpu = {};
+; 593  :         *Cpu = {};
 
   000af	48 8d 44 24 40	 lea	 rax, QWORD PTR $T4[rsp]
   000b4	48 8b f8	 mov	 rdi, rax
   000b7	33 c0		 xor	 eax, eax
-  000b9	b9 70 00 00 00	 mov	 ecx, 112		; 00000070H
+  000b9	b9 68 00 00 00	 mov	 ecx, 104		; 00000068H
   000be	f3 aa		 rep stosb
   000c0	48 8d 44 24 40	 lea	 rax, QWORD PTR $T4[rsp]
   000c5	48 8b bc 24 60
 	02 00 00	 mov	 rdi, QWORD PTR Cpu$[rsp]
   000cd	48 8b f0	 mov	 rsi, rax
-  000d0	b9 70 00 00 00	 mov	 ecx, 112		; 00000070H
+  000d0	b9 68 00 00 00	 mov	 ecx, 104		; 00000068H
   000d5	f3 a4		 rep movsb
 
-; 569  :         Cpu->MemoryBase = MemoryBase;
+; 594  :         Cpu->MemoryBase = MemoryBase;
 
   000d7	48 8b 84 24 60
 	02 00 00	 mov	 rax, QWORD PTR Cpu$[rsp]
   000df	48 8b 4c 24 28	 mov	 rcx, QWORD PTR MemoryBase$1[rsp]
   000e4	48 89 48 08	 mov	 QWORD PTR [rax+8], rcx
 
-; 570  : 
-; 571  :         MemoryBase = Ppu->MemoryBase;
+; 595  : 
+; 596  :         MemoryBase = Ppu->MemoryBase;
 
   000e8	48 8b 84 24 68
 	02 00 00	 mov	 rax, QWORD PTR Ppu$[rsp]
   000f0	48 8b 00	 mov	 rax, QWORD PTR [rax]
   000f3	48 89 44 24 28	 mov	 QWORD PTR MemoryBase$1[rsp], rax
 
-; 572  :         uint32 *BasePixel = Ppu->BasePixel;
+; 597  :         uint32 *BasePixel = Ppu->BasePixel;
 
   000f8	48 8b 84 24 68
 	02 00 00	 mov	 rax, QWORD PTR Ppu$[rsp]
   00100	48 8b 40 08	 mov	 rax, QWORD PTR [rax+8]
   00104	48 89 44 24 30	 mov	 QWORD PTR BasePixel$2[rsp], rax
 
-; 573  :         ppu_registers *Registers = Ppu->Registers; 
+; 598  :         ppu_registers *Registers = Ppu->Registers; 
 
   00109	48 8b 84 24 68
 	02 00 00	 mov	 rax, QWORD PTR Ppu$[rsp]
   00111	48 8b 40 10	 mov	 rax, QWORD PTR [rax+16]
   00115	48 89 44 24 38	 mov	 QWORD PTR Registers$3[rsp], rax
 
-; 574  :         *Ppu = {};
+; 599  :         *Ppu = {};
 
   0011a	48 8d 84 24 b0
 	00 00 00	 lea	 rax, QWORD PTR $T5[rsp]
@@ -2927,21 +2944,21 @@ $LN2@power:
   00141	b9 80 01 00 00	 mov	 ecx, 384		; 00000180H
   00146	f3 a4		 rep movsb
 
-; 575  :         Ppu->MemoryBase = MemoryBase;
+; 600  :         Ppu->MemoryBase = MemoryBase;
 
   00148	48 8b 84 24 68
 	02 00 00	 mov	 rax, QWORD PTR Ppu$[rsp]
   00150	48 8b 4c 24 28	 mov	 rcx, QWORD PTR MemoryBase$1[rsp]
   00155	48 89 08	 mov	 QWORD PTR [rax], rcx
 
-; 576  :         Ppu->BasePixel = BasePixel;
+; 601  :         Ppu->BasePixel = BasePixel;
 
   00158	48 8b 84 24 68
 	02 00 00	 mov	 rax, QWORD PTR Ppu$[rsp]
   00160	48 8b 4c 24 30	 mov	 rcx, QWORD PTR BasePixel$2[rsp]
   00165	48 89 48 08	 mov	 QWORD PTR [rax+8], rcx
 
-; 577  :         Ppu->Registers = Registers;
+; 602  :         Ppu->Registers = Registers;
 
   00169	48 8b 84 24 68
 	02 00 00	 mov	 rax, QWORD PTR Ppu$[rsp]
@@ -2949,8 +2966,8 @@ $LN2@power:
   00176	48 89 48 10	 mov	 QWORD PTR [rax+16], rcx
 $LN3@power:
 
-; 578  :     }
-; 579  : }
+; 603  :     }
+; 604  : }
 
   0017a	48 8b 8c 24 30
 	02 00 00	 mov	 rcx, QWORD PTR __$ArrayPad$[rsp]
@@ -2969,14 +2986,14 @@ _TEXT	SEGMENT
 Flags6$1 = 32
 Flags7$2 = 33
 RomData$3 = 40
-tv177 = 48
+tv175 = 48
 Cartridge$ = 80
 FileName$ = 88
 Cpu$ = 96
 Ppu$ = 104
 ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z PROC ; loadCartridge
 
-; 506  : {    
+; 533  : {    
 
   00000	4c 89 4c 24 20	 mov	 QWORD PTR [rsp+32], r9
   00005	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
@@ -2984,15 +3001,15 @@ Ppu$ = 104
   0000f	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00014	48 83 ec 48	 sub	 rsp, 72			; 00000048H
 
-; 507  :     // Reading rom file
-; 508  :     Cartridge->FileName = FileName;
+; 534  :     // Reading rom file
+; 535  :     Cartridge->FileName = FileName;
 
   00018	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   0001d	48 8b 4c 24 58	 mov	 rcx, QWORD PTR FileName$[rsp]
   00022	48 89 08	 mov	 QWORD PTR [rax], rcx
 
-; 509  :     Cartridge->FileSize;
-; 510  :     Cartridge->Data = (uint8 *)LoadFile(FileName, &Cartridge->FileSize);
+; 536  :     Cartridge->FileSize;
+; 537  :     Cartridge->Data = (uint8 *)LoadFile(FileName, &Cartridge->FileSize);
 
   00025	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   0002a	48 83 c0 08	 add	 rax, 8
@@ -3002,45 +3019,45 @@ Ppu$ = 104
   0003b	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   00040	48 89 41 10	 mov	 QWORD PTR [rcx+16], rax
 
-; 511  : 
-; 512  :     if(Cartridge->FileSize == 0)
+; 538  : 
+; 539  :     if(Cartridge->FileSize == 0)
 
   00044	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   00049	83 78 08 00	 cmp	 DWORD PTR [rax+8], 0
   0004d	75 14		 jne	 SHORT $LN2@loadCartri
 
-; 513  :     {
-; 514  :         PowerOn = false;
+; 540  :     {
+; 541  :         PowerOn = false;
 
   0004f	c7 05 00 00 00
 	00 00 00 00 00	 mov	 DWORD PTR ?PowerOn@@3HA, 0
 
-; 515  :         return;
+; 542  :         return;
 
-  00059	e9 f7 01 00 00	 jmp	 $LN1@loadCartri
+  00059	e9 e5 01 00 00	 jmp	 $LN1@loadCartri
 
-; 516  :     }
-; 517  :     else
+; 543  :     }
+; 544  :     else
 
-  0005e	e9 f2 01 00 00	 jmp	 $LN3@loadCartri
+  0005e	e9 e0 01 00 00	 jmp	 $LN3@loadCartri
 $LN2@loadCartri:
 
-; 518  :     {
-; 519  :         PowerOn = true;
+; 545  :     {
+; 546  :         PowerOn = true;
 
   00063	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?PowerOn@@3HA, 1
 
-; 520  :     
-; 521  :         uint8 * RomData = Cartridge->Data;
+; 547  :     
+; 548  :         uint8 * RomData = Cartridge->Data;
 
   0006d	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   00072	48 8b 40 10	 mov	 rax, QWORD PTR [rax+16]
   00076	48 89 44 24 28	 mov	 QWORD PTR RomData$3[rsp], rax
 
-; 522  :         
-; 523  :         // NOTE: Check for correct header
-; 524  :         if(RomData[0] != 'N' || RomData[1] != 'E' || RomData[2] != 'S' || RomData[3] != 0x1A)
+; 549  :         
+; 550  :         // NOTE: Check for correct header
+; 551  :         if(RomData[0] != 'N' || RomData[1] != 'E' || RomData[2] != 'S' || RomData[3] != 0x1A)
 
   0007b	b8 01 00 00 00	 mov	 eax, 1
   00080	48 6b c0 00	 imul	 rax, rax, 0
@@ -3068,7 +3085,7 @@ $LN2@loadCartri:
   000d5	74 12		 je	 SHORT $LN4@loadCartri
 $LN5@loadCartri:
 
-; 525  :             Assert(0);   
+; 552  :             Assert(0);   
 
   000d7	33 c0		 xor	 eax, eax
   000d9	83 f8 01	 cmp	 eax, 1
@@ -3079,9 +3096,9 @@ $LN5@loadCartri:
 $LN6@loadCartri:
 $LN4@loadCartri:
 
-; 526  : 
-; 527  :         // NOTE: Read header
-; 528  :         Cartridge->PrgBankCount = RomData[4];
+; 553  : 
+; 554  :         // NOTE: Read header
+; 555  :         Cartridge->PrgBankCount = RomData[4];
 
   000e9	b8 01 00 00 00	 mov	 eax, 1
   000ee	48 6b c0 04	 imul	 rax, rax, 4
@@ -3090,7 +3107,7 @@ $LN4@loadCartri:
   000fc	0f b6 04 02	 movzx	 eax, BYTE PTR [rdx+rax]
   00100	88 41 18	 mov	 BYTE PTR [rcx+24], al
 
-; 529  :         Cartridge->ChrBankCount = RomData[5];
+; 556  :         Cartridge->ChrBankCount = RomData[5];
 
   00103	b8 01 00 00 00	 mov	 eax, 1
   00108	48 6b c0 05	 imul	 rax, rax, 5
@@ -3099,7 +3116,7 @@ $LN4@loadCartri:
   00116	0f b6 04 02	 movzx	 eax, BYTE PTR [rdx+rax]
   0011a	88 41 28	 mov	 BYTE PTR [rcx+40], al
 
-; 530  :         uint8 Flags6            = RomData[6];        
+; 557  :         uint8 Flags6            = RomData[6];        
 
   0011d	b8 01 00 00 00	 mov	 eax, 1
   00122	48 6b c0 06	 imul	 rax, rax, 6
@@ -3107,7 +3124,7 @@ $LN4@loadCartri:
   0012b	0f b6 04 01	 movzx	 eax, BYTE PTR [rcx+rax]
   0012f	88 44 24 20	 mov	 BYTE PTR Flags6$1[rsp], al
 
-; 531  :         uint8 Flags7            = RomData[7];
+; 558  :         uint8 Flags7            = RomData[7];
 
   00133	b8 01 00 00 00	 mov	 eax, 1
   00138	48 6b c0 07	 imul	 rax, rax, 7
@@ -3115,7 +3132,7 @@ $LN4@loadCartri:
   00141	0f b6 04 01	 movzx	 eax, BYTE PTR [rcx+rax]
   00145	88 44 24 21	 mov	 BYTE PTR Flags7$2[rsp], al
 
-; 532  :         Cartridge->PrgRamSize   = RomData[8];
+; 559  :         Cartridge->PrgRamSize   = RomData[8];
 
   00149	b8 01 00 00 00	 mov	 eax, 1
   0014e	48 6b c0 08	 imul	 rax, rax, 8
@@ -3124,36 +3141,36 @@ $LN4@loadCartri:
   0015c	0f b6 04 02	 movzx	 eax, BYTE PTR [rdx+rax]
   00160	88 41 38	 mov	 BYTE PTR [rcx+56], al
 
-; 533  :         
-; 534  :         Cartridge->UseVertMirror       = Flags6 & (1);
+; 560  :         
+; 561  :         Cartridge->UseVertMirror       = Flags6 & (1);
 
   00163	0f b6 44 24 20	 movzx	 eax, BYTE PTR Flags6$1[rsp]
   00168	83 e0 01	 and	 eax, 1
   0016b	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   00170	89 41 3c	 mov	 DWORD PTR [rcx+60], eax
 
-; 535  :         Cartridge->HasBatteryRam       = Flags6 & (1 << 1);
+; 562  :         Cartridge->HasBatteryRam       = Flags6 & (1 << 1);
 
   00173	0f b6 44 24 20	 movzx	 eax, BYTE PTR Flags6$1[rsp]
   00178	83 e0 02	 and	 eax, 2
   0017b	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   00180	89 41 40	 mov	 DWORD PTR [rcx+64], eax
 
-; 536  :         Cartridge->HasTrainer          = Flags6 & (1 << 2);
+; 563  :         Cartridge->HasTrainer          = Flags6 & (1 << 2);
 
   00183	0f b6 44 24 20	 movzx	 eax, BYTE PTR Flags6$1[rsp]
   00188	83 e0 04	 and	 eax, 4
   0018b	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   00190	89 41 44	 mov	 DWORD PTR [rcx+68], eax
 
-; 537  :         Cartridge->UseFourScreenMirror = Flags6 & (1 << 3);
+; 564  :         Cartridge->UseFourScreenMirror = Flags6 & (1 << 3);
 
   00193	0f b6 44 24 20	 movzx	 eax, BYTE PTR Flags6$1[rsp]
   00198	83 e0 08	 and	 eax, 8
   0019b	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   001a0	89 41 48	 mov	 DWORD PTR [rcx+72], eax
 
-; 538  :         Cartridge->MapperNum           = (Flags7 & 0xF0) | (Flags6 >> 4);
+; 565  :         Cartridge->MapperNum           = (Flags7 & 0xF0) | (Flags6 >> 4);
 
   001a3	0f b6 44 24 21	 movzx	 eax, BYTE PTR Flags7$2[rsp]
   001a8	25 f0 00 00 00	 and	 eax, 240		; 000000f0H
@@ -3163,23 +3180,23 @@ $LN4@loadCartri:
   001b7	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   001bc	88 41 39	 mov	 BYTE PTR [rcx+57], al
 
-; 539  : 
-; 540  :         Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
+; 566  : 
+; 567  :         Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
 
   001bf	48 8b 44 24 28	 mov	 rax, QWORD PTR RomData$3[rsp]
   001c4	48 83 c0 10	 add	 rax, 16
   001c8	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   001cd	48 89 41 20	 mov	 QWORD PTR [rcx+32], rax
 
-; 541  : 
-; 542  :         if(Cartridge->HasTrainer)
+; 568  : 
+; 569  :         if(Cartridge->HasTrainer)
 
   001d1	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   001d6	83 78 44 00	 cmp	 DWORD PTR [rax+68], 0
   001da	74 18		 je	 SHORT $LN7@loadCartri
 
-; 543  :         {
-; 544  :             Cartridge->PrgData += 512; // Trainer size 512 bytes
+; 570  :         {
+; 571  :             Cartridge->PrgData += 512; // Trainer size 512 bytes
 
   001dc	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   001e1	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
@@ -3189,9 +3206,9 @@ $LN4@loadCartri:
   001f0	48 89 41 20	 mov	 QWORD PTR [rcx+32], rax
 $LN7@loadCartri:
 
-; 545  :         }
-; 546  : 
-; 547  :         Cartridge->ChrData = Cartridge->PrgData + (Cartridge->PrgBankCount * Kilobytes(16));
+; 572  :         }
+; 573  : 
+; 574  :         Cartridge->ChrData = Cartridge->PrgData + (Cartridge->PrgBankCount * Kilobytes(16));
 
   001f4	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   001f9	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
@@ -3202,36 +3219,147 @@ $LN7@loadCartri:
   0020d	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
   00212	48 89 41 30	 mov	 QWORD PTR [rcx+48], rax
 
-; 548  : 
-; 549  :         mapperInit[Cartridge->MapperNum](Cartridge, Cpu, Ppu);
+; 575  : 
+; 576  :         mapperInit[Cartridge->MapperNum](Cartridge, Cpu, Ppu);
 
   00216	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   0021b	0f b6 40 39	 movzx	 eax, BYTE PTR [rax+57]
   0021f	48 8d 0d 00 00
 	00 00		 lea	 rcx, OFFSET FLAT:?mapperInit@@3PAP6AXPEAUcartridge@@PEAUcpu@@PEAUppu@@@ZA ; mapperInit
-  00226	48 89 4c 24 30	 mov	 QWORD PTR tv177[rsp], rcx
+  00226	48 89 4c 24 30	 mov	 QWORD PTR tv175[rsp], rcx
   0022b	4c 8b 44 24 68	 mov	 r8, QWORD PTR Ppu$[rsp]
   00230	48 8b 54 24 60	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00235	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cartridge$[rsp]
-  0023a	4c 8b 4c 24 30	 mov	 r9, QWORD PTR tv177[rsp]
+  0023a	4c 8b 4c 24 30	 mov	 r9, QWORD PTR tv175[rsp]
   0023f	41 ff 14 c1	 call	 QWORD PTR [r9+rax*8]
-
-; 550  : 
-; 551  :         Cpu->MapperReg = &Cartridge->ExtRegister;
-
-  00243	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00248	48 83 c0 3a	 add	 rax, 58			; 0000003aH
-  0024c	48 8b 4c 24 60	 mov	 rcx, QWORD PTR Cpu$[rsp]
-  00251	48 89 41 10	 mov	 QWORD PTR [rcx+16], rax
 $LN3@loadCartri:
 $LN1@loadCartri:
 
-; 552  :     }
-; 553  : }
+; 577  :     }
+; 578  : }
 
-  00255	48 83 c4 48	 add	 rsp, 72			; 00000048H
-  00259	c3		 ret	 0
+  00243	48 83 c4 48	 add	 rsp, 72			; 00000048H
+  00247	c3		 ret	 0
 ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z ENDP ; loadCartridge
+_TEXT	ENDS
+; Function compile flags: /Odtp
+; File y:\nesemud\code\nesemu.cpp
+_TEXT	SEGMENT
+BankNumber$ = 32
+MemPrgBank1$ = 36
+BankToCpy$ = 40
+Cpu$ = 64
+Cartridge$ = 72
+?unromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z PROC	; unromUpdate
+
+; 519  : {
+
+$LN3:
+  00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
+  00005	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
+  0000a	48 83 ec 38	 sub	 rsp, 56			; 00000038H
+
+; 520  :     uint16 MemPrgBank1 = 0x8000;
+
+  0000e	b8 00 80 00 00	 mov	 eax, 32768		; 00008000H
+  00013	66 89 44 24 24	 mov	 WORD PTR MemPrgBank1$[rsp], ax
+
+; 521  :     uint8 BankNumber = Cpu->MapperReg;
+
+  00018	48 8b 44 24 40	 mov	 rax, QWORD PTR Cpu$[rsp]
+  0001d	0f b6 40 10	 movzx	 eax, BYTE PTR [rax+16]
+  00021	88 44 24 20	 mov	 BYTE PTR BankNumber$[rsp], al
+
+; 522  :     
+; 523  :     uint8 * BankToCpy = Cartridge->PrgData + (BankNumber * Kilobytes(16));
+
+  00025	0f b6 44 24 20	 movzx	 eax, BYTE PTR BankNumber$[rsp]
+  0002a	48 69 c0 00 40
+	00 00		 imul	 rax, rax, 16384		; 00004000H
+  00031	48 8b 4c 24 48	 mov	 rcx, QWORD PTR Cartridge$[rsp]
+  00036	48 03 41 20	 add	 rax, QWORD PTR [rcx+32]
+  0003a	48 89 44 24 28	 mov	 QWORD PTR BankToCpy$[rsp], rax
+
+; 524  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy, Kilobytes(16));
+
+  0003f	0f b7 44 24 24	 movzx	 eax, WORD PTR MemPrgBank1$[rsp]
+  00044	48 8b 4c 24 40	 mov	 rcx, QWORD PTR Cpu$[rsp]
+  00049	48 03 41 08	 add	 rax, QWORD PTR [rcx+8]
+  0004d	66 41 b8 00 40	 mov	 r8w, 16384		; 00004000H
+  00052	48 8b 54 24 28	 mov	 rdx, QWORD PTR BankToCpy$[rsp]
+  00057	48 8b c8	 mov	 rcx, rax
+  0005a	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
+
+; 525  : }
+
+  0005f	48 83 c4 38	 add	 rsp, 56			; 00000038H
+  00063	c3		 ret	 0
+?unromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z ENDP	; unromUpdate
+_TEXT	ENDS
+; Function compile flags: /Odtp
+; File y:\nesemud\code\nesemu.cpp
+_TEXT	SEGMENT
+MemPrgBank1$ = 0
+MemPrgBank2$ = 4
+Cpu$ = 32
+Cartridge$ = 40
+?mmc1Update@@YAXPEAUcpu@@PEAUcartridge@@@Z PROC		; mmc1Update
+
+; 507  : {
+
+$LN3:
+  00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
+  00005	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
+  0000a	48 83 ec 18	 sub	 rsp, 24
+
+; 508  :     uint16 MemPrgBank1 = 0x8000;
+
+  0000e	b8 00 80 00 00	 mov	 eax, 32768		; 00008000H
+  00013	66 89 04 24	 mov	 WORD PTR MemPrgBank1$[rsp], ax
+
+; 509  :     uint16 MemPrgBank2 = 0xC000;
+
+  00017	b8 00 c0 00 00	 mov	 eax, 49152		; 0000c000H
+  0001c	66 89 44 24 04	 mov	 WORD PTR MemPrgBank2$[rsp], ax
+
+; 510  : /*
+; 511  :     uint8 * BankToCpy1 = Cartridge->PrgData;
+; 512  :     uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));       
+; 513  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+; 514  :     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+; 515  : */  
+; 516  :  }
+
+  00021	48 83 c4 18	 add	 rsp, 24
+  00025	c3		 ret	 0
+?mmc1Update@@YAXPEAUcpu@@PEAUcartridge@@@Z ENDP		; mmc1Update
+_TEXT	ENDS
+; Function compile flags: /Odtp
+; File y:\nesemud\code\nesemu.cpp
+_TEXT	SEGMENT
+Cpu$ = 8
+Cartridge$ = 16
+?nromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z PROC		; nromUpdate
+
+; 502  : {
+
+  00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
+  00005	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
+
+; 503  :     Assert(0);
+
+  0000a	33 c0		 xor	 eax, eax
+  0000c	83 f8 01	 cmp	 eax, 1
+  0000f	74 0b		 je	 SHORT $LN2@nromUpdate
+  00011	c7 04 25 00 00
+	00 00 00 00 00
+	00		 mov	 DWORD PTR ds:0, 0
+$LN2@nromUpdate:
+
+; 504  : }
+
+  0001c	c3		 ret	 0
+?nromUpdate@@YAXPEAUcpu@@PEAUcartridge@@@Z ENDP		; nromUpdate
 _TEXT	ENDS
 ; Function compile flags: /Odtp
 ; File y:\nesemud\code\nesemu.cpp
@@ -3245,7 +3373,7 @@ Cpu$ = 88
 Ppu$ = 96
 ?unromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z PROC	; unromInit
 
-; 486  : {
+; 482  : {
 
 $LN3:
   00000	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
@@ -3253,24 +3381,24 @@ $LN3:
   0000a	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   0000f	48 83 ec 48	 sub	 rsp, 72			; 00000048H
 
-; 487  :     uint16 MemPrgBank1 = 0x8000;
+; 483  :     uint16 MemPrgBank1 = 0x8000;
 
   00013	b8 00 80 00 00	 mov	 eax, 32768		; 00008000H
   00018	66 89 44 24 20	 mov	 WORD PTR MemPrgBank1$[rsp], ax
 
-; 488  :     uint16 MemPrgBank2 = 0xC000;
+; 484  :     uint16 MemPrgBank2 = 0xC000;
 
   0001d	b8 00 c0 00 00	 mov	 eax, 49152		; 0000c000H
   00022	66 89 44 24 24	 mov	 WORD PTR MemPrgBank2$[rsp], ax
 
-; 489  : 
-; 490  :     uint8 * BankToCpy1 = Cartridge->PrgData;
+; 485  : 
+; 486  :     uint8 * BankToCpy1 = Cartridge->PrgData;
 
   00027	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   0002c	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
   00030	48 89 44 24 28	 mov	 QWORD PTR BankToCpy1$[rsp], rax
 
-; 491  :     uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
+; 487  :     uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
 
   00035	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   0003a	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
@@ -3282,8 +3410,8 @@ $LN3:
   0004e	48 03 41 20	 add	 rax, QWORD PTR [rcx+32]
   00052	48 89 44 24 30	 mov	 QWORD PTR BankToCpy2$[rsp], rax
 
-; 492  :            
-; 493  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+; 488  :            
+; 489  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
 
   00057	0f b7 44 24 20	 movzx	 eax, WORD PTR MemPrgBank1$[rsp]
   0005c	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
@@ -3293,7 +3421,7 @@ $LN3:
   0006f	48 8b c8	 mov	 rcx, rax
   00072	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
 
-; 494  :     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+; 490  :     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
 
   00077	0f b7 44 24 24	 movzx	 eax, WORD PTR MemPrgBank2$[rsp]
   0007c	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
@@ -3303,7 +3431,7 @@ $LN3:
   0008f	48 8b c8	 mov	 rcx, rax
   00092	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
 
-; 495  : }
+; 491  : }
 
   00097	48 83 c4 48	 add	 rsp, 72			; 00000048H
   0009b	c3		 ret	 0
@@ -3321,7 +3449,7 @@ Cpu$ = 88
 Ppu$ = 96
 ?mmc1Init@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z PROC	; mmc1Init
 
-; 474  : {
+; 470  : {
 
 $LN3:
   00000	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
@@ -3329,24 +3457,24 @@ $LN3:
   0000a	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   0000f	48 83 ec 48	 sub	 rsp, 72			; 00000048H
 
-; 475  :     uint16 MemPrgBank1 = 0x8000;
+; 471  :     uint16 MemPrgBank1 = 0x8000;
 
   00013	b8 00 80 00 00	 mov	 eax, 32768		; 00008000H
   00018	66 89 44 24 20	 mov	 WORD PTR MemPrgBank1$[rsp], ax
 
-; 476  :     uint16 MemPrgBank2 = 0xC000;
+; 472  :     uint16 MemPrgBank2 = 0xC000;
 
   0001d	b8 00 c0 00 00	 mov	 eax, 49152		; 0000c000H
   00022	66 89 44 24 24	 mov	 WORD PTR MemPrgBank2$[rsp], ax
 
-; 477  : 
-; 478  :     uint8 * BankToCpy1 = Cartridge->PrgData;
+; 473  : 
+; 474  :     uint8 * BankToCpy1 = Cartridge->PrgData;
 
   00027	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   0002c	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
   00030	48 89 44 24 28	 mov	 QWORD PTR BankToCpy1$[rsp], rax
 
-; 479  :     uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
+; 475  :     uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
 
   00035	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
   0003a	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
@@ -3358,8 +3486,8 @@ $LN3:
   0004e	48 03 41 20	 add	 rax, QWORD PTR [rcx+32]
   00052	48 89 44 24 30	 mov	 QWORD PTR BankToCpy2$[rsp], rax
 
-; 480  :            
-; 481  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+; 476  :            
+; 477  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
 
   00057	0f b7 44 24 20	 movzx	 eax, WORD PTR MemPrgBank1$[rsp]
   0005c	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
@@ -3369,7 +3497,7 @@ $LN3:
   0006f	48 8b c8	 mov	 rcx, rax
   00072	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
 
-; 482  :     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+; 478  :     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
 
   00077	0f b7 44 24 24	 movzx	 eax, WORD PTR MemPrgBank2$[rsp]
   0007c	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
@@ -3379,7 +3507,7 @@ $LN3:
   0008f	48 8b c8	 mov	 rcx, rax
   00092	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
 
-; 483  :  }
+; 479  :  }
 
   00097	48 83 c4 48	 add	 rsp, 72			; 00000048H
   0009b	c3		 ret	 0
@@ -3399,143 +3527,120 @@ Ppu$ = 96
 
 ; 441  : {
 
-$LN9:
+$LN7:
   00000	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
   00005	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   0000a	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   0000f	48 83 ec 48	 sub	 rsp, 72			; 00000048H
 
-; 442  :     if(Cartridge->PrgBankCount != 1 && Cartridge->PrgBankCount != 2 )
+; 442  :     uint16 MemPrgBank1 = 0x8000;
 
-  00013	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00018	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
-  0001c	83 f8 01	 cmp	 eax, 1
-  0001f	74 20		 je	 SHORT $LN2@nromInit
-  00021	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00026	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
-  0002a	83 f8 02	 cmp	 eax, 2
-  0002d	74 12		 je	 SHORT $LN2@nromInit
+  00013	b8 00 80 00 00	 mov	 eax, 32768		; 00008000H
+  00018	66 89 44 24 20	 mov	 WORD PTR MemPrgBank1$[rsp], ax
 
-; 443  :         Assert(0);
+; 443  :     uint16 MemPrgBank2 = 0xC000;
 
-  0002f	33 c0		 xor	 eax, eax
-  00031	83 f8 01	 cmp	 eax, 1
-  00034	74 0b		 je	 SHORT $LN3@nromInit
-  00036	c7 04 25 00 00
-	00 00 00 00 00
-	00		 mov	 DWORD PTR ds:0, 0
-$LN3@nromInit:
-$LN2@nromInit:
+  0001d	b8 00 c0 00 00	 mov	 eax, 49152		; 0000c000H
+  00022	66 89 44 24 24	 mov	 WORD PTR MemPrgBank2$[rsp], ax
 
 ; 444  : 
-; 445  :     uint16 MemPrgBank1 = 0x8000;
+; 445  :     uint8 * BankToCpy1;
+; 446  :     uint8 * BankToCpy2;
+; 447  :         
+; 448  :     if(Cartridge->PrgBankCount == 1)
 
-  00041	b8 00 80 00 00	 mov	 eax, 32768		; 00008000H
-  00046	66 89 44 24 20	 mov	 WORD PTR MemPrgBank1$[rsp], ax
+  00027	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  0002c	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
+  00030	83 f8 01	 cmp	 eax, 1
+  00033	75 1e		 jne	 SHORT $LN2@nromInit
 
-; 446  :     uint16 MemPrgBank2 = 0xC000;
+; 449  :     {
+; 450  :         BankToCpy1 = Cartridge->PrgData;
 
-  0004b	b8 00 c0 00 00	 mov	 eax, 49152		; 0000c000H
-  00050	66 89 44 24 24	 mov	 WORD PTR MemPrgBank2$[rsp], ax
+  00035	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  0003a	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
+  0003e	48 89 44 24 28	 mov	 QWORD PTR BankToCpy1$[rsp], rax
 
-; 447  : 
-; 448  :     uint8 * BankToCpy1;
-; 449  :     uint8 * BankToCpy2;
-; 450  :         
-; 451  :     if(Cartridge->PrgBankCount == 1)
+; 451  :         BankToCpy2 = Cartridge->PrgData;
 
-  00055	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  0005a	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
-  0005e	83 f8 01	 cmp	 eax, 1
-  00061	75 1e		 jne	 SHORT $LN4@nromInit
+  00043	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  00048	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
+  0004c	48 89 44 24 30	 mov	 QWORD PTR BankToCpy2$[rsp], rax
+  00051	eb 30		 jmp	 SHORT $LN3@nromInit
+$LN2@nromInit:
 
-; 452  :     {
-; 453  :         BankToCpy1 = Cartridge->PrgData;
+; 452  :     }
+; 453  :     else if(Cartridge->PrgBankCount == 2)
 
-  00063	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00068	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
-  0006c	48 89 44 24 28	 mov	 QWORD PTR BankToCpy1$[rsp], rax
+  00053	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  00058	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
+  0005c	83 f8 02	 cmp	 eax, 2
+  0005f	75 22		 jne	 SHORT $LN4@nromInit
 
-; 454  :         BankToCpy2 = Cartridge->PrgData;
+; 454  :     {
+; 455  :         BankToCpy1 = Cartridge->PrgData;
 
-  00071	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00076	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
-  0007a	48 89 44 24 30	 mov	 QWORD PTR BankToCpy2$[rsp], rax
-  0007f	eb 30		 jmp	 SHORT $LN5@nromInit
-$LN4@nromInit:
+  00061	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  00066	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
+  0006a	48 89 44 24 28	 mov	 QWORD PTR BankToCpy1$[rsp], rax
 
-; 455  :     }
-; 456  :     else if(Cartridge->PrgBankCount == 2)
+; 456  :         BankToCpy2 = Cartridge->PrgData + Kilobytes(16);
 
-  00081	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00086	0f b6 40 18	 movzx	 eax, BYTE PTR [rax+24]
-  0008a	83 f8 02	 cmp	 eax, 2
-  0008d	75 22		 jne	 SHORT $LN6@nromInit
-
-; 457  :     {
-; 458  :         BankToCpy1 = Cartridge->PrgData;
-
-  0008f	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00094	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
-  00098	48 89 44 24 28	 mov	 QWORD PTR BankToCpy1$[rsp], rax
-
-; 459  :         BankToCpy2 = Cartridge->PrgData + Kilobytes(16);
-
-  0009d	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  000a2	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
-  000a6	48 05 00 40 00
+  0006f	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  00074	48 8b 40 20	 mov	 rax, QWORD PTR [rax+32]
+  00078	48 05 00 40 00
 	00		 add	 rax, 16384		; 00004000H
-  000ac	48 89 44 24 30	 mov	 QWORD PTR BankToCpy2$[rsp], rax
-$LN6@nromInit:
+  0007e	48 89 44 24 30	 mov	 QWORD PTR BankToCpy2$[rsp], rax
+$LN4@nromInit:
+$LN3@nromInit:
+
+; 457  :     }
+; 458  :         
+; 459  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+
+  00083	0f b7 44 24 20	 movzx	 eax, WORD PTR MemPrgBank1$[rsp]
+  00088	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
+  0008d	48 03 41 08	 add	 rax, QWORD PTR [rcx+8]
+  00091	66 41 b8 00 40	 mov	 r8w, 16384		; 00004000H
+  00096	48 8b 54 24 28	 mov	 rdx, QWORD PTR BankToCpy1$[rsp]
+  0009b	48 8b c8	 mov	 rcx, rax
+  0009e	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
+
+; 460  :     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+
+  000a3	0f b7 44 24 24	 movzx	 eax, WORD PTR MemPrgBank2$[rsp]
+  000a8	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
+  000ad	48 03 41 08	 add	 rax, QWORD PTR [rcx+8]
+  000b1	66 41 b8 00 40	 mov	 r8w, 16384		; 00004000H
+  000b6	48 8b 54 24 30	 mov	 rdx, QWORD PTR BankToCpy2$[rsp]
+  000bb	48 8b c8	 mov	 rcx, rax
+  000be	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
+
+; 461  : 
+; 462  :     // Map CHR Data to Ppu
+; 463  :     if(Cartridge->ChrBankCount == 1)
+
+  000c3	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  000c8	0f b6 40 28	 movzx	 eax, BYTE PTR [rax+40]
+  000cc	83 f8 01	 cmp	 eax, 1
+  000cf	75 1b		 jne	 SHORT $LN5@nromInit
+
+; 464  :     {
+; 465  :         cpyMemory((uint8 *)Ppu->MemoryBase, Cartridge->ChrData, Kilobytes(8));
+
+  000d1	66 41 b8 00 20	 mov	 r8w, 8192		; 00002000H
+  000d6	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
+  000db	48 8b 50 30	 mov	 rdx, QWORD PTR [rax+48]
+  000df	48 8b 44 24 60	 mov	 rax, QWORD PTR Ppu$[rsp]
+  000e4	48 8b 08	 mov	 rcx, QWORD PTR [rax]
+  000e7	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
 $LN5@nromInit:
 
-; 460  :     }
-; 461  :         
-; 462  :     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+; 466  :     }
+; 467  : }
 
-  000b1	0f b7 44 24 20	 movzx	 eax, WORD PTR MemPrgBank1$[rsp]
-  000b6	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
-  000bb	48 03 41 08	 add	 rax, QWORD PTR [rcx+8]
-  000bf	66 41 b8 00 40	 mov	 r8w, 16384		; 00004000H
-  000c4	48 8b 54 24 28	 mov	 rdx, QWORD PTR BankToCpy1$[rsp]
-  000c9	48 8b c8	 mov	 rcx, rax
-  000cc	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
-
-; 463  :     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
-
-  000d1	0f b7 44 24 24	 movzx	 eax, WORD PTR MemPrgBank2$[rsp]
-  000d6	48 8b 4c 24 58	 mov	 rcx, QWORD PTR Cpu$[rsp]
-  000db	48 03 41 08	 add	 rax, QWORD PTR [rcx+8]
-  000df	66 41 b8 00 40	 mov	 r8w, 16384		; 00004000H
-  000e4	48 8b 54 24 30	 mov	 rdx, QWORD PTR BankToCpy2$[rsp]
-  000e9	48 8b c8	 mov	 rcx, rax
-  000ec	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
-
-; 464  : 
-; 465  :     // Map CHR Data to Ppu
-; 466  :     if(Cartridge->ChrBankCount == 1)
-
-  000f1	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  000f6	0f b6 40 28	 movzx	 eax, BYTE PTR [rax+40]
-  000fa	83 f8 01	 cmp	 eax, 1
-  000fd	75 1b		 jne	 SHORT $LN7@nromInit
-
-; 467  :     {
-; 468  :         cpyMemory((uint8 *)Ppu->MemoryBase, Cartridge->ChrData, Kilobytes(8));
-
-  000ff	66 41 b8 00 20	 mov	 r8w, 8192		; 00002000H
-  00104	48 8b 44 24 50	 mov	 rax, QWORD PTR Cartridge$[rsp]
-  00109	48 8b 50 30	 mov	 rdx, QWORD PTR [rax+48]
-  0010d	48 8b 44 24 60	 mov	 rax, QWORD PTR Ppu$[rsp]
-  00112	48 8b 08	 mov	 rcx, QWORD PTR [rax]
-  00115	e8 00 00 00 00	 call	 ?cpyMemory@@YAXPEAE0G@Z	; cpyMemory
-$LN7@nromInit:
-
-; 469  :     }
-; 470  : }
-
-  0011a	48 83 c4 48	 add	 rsp, 72			; 00000048H
-  0011e	c3		 ret	 0
+  000ec	48 83 c4 48	 add	 rsp, 72			; 00000048H
+  000f0	c3		 ret	 0
 ?nromInit@@YAXPEAUcartridge@@PEAUcpu@@PEAUppu@@@Z ENDP	; nromInit
 _TEXT	ENDS
 ; Function compile flags: /Odtp
@@ -6462,7 +6567,7 @@ Cpu$ = 272
 NewInput$ = 280
 ?cpuTick@@YAEPEAUcpu@@PEAUinput@@@Z PROC		; cpuTick
 
-; 415  : {        
+; 404  : {        
 
   00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   00005	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
@@ -6476,49 +6581,49 @@ NewInput$ = 280
   0001d	48 89 84 24 e0
 	00 00 00	 mov	 QWORD PTR __$ArrayPad$[rsp], rax
 
-; 416  :     uint8 CyclesElapsed = 0;
+; 405  :     uint8 CyclesElapsed = 0;
 
   00025	c6 44 24 24 00	 mov	 BYTE PTR CyclesElapsed$[rsp], 0
 
-; 417  : 
-; 418  :     uint16 Address = 0;
+; 406  : 
+; 407  :     uint16 Address = 0;
 
   0002a	33 c0		 xor	 eax, eax
   0002c	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 419  :     bool32 CrossedPage = 0;
+; 408  :     bool32 CrossedPage = 0;
 
   00031	c7 44 24 38 00
 	00 00 00	 mov	 DWORD PTR CrossedPage$[rsp], 0
 
-; 420  :     
-; 421  :     uint8 Instruction;
-; 422  :     uint8 AddressMode;
-; 423  :     uint8 InstrLength;
-; 424  :     char *InstrName;
-; 425  :     uint8 InstrCycles;
-; 426  :     uint8 InstrData[3]; // Stores data for each instruction
-; 427  : 
-; 428  :     // NOTE: Logging: Save Cpu before changes. Print out later
-; 429  :     cpu LogCpu = *Cpu;
+; 409  :     
+; 410  :     uint8 Instruction;
+; 411  :     uint8 AddressMode;
+; 412  :     uint8 InstrLength;
+; 413  :     char *InstrName;
+; 414  :     uint8 InstrCycles;
+; 415  :     uint8 InstrData[3]; // Stores data for each instruction
+; 416  : 
+; 417  :     // NOTE: Logging: Save Cpu before changes. Print out later
+; 418  :     cpu LogCpu = *Cpu;
 
   00039	48 8d 44 24 70	 lea	 rax, QWORD PTR LogCpu$[rsp]
   0003e	48 8b f8	 mov	 rdi, rax
   00041	48 8b b4 24 10
 	01 00 00	 mov	 rsi, QWORD PTR Cpu$[rsp]
-  00049	b9 70 00 00 00	 mov	 ecx, 112		; 00000070H
+  00049	b9 68 00 00 00	 mov	 ecx, 104		; 00000068H
   0004e	f3 a4		 rep movsb
 
-; 430  : 
-; 431  :     if(Cpu->PadStrobe)
+; 419  : 
+; 420  :     if(Cpu->PadStrobe)
 
   00050	48 8b 84 24 10
 	01 00 00	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00058	83 78 20 00	 cmp	 DWORD PTR [rax+32], 0
+  00058	83 78 18 00	 cmp	 DWORD PTR [rax+24], 0
   0005c	74 3f		 je	 SHORT $LN10@cpuTick
 
-; 432  :     {
-; 433  :         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
+; 421  :     {
+; 422  :         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
 
   0005e	c6 44 24 26 00	 mov	 BYTE PTR idx$1[rsp], 0
   00063	eb 0b		 jmp	 SHORT $LN4@cpuTick
@@ -6531,7 +6636,7 @@ $LN4@cpuTick:
   00075	83 f8 08	 cmp	 eax, 8
   00078	7d 23		 jge	 SHORT $LN3@cpuTick
 
-; 434  :             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
+; 423  :             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
 
   0007a	0f b6 44 24 26	 movzx	 eax, BYTE PTR idx$1[rsp]
   0007f	0f b6 4c 24 26	 movzx	 ecx, BYTE PTR idx$1[rsp]
@@ -6540,49 +6645,49 @@ $LN4@cpuTick:
   0008c	48 8b bc 24 18
 	01 00 00	 mov	 rdi, QWORD PTR NewInput$[rsp]
   00094	8b 04 87	 mov	 eax, DWORD PTR [rdi+rax*4]
-  00097	89 44 8a 24	 mov	 DWORD PTR [rdx+rcx*4+36], eax
+  00097	89 44 8a 1c	 mov	 DWORD PTR [rdx+rcx*4+28], eax
   0009b	eb c8		 jmp	 SHORT $LN2@cpuTick
 $LN3@cpuTick:
 $LN10@cpuTick:
 
-; 435  :     }
-; 436  :     
-; 437  :     if(NmiTriggered)
+; 424  :     }
+; 425  :     
+; 426  :     if(NmiTriggered)
 
   0009d	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?NmiTriggered@@3HA, 0 ; NmiTriggered
   000a4	74 5b		 je	 SHORT $LN11@cpuTick
 
-; 438  :     {
-; 439  :         LogCpu.PrgCounter = NMI_VEC;
+; 427  :     {
+; 428  :         LogCpu.PrgCounter = NMI_VEC;
 
   000a6	b8 fa ff 00 00	 mov	 eax, 65530		; 0000fffaH
   000ab	66 89 44 24 76	 mov	 WORD PTR LogCpu$[rsp+6], ax
 
-; 440  :         Address = NMI_VEC;
+; 429  :         Address = NMI_VEC;
 
   000b0	b8 fa ff 00 00	 mov	 eax, 65530		; 0000fffaH
   000b5	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 441  :         AddressMode = IMPL;
+; 430  :         AddressMode = IMPL;
 
   000ba	c6 44 24 27 09	 mov	 BYTE PTR AddressMode$[rsp], 9
 
-; 442  :         InstrLength = 0;
+; 431  :         InstrLength = 0;
 
   000bf	c6 44 24 2c 00	 mov	 BYTE PTR InstrLength$[rsp], 0
 
-; 443  :         InstrName = "NMI";
+; 432  :         InstrName = "NMI";
 
   000c4	48 8d 05 00 00
 	00 00		 lea	 rax, OFFSET FLAT:$SG88730
   000cb	48 89 44 24 58	 mov	 QWORD PTR InstrName$[rsp], rax
 
-; 444  :         InstrCycles = 7;
+; 433  :         InstrCycles = 7;
 
   000d0	c6 44 24 2d 07	 mov	 BYTE PTR InstrCycles$[rsp], 7
 
-; 445  :         InstrData[0] = 0;
+; 434  :         InstrData[0] = 0;
 
   000d5	b8 01 00 00 00	 mov	 eax, 1
   000da	48 6b c0 00	 imul	 rax, rax, 0
@@ -6599,43 +6704,43 @@ $LN38@cpuTick:
   000fc	e9 1c 01 00 00	 jmp	 $LN12@cpuTick
 $LN11@cpuTick:
 
-; 446  :     }
-; 447  :     else if(IrqTriggered)
+; 435  :     }
+; 436  :     else if(IrqTriggered)
 
   00101	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?IrqTriggered@@3HA, 0 ; IrqTriggered
   00108	74 5b		 je	 SHORT $LN13@cpuTick
 
-; 448  :     {
-; 449  :         LogCpu.PrgCounter = IRQ_BRK_VEC;
+; 437  :     {
+; 438  :         LogCpu.PrgCounter = IRQ_BRK_VEC;
 
   0010a	b8 fe ff 00 00	 mov	 eax, 65534		; 0000fffeH
   0010f	66 89 44 24 76	 mov	 WORD PTR LogCpu$[rsp+6], ax
 
-; 450  :         Address = IRQ_BRK_VEC;
+; 439  :         Address = IRQ_BRK_VEC;
 
   00114	b8 fe ff 00 00	 mov	 eax, 65534		; 0000fffeH
   00119	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 451  :         AddressMode = IMPL;
+; 440  :         AddressMode = IMPL;
 
   0011e	c6 44 24 27 09	 mov	 BYTE PTR AddressMode$[rsp], 9
 
-; 452  :         InstrLength = 0;
+; 441  :         InstrLength = 0;
 
   00123	c6 44 24 2c 00	 mov	 BYTE PTR InstrLength$[rsp], 0
 
-; 453  :         InstrName = "IRQ";
+; 442  :         InstrName = "IRQ";
 
   00128	48 8d 05 00 00
 	00 00		 lea	 rax, OFFSET FLAT:$SG88733
   0012f	48 89 44 24 58	 mov	 QWORD PTR InstrName$[rsp], rax
 
-; 454  :         InstrCycles = 7;
+; 443  :         InstrCycles = 7;
 
   00134	c6 44 24 2d 07	 mov	 BYTE PTR InstrCycles$[rsp], 7
 
-; 455  :         InstrData[0] = 0;
+; 444  :         InstrData[0] = 0;
 
   00139	b8 01 00 00 00	 mov	 eax, 1
   0013e	48 6b c0 00	 imul	 rax, rax, 0
@@ -6650,14 +6755,14 @@ $LN40@cpuTick:
   00156	48 8b 44 24 50	 mov	 rax, QWORD PTR $T10[rsp]
   0015b	c6 44 04 28 00	 mov	 BYTE PTR InstrData$[rsp+rax], 0
 
-; 456  :     }
-; 457  :     else
+; 445  :     }
+; 446  :     else
 
   00160	e9 b8 00 00 00	 jmp	 $LN14@cpuTick
 $LN13@cpuTick:
 
-; 458  :     {    
-; 459  :         Instruction = readCpu8(Cpu->PrgCounter, Cpu);
+; 447  :     {    
+; 448  :         Instruction = readCpu8(Cpu->PrgCounter, Cpu);
 
   00165	48 8b 94 24 10
 	01 00 00	 mov	 rdx, QWORD PTR Cpu$[rsp]
@@ -6667,7 +6772,7 @@ $LN13@cpuTick:
   00179	e8 00 00 00 00	 call	 ?readCpu8@@YAEGPEAUcpu@@@Z ; readCpu8
   0017e	88 44 24 25	 mov	 BYTE PTR Instruction$[rsp], al
 
-; 460  :         AddressMode = instAddressMode[Instruction];
+; 449  :         AddressMode = instAddressMode[Instruction];
 
   00182	0f b6 44 24 25	 movzx	 eax, BYTE PTR Instruction$[rsp]
   00187	48 8d 0d 00 00
@@ -6675,7 +6780,7 @@ $LN13@cpuTick:
   0018e	0f b6 04 01	 movzx	 eax, BYTE PTR [rcx+rax]
   00192	88 44 24 27	 mov	 BYTE PTR AddressMode$[rsp], al
 
-; 461  :         InstrLength = instLength[Instruction];
+; 450  :         InstrLength = instLength[Instruction];
 
   00196	0f b6 44 24 25	 movzx	 eax, BYTE PTR Instruction$[rsp]
   0019b	48 8d 0d 00 00
@@ -6683,7 +6788,7 @@ $LN13@cpuTick:
   001a2	0f b6 04 01	 movzx	 eax, BYTE PTR [rcx+rax]
   001a6	88 44 24 2c	 mov	 BYTE PTR InstrLength$[rsp], al
 
-; 462  :         InstrName = instName[Instruction];
+; 451  :         InstrName = instName[Instruction];
 
   001aa	0f b6 44 24 25	 movzx	 eax, BYTE PTR Instruction$[rsp]
   001af	48 8d 0d 00 00
@@ -6691,7 +6796,7 @@ $LN13@cpuTick:
   001b6	48 8b 04 c1	 mov	 rax, QWORD PTR [rcx+rax*8]
   001ba	48 89 44 24 58	 mov	 QWORD PTR InstrName$[rsp], rax
 
-; 463  :         InstrCycles = instCycles[Instruction];
+; 452  :         InstrCycles = instCycles[Instruction];
 
   001bf	0f b6 44 24 25	 movzx	 eax, BYTE PTR Instruction$[rsp]
   001c4	48 8d 0d 00 00
@@ -6699,8 +6804,8 @@ $LN13@cpuTick:
   001cb	0f b6 04 01	 movzx	 eax, BYTE PTR [rcx+rax]
   001cf	88 44 24 2d	 mov	 BYTE PTR InstrCycles$[rsp], al
 
-; 464  : 
-; 465  :         for(int i = 0; i < InstrLength; ++i)
+; 453  : 
+; 454  :         for(int i = 0; i < InstrLength; ++i)
 
   001d3	c7 44 24 34 00
 	00 00 00	 mov	 DWORD PTR i$7[rsp], 0
@@ -6714,8 +6819,8 @@ $LN7@cpuTick:
   001ec	39 44 24 34	 cmp	 DWORD PTR i$7[rsp], eax
   001f0	7d 2b		 jge	 SHORT $LN6@cpuTick
 
-; 466  :         {
-; 467  :             InstrData[i] = readCpu8(Cpu->PrgCounter + i, Cpu); 
+; 455  :         {
+; 456  :             InstrData[i] = readCpu8(Cpu->PrgCounter + i, Cpu); 
 
   001f2	48 8b 84 24 10
 	01 00 00	 mov	 rax, QWORD PTR Cpu$[rsp]
@@ -6728,16 +6833,16 @@ $LN7@cpuTick:
   00212	48 63 4c 24 34	 movsxd	 rcx, DWORD PTR i$7[rsp]
   00217	88 44 0c 28	 mov	 BYTE PTR InstrData$[rsp+rcx], al
 
-; 468  :         }
+; 457  :         }
 
   0021b	eb c0		 jmp	 SHORT $LN5@cpuTick
 $LN6@cpuTick:
 $LN14@cpuTick:
 $LN12@cpuTick:
 
-; 469  :     }
-; 470  :     
-; 471  :     switch(AddressMode)
+; 458  :     }
+; 459  :     
+; 460  :     switch(AddressMode)
 
   0021d	0f b6 44 24 27	 movzx	 eax, BYTE PTR AddressMode$[rsp]
   00222	89 44 24 40	 mov	 DWORD PTR tv149[rsp], eax
@@ -6752,20 +6857,20 @@ $LN12@cpuTick:
   00244	48 03 c1	 add	 rax, rcx
   00247	ff e0		 jmp	 rax
 
-; 472  :     {
-; 473  :         case ACM:
-; 474  :             break;            
+; 461  :     {
+; 462  :         case ACM:
+; 463  :             break;            
 
   00249	e9 a2 02 00 00	 jmp	 $LN8@cpuTick
 
-; 475  :         case IMPL:
-; 476  :             break;
+; 464  :         case IMPL:
+; 465  :             break;
 
   0024e	e9 9d 02 00 00	 jmp	 $LN8@cpuTick
 $LN17@cpuTick:
 
-; 477  :         case IMED:
-; 478  :             Address = Cpu->PrgCounter + 1;
+; 466  :         case IMED:
+; 467  :             Address = Cpu->PrgCounter + 1;
 
   00253	48 8b 84 24 10
 	01 00 00	 mov	 rax, QWORD PTR Cpu$[rsp]
@@ -6773,26 +6878,26 @@ $LN17@cpuTick:
   0025f	ff c0		 inc	 eax
   00261	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 479  :             break;
+; 468  :             break;
 
   00266	e9 85 02 00 00	 jmp	 $LN8@cpuTick
 $LN18@cpuTick:
 
-; 480  :         case ZERO:
-; 481  :             Address = (uint16)InstrData[1];
+; 469  :         case ZERO:
+; 470  :             Address = (uint16)InstrData[1];
 
   0026b	b8 01 00 00 00	 mov	 eax, 1
   00270	48 6b c0 01	 imul	 rax, rax, 1
   00274	0f b6 44 04 28	 movzx	 eax, BYTE PTR InstrData$[rsp+rax]
   00279	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 482  :             break;
+; 471  :             break;
 
   0027e	e9 6d 02 00 00	 jmp	 $LN8@cpuTick
 $LN19@cpuTick:
 
-; 483  :         case ZERX:
-; 484  :             Address = ((uint16)InstrData[1] + Cpu->X) & 0xFF;
+; 472  :         case ZERX:
+; 473  :             Address = ((uint16)InstrData[1] + Cpu->X) & 0xFF;
 
   00283	b8 01 00 00 00	 mov	 eax, 1
   00288	48 6b c0 01	 imul	 rax, rax, 1
@@ -6804,13 +6909,13 @@ $LN19@cpuTick:
   0029f	25 ff 00 00 00	 and	 eax, 255		; 000000ffH
   002a4	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 485  :             break;
+; 474  :             break;
 
   002a9	e9 42 02 00 00	 jmp	 $LN8@cpuTick
 $LN20@cpuTick:
 
-; 486  :         case ZERY:
-; 487  :             Address = ((uint16)InstrData[1] + Cpu->Y) & 0xFF;
+; 475  :         case ZERY:
+; 476  :             Address = ((uint16)InstrData[1] + Cpu->Y) & 0xFF;
 
   002ae	b8 01 00 00 00	 mov	 eax, 1
   002b3	48 6b c0 01	 imul	 rax, rax, 1
@@ -6822,13 +6927,13 @@ $LN20@cpuTick:
   002ca	25 ff 00 00 00	 and	 eax, 255		; 000000ffH
   002cf	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 488  :             break;
+; 477  :             break;
 
   002d4	e9 17 02 00 00	 jmp	 $LN8@cpuTick
 $LN21@cpuTick:
 
-; 489  :         case ABS:
-; 490  :             Address = ((uint16)InstrData[2] << 8) | InstrData[1];
+; 478  :         case ABS:
+; 479  :             Address = ((uint16)InstrData[2] << 8) | InstrData[1];
 
   002d9	b8 01 00 00 00	 mov	 eax, 1
   002de	48 6b c0 02	 imul	 rax, rax, 2
@@ -6840,13 +6945,13 @@ $LN21@cpuTick:
   002f8	0b c1		 or	 eax, ecx
   002fa	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 491  :             break;
+; 480  :             break;
 
   002ff	e9 ec 01 00 00	 jmp	 $LN8@cpuTick
 $LN22@cpuTick:
 
-; 492  :         case ABSX:
-; 493  :             Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->X;
+; 481  :         case ABSX:
+; 482  :             Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->X;
 
   00304	b8 01 00 00 00	 mov	 eax, 1
   00309	48 6b c0 02	 imul	 rax, rax, 2
@@ -6862,7 +6967,7 @@ $LN22@cpuTick:
   00331	03 c1		 add	 eax, ecx
   00333	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 494  :             CrossedPage = crossedPageCheck(Address - Cpu->X, Address);
+; 483  :             CrossedPage = crossedPageCheck(Address - Cpu->X, Address);
 
   00338	0f b7 44 24 20	 movzx	 eax, WORD PTR Address$[rsp]
   0033d	48 8b 8c 24 10
@@ -6874,13 +6979,13 @@ $LN22@cpuTick:
   00353	e8 00 00 00 00	 call	 ?crossedPageCheck@@YAHGG@Z ; crossedPageCheck
   00358	89 44 24 38	 mov	 DWORD PTR CrossedPage$[rsp], eax
 
-; 495  :             break;
+; 484  :             break;
 
   0035c	e9 8f 01 00 00	 jmp	 $LN8@cpuTick
 $LN23@cpuTick:
 
-; 496  :         case ABSY:
-; 497  :             Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->Y;
+; 485  :         case ABSY:
+; 486  :             Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->Y;
 
   00361	b8 01 00 00 00	 mov	 eax, 1
   00366	48 6b c0 02	 imul	 rax, rax, 2
@@ -6896,7 +7001,7 @@ $LN23@cpuTick:
   0038e	03 c1		 add	 eax, ecx
   00390	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 498  :             CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
+; 487  :             CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
 
   00395	0f b7 44 24 20	 movzx	 eax, WORD PTR Address$[rsp]
   0039a	48 8b 8c 24 10
@@ -6908,21 +7013,21 @@ $LN23@cpuTick:
   003b0	e8 00 00 00 00	 call	 ?crossedPageCheck@@YAHGG@Z ; crossedPageCheck
   003b5	89 44 24 38	 mov	 DWORD PTR CrossedPage$[rsp], eax
 
-; 499  :             break;
+; 488  :             break;
 
   003b9	e9 32 01 00 00	 jmp	 $LN8@cpuTick
 $LN24@cpuTick:
 
-; 500  :         case REL:
-; 501  :         {
-; 502  :             int8 RelOffset = InstrData[1];
+; 489  :         case REL:
+; 490  :         {
+; 491  :             int8 RelOffset = InstrData[1];
 
   003be	b8 01 00 00 00	 mov	 eax, 1
   003c3	48 6b c0 01	 imul	 rax, rax, 1
   003c7	0f b6 44 04 28	 movzx	 eax, BYTE PTR InstrData$[rsp+rax]
   003cc	88 44 24 2e	 mov	 BYTE PTR RelOffset$2[rsp], al
 
-; 503  :             Address = Cpu->PrgCounter + 2 + RelOffset;
+; 492  :             Address = Cpu->PrgCounter + 2 + RelOffset;
 
   003d0	48 8b 84 24 10
 	01 00 00	 mov	 rax, QWORD PTR Cpu$[rsp]
@@ -6931,22 +7036,22 @@ $LN24@cpuTick:
   003e1	8d 44 08 02	 lea	 eax, DWORD PTR [rax+rcx+2]
   003e5	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 504  :             break;
+; 493  :             break;
 
   003ea	e9 01 01 00 00	 jmp	 $LN8@cpuTick
 $LN25@cpuTick:
 
-; 505  :         }
-; 506  :         case INDX:
-; 507  :         {
-; 508  :             uint8 ZeroAddress = InstrData[1];
+; 494  :         }
+; 495  :         case INDX:
+; 496  :         {
+; 497  :             uint8 ZeroAddress = InstrData[1];
 
   003ef	b8 01 00 00 00	 mov	 eax, 1
   003f4	48 6b c0 01	 imul	 rax, rax, 1
   003f8	0f b6 44 04 28	 movzx	 eax, BYTE PTR InstrData$[rsp+rax]
   003fd	88 44 24 2f	 mov	 BYTE PTR ZeroAddress$3[rsp], al
 
-; 509  :             uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
+; 498  :             uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
 
   00401	0f b6 44 24 2f	 movzx	 eax, BYTE PTR ZeroAddress$3[rsp]
   00406	48 8b 8c 24 10
@@ -6956,7 +7061,7 @@ $LN25@cpuTick:
   00414	25 ff 00 00 00	 and	 eax, 255		; 000000ffH
   00419	88 44 24 30	 mov	 BYTE PTR AddedAddress$4[rsp], al
 
-; 510  :             Address = bugReadCpu16(AddedAddress, Cpu);
+; 499  :             Address = bugReadCpu16(AddedAddress, Cpu);
 
   0041d	0f b6 44 24 30	 movzx	 eax, BYTE PTR AddedAddress$4[rsp]
   00422	48 8b 94 24 10
@@ -6965,22 +7070,22 @@ $LN25@cpuTick:
   0042d	e8 00 00 00 00	 call	 ?bugReadCpu16@@YAGGPEAUcpu@@@Z ; bugReadCpu16
   00432	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 511  :             break;
+; 500  :             break;
 
   00437	e9 b4 00 00 00	 jmp	 $LN8@cpuTick
 $LN26@cpuTick:
 
-; 512  :         }
-; 513  :         case INDY:
-; 514  :         {
-; 515  :             uint8 ZeroAddress = InstrData[1];
+; 501  :         }
+; 502  :         case INDY:
+; 503  :         {
+; 504  :             uint8 ZeroAddress = InstrData[1];
 
   0043c	b8 01 00 00 00	 mov	 eax, 1
   00441	48 6b c0 01	 imul	 rax, rax, 1
   00445	0f b6 44 04 28	 movzx	 eax, BYTE PTR InstrData$[rsp+rax]
   0044a	88 44 24 31	 mov	 BYTE PTR ZeroAddress$5[rsp], al
 
-; 516  :             Address = bugReadCpu16(ZeroAddress, Cpu) + Cpu->Y;
+; 505  :             Address = bugReadCpu16(ZeroAddress, Cpu) + Cpu->Y;
 
   0044e	0f b6 44 24 31	 movzx	 eax, BYTE PTR ZeroAddress$5[rsp]
   00453	48 8b 94 24 10
@@ -6994,7 +7099,7 @@ $LN26@cpuTick:
   00472	03 c1		 add	 eax, ecx
   00474	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 517  :             CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
+; 506  :             CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
 
   00479	0f b7 44 24 20	 movzx	 eax, WORD PTR Address$[rsp]
   0047e	48 8b 8c 24 10
@@ -7006,15 +7111,15 @@ $LN26@cpuTick:
   00494	e8 00 00 00 00	 call	 ?crossedPageCheck@@YAHGG@Z ; crossedPageCheck
   00499	89 44 24 38	 mov	 DWORD PTR CrossedPage$[rsp], eax
 
-; 518  :             break;
+; 507  :             break;
 
   0049d	eb 51		 jmp	 SHORT $LN8@cpuTick
 $LN27@cpuTick:
 
-; 519  :         }
-; 520  :         case INDI:
-; 521  :         {
-; 522  :             uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
+; 508  :         }
+; 509  :         case INDI:
+; 510  :         {
+; 511  :             uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
 
   0049f	b8 01 00 00 00	 mov	 eax, 1
   004a4	48 6b c0 02	 imul	 rax, rax, 2
@@ -7026,7 +7131,7 @@ $LN27@cpuTick:
   004be	0b c1		 or	 eax, ecx
   004c0	66 89 44 24 3c	 mov	 WORD PTR IndirectAddress$8[rsp], ax
 
-; 523  :             Address = bugReadCpu16(IndirectAddress, Cpu);
+; 512  :             Address = bugReadCpu16(IndirectAddress, Cpu);
 
   004c5	48 8b 94 24 10
 	01 00 00	 mov	 rdx, QWORD PTR Cpu$[rsp]
@@ -7034,15 +7139,15 @@ $LN27@cpuTick:
   004d2	e8 00 00 00 00	 call	 ?bugReadCpu16@@YAGGPEAUcpu@@@Z ; bugReadCpu16
   004d7	66 89 44 24 20	 mov	 WORD PTR Address$[rsp], ax
 
-; 524  :             break;
+; 513  :             break;
 
   004dc	eb 12		 jmp	 SHORT $LN8@cpuTick
 $LN28@cpuTick:
 
-; 525  :         }
-; 526  :         case NUL:
-; 527  :         {
-; 528  :             Assert(0);
+; 514  :         }
+; 515  :         case NUL:
+; 516  :         {
+; 517  :             Assert(0);
 
   004de	33 c0		 xor	 eax, eax
   004e0	83 f8 01	 cmp	 eax, 1
@@ -7053,11 +7158,11 @@ $LN28@cpuTick:
 $LN29@cpuTick:
 $LN8@cpuTick:
 
-; 529  :             break;
-; 530  :         }        
-; 531  :     }
-; 532  :     
-; 533  :     Cpu->PrgCounter += InstrLength;
+; 518  :             break;
+; 519  :         }        
+; 520  :     }
+; 521  :     
+; 522  :     Cpu->PrgCounter += InstrLength;
 
   004f0	0f b6 44 24 2c	 movzx	 eax, BYTE PTR InstrLength$[rsp]
   004f5	48 8b 8c 24 10
@@ -7069,7 +7174,7 @@ $LN8@cpuTick:
 	01 00 00	 mov	 rcx, QWORD PTR Cpu$[rsp]
   0050d	66 89 41 06	 mov	 WORD PTR [rcx+6], ax
 
-; 534  :     CyclesElapsed += InstrCycles;
+; 523  :     CyclesElapsed += InstrCycles;
 
   00511	0f b6 44 24 2d	 movzx	 eax, BYTE PTR InstrCycles$[rsp]
   00516	0f b6 4c 24 24	 movzx	 ecx, BYTE PTR CyclesElapsed$[rsp]
@@ -7077,8 +7182,8 @@ $LN8@cpuTick:
   0051d	8b c1		 mov	 eax, ecx
   0051f	88 44 24 24	 mov	 BYTE PTR CyclesElapsed$[rsp], al
 
-; 535  : 
-; 536  :     if(NmiTriggered || IrqTriggered)
+; 524  : 
+; 525  :     if(NmiTriggered || IrqTriggered)
 
   00523	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?NmiTriggered@@3HA, 0 ; NmiTriggered
@@ -7088,34 +7193,34 @@ $LN8@cpuTick:
   00533	74 39		 je	 SHORT $LN30@cpuTick
 $LN32@cpuTick:
 
-; 537  :     {
-; 538  :         if(NmiTriggered)
+; 526  :     {
+; 527  :         if(NmiTriggered)
 
   00535	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?NmiTriggered@@3HA, 0 ; NmiTriggered
   0053c	74 0c		 je	 SHORT $LN33@cpuTick
 
-; 539  :         {
-; 540  :             NmiTriggered = false;
+; 528  :         {
+; 529  :             NmiTriggered = false;
 
   0053e	c7 05 00 00 00
 	00 00 00 00 00	 mov	 DWORD PTR ?NmiTriggered@@3HA, 0 ; NmiTriggered
 
-; 541  :         }
-; 542  :         else
+; 530  :         }
+; 531  :         else
 
   00548	eb 0a		 jmp	 SHORT $LN34@cpuTick
 $LN33@cpuTick:
 
-; 543  :         {
-; 544  :             IrqTriggered = false;
+; 532  :         {
+; 533  :             IrqTriggered = false;
 
   0054a	c7 05 00 00 00
 	00 00 00 00 00	 mov	 DWORD PTR ?IrqTriggered@@3HA, 0 ; IrqTriggered
 $LN34@cpuTick:
 
-; 545  :         }
-; 546  :         nmi_irq(Address, Cpu, AddressMode);
+; 534  :         }
+; 535  :         nmi_irq(Address, Cpu, AddressMode);
 
   00554	44 0f b6 44 24
 	27		 movzx	 r8d, BYTE PTR AddressMode$[rsp]
@@ -7124,20 +7229,20 @@ $LN34@cpuTick:
   00562	0f b7 4c 24 20	 movzx	 ecx, WORD PTR Address$[rsp]
   00567	e8 00 00 00 00	 call	 ?nmi_irq@@YAEGPEAUcpu@@E@Z ; nmi_irq
 
-; 547  :     }
-; 548  :     else
+; 536  :     }
+; 537  :     else
 
   0056c	eb 66		 jmp	 SHORT $LN31@cpuTick
 $LN30@cpuTick:
 
-; 549  :     {
-; 550  :         // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
-; 551  :         if(CrossedPage)
+; 538  :     {
+; 539  :         // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
+; 540  :         if(CrossedPage)
 
   0056e	83 7c 24 38 00	 cmp	 DWORD PTR CrossedPage$[rsp], 0
   00573	74 1d		 je	 SHORT $LN35@cpuTick
 
-; 552  :             CyclesElapsed += instBoundaryCheck[Instruction];
+; 541  :             CyclesElapsed += instBoundaryCheck[Instruction];
 
   00575	0f b6 44 24 25	 movzx	 eax, BYTE PTR Instruction$[rsp]
   0057a	48 8d 0d 00 00
@@ -7149,8 +7254,8 @@ $LN30@cpuTick:
   0058e	88 44 24 24	 mov	 BYTE PTR CyclesElapsed$[rsp], al
 $LN35@cpuTick:
 
-; 553  :      
-; 554  :         uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
+; 542  :      
+; 543  :         uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
 
   00592	0f b6 44 24 25	 movzx	 eax, BYTE PTR Instruction$[rsp]
   00597	48 8d 0d 00 00
@@ -7165,7 +7270,7 @@ $LN35@cpuTick:
   005bb	ff 14 c7	 call	 QWORD PTR [rdi+rax*8]
   005be	88 44 24 32	 mov	 BYTE PTR AdditionalCycles$6[rsp], al
 
-; 555  :         CyclesElapsed += AdditionalCycles;
+; 544  :         CyclesElapsed += AdditionalCycles;
 
   005c2	0f b6 44 24 32	 movzx	 eax, BYTE PTR AdditionalCycles$6[rsp]
   005c7	0f b6 4c 24 24	 movzx	 ecx, BYTE PTR CyclesElapsed$[rsp]
@@ -7174,36 +7279,36 @@ $LN35@cpuTick:
   005d0	88 44 24 24	 mov	 BYTE PTR CyclesElapsed$[rsp], al
 $LN31@cpuTick:
 
-; 556  :     }
-; 557  : 
-; 558  :     #if 0
-; 559  :     char LogInstrData[16];
-; 560  :     if(InstrLength == 3)
-; 561  :         sprintf(LogInstrData, "%2X %2X %2X", InstrData[0], InstrData[1], InstrData[2]);
-; 562  :     else if(InstrLength == 2)
-; 563  :         sprintf(LogInstrData, "%2X %2X   ", InstrData[0], InstrData[1]);
-; 564  :     else
-; 565  :         sprintf(LogInstrData, "%2X      ", InstrData[0]);
-; 566  : 
-; 567  :     char LogOpInfo[64];
-; 568  : //    sprintf(LogOpInfo, ""
-; 569  :     
-; 570  :     char LogCpuInfo[64];
-; 571  :     sprintf(LogCpuInfo, "A:%2X X:%2X Y:%2X P:%2X SP:%2X  CYC: %d",
-; 572  :             LogCpu.A, LogCpu.X, LogCpu.Y, LogCpu.Flags, LogCpu.StackPtr, CyclesElapsed);
-; 573  : 
-; 574  :     // NOTE: CPU Log options
-; 575  :     char LogBuffer[1024];
-; 576  :     sprintf(LogBuffer, "%4X %s    %s\n", LogCpu.PrgCounter, LogInstrData, LogCpuInfo);
-; 577  :     OutputDebugString(LogBuffer);
-; 578  : #endif
-; 579  :     
-; 580  :     return(CyclesElapsed);
+; 545  :     }
+; 546  : 
+; 547  :     #if 0
+; 548  :     char LogInstrData[16];
+; 549  :     if(InstrLength == 3)
+; 550  :         sprintf(LogInstrData, "%2X %2X %2X", InstrData[0], InstrData[1], InstrData[2]);
+; 551  :     else if(InstrLength == 2)
+; 552  :         sprintf(LogInstrData, "%2X %2X   ", InstrData[0], InstrData[1]);
+; 553  :     else
+; 554  :         sprintf(LogInstrData, "%2X      ", InstrData[0]);
+; 555  : 
+; 556  :     char LogOpInfo[64];
+; 557  : //    sprintf(LogOpInfo, ""
+; 558  :     
+; 559  :     char LogCpuInfo[64];
+; 560  :     sprintf(LogCpuInfo, "A:%2X X:%2X Y:%2X P:%2X SP:%2X  CYC: %d",
+; 561  :             LogCpu.A, LogCpu.X, LogCpu.Y, LogCpu.Flags, LogCpu.StackPtr, CyclesElapsed);
+; 562  : 
+; 563  :     // NOTE: CPU Log options
+; 564  :     char LogBuffer[1024];
+; 565  :     sprintf(LogBuffer, "%4X %s    %s\n", LogCpu.PrgCounter, LogInstrData, LogCpuInfo);
+; 566  :     OutputDebugString(LogBuffer);
+; 567  : #endif
+; 568  :     
+; 569  :     return(CyclesElapsed);
 
   005d4	0f b6 44 24 24	 movzx	 eax, BYTE PTR CyclesElapsed$[rsp]
 $LN36@cpuTick:
 
-; 581  : }
+; 570  : }
 
   005d9	48 8b 8c 24 e0
 	00 00 00	 mov	 rcx, QWORD PTR __$ArrayPad$[rsp]
@@ -7242,62 +7347,62 @@ Cpu$ = 72
 AddressMode$ = 80
 ?nmi_irq@@YAEGPEAUcpu@@E@Z PROC				; nmi_irq
 
-; 394  : {
+; 383  : {
 
   00000	44 88 44 24 18	 mov	 BYTE PTR [rsp+24], r8b
   00005	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   0000a	66 89 4c 24 08	 mov	 WORD PTR [rsp+8], cx
   0000f	48 83 ec 38	 sub	 rsp, 56			; 00000038H
 
-; 395  :     uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
+; 384  :     uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
 
   00013	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00018	0f b7 40 06	 movzx	 eax, WORD PTR [rax+6]
   0001c	c1 f8 08	 sar	 eax, 8
   0001f	88 44 24 20	 mov	 BYTE PTR HighByte$[rsp], al
 
-; 396  :     uint8 LowByte = (uint8)Cpu->PrgCounter; 
+; 385  :     uint8 LowByte = (uint8)Cpu->PrgCounter; 
 
   00023	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00028	0f b6 40 06	 movzx	 eax, BYTE PTR [rax+6]
   0002c	88 44 24 21	 mov	 BYTE PTR LowByte$[rsp], al
 
-; 397  :     push(HighByte, Cpu);
+; 386  :     push(HighByte, Cpu);
 
   00030	48 8b 54 24 48	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00035	0f b6 4c 24 20	 movzx	 ecx, BYTE PTR HighByte$[rsp]
   0003a	e8 00 00 00 00	 call	 ?push@@YAXEPEAUcpu@@@Z	; push
 
-; 398  :     push(LowByte, Cpu);
+; 387  :     push(LowByte, Cpu);
 
   0003f	48 8b 54 24 48	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00044	0f b6 4c 24 21	 movzx	 ecx, BYTE PTR LowByte$[rsp]
   00049	e8 00 00 00 00	 call	 ?push@@YAXEPEAUcpu@@@Z	; push
 
-; 399  : 
-; 400  :     clearBreak(&Cpu->Flags);
+; 388  : 
+; 389  :     clearBreak(&Cpu->Flags);
 
   0004e	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00053	48 83 c0 03	 add	 rax, 3
   00057	48 8b c8	 mov	 rcx, rax
   0005a	e8 00 00 00 00	 call	 ?clearBreak@@YAXPEAE@Z	; clearBreak
 
-; 401  :     push(Cpu->Flags, Cpu); 
+; 390  :     push(Cpu->Flags, Cpu); 
 
   0005f	48 8b 54 24 48	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00064	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00069	0f b6 48 03	 movzx	 ecx, BYTE PTR [rax+3]
   0006d	e8 00 00 00 00	 call	 ?push@@YAXEPEAUcpu@@@Z	; push
 
-; 402  :     setInterrupt(&Cpu->Flags);
+; 391  :     setInterrupt(&Cpu->Flags);
 
   00072	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00077	48 83 c0 03	 add	 rax, 3
   0007b	48 8b c8	 mov	 rcx, rax
   0007e	e8 00 00 00 00	 call	 ?setInterrupt@@YAXPEAE@Z ; setInterrupt
 
-; 403  : 
-; 404  :     Cpu->PrgCounter = readCpu16(Address, Cpu);
+; 392  : 
+; 393  :     Cpu->PrgCounter = readCpu16(Address, Cpu);
 
   00083	48 8b 54 24 48	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00088	0f b7 4c 24 40	 movzx	 ecx, WORD PTR Address$[rsp]
@@ -7305,11 +7410,11 @@ AddressMode$ = 80
   00092	48 8b 4c 24 48	 mov	 rcx, QWORD PTR Cpu$[rsp]
   00097	66 89 41 06	 mov	 WORD PTR [rcx+6], ax
 
-; 405  :     return(0);
+; 394  :     return(0);
 
   0009b	32 c0		 xor	 al, al
 
-; 406  : }
+; 395  : }
 
   0009d	48 83 c4 38	 add	 rsp, 56			; 00000038H
   000a1	c3		 ret	 0
@@ -11942,7 +12047,7 @@ Before$ = 32
 Now$ = 40
 ?crossedPageCheck@@YAHGG@Z PROC				; crossedPageCheck, COMDAT
 
-; 254  : inline bool32 crossedPageCheck(uint16 Before, uint16 Now) { return((Before & 0xFF00) != (Now & 0xFF00));}
+; 243  : inline bool32 crossedPageCheck(uint16 Before, uint16 Now) { return((Before & 0xFF00) != (Now & 0xFF00));}
 
 $LN5:
   00000	66 89 54 24 10	 mov	 WORD PTR [rsp+16], dx
@@ -11975,7 +12080,7 @@ Bit$ = 8
 Flags$ = 16
 ?isBitSet@@YAHEE@Z PROC					; isBitSet, COMDAT
 
-; 253  : inline bool32 isBitSet(uint8 Bit, uint8 Flags) { return(Bit & Flags); }
+; 242  : inline bool32 isBitSet(uint8 Bit, uint8 Flags) { return(Bit & Flags); }
 
   00000	88 54 24 10	 mov	 BYTE PTR [rsp+16], dl
   00004	88 4c 24 08	 mov	 BYTE PTR [rsp+8], cl
@@ -11993,12 +12098,12 @@ Value$ = 8
 Flags$ = 16
 ?setNegative@@YAXEPEAE@Z PROC				; setNegative, COMDAT
 
-; 247  : {  
+; 236  : {  
 
   00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   00005	88 4c 24 08	 mov	 BYTE PTR [rsp+8], cl
 
-; 248  :     if(Value >= 0x00 && Value <= 0x7F)
+; 237  :     if(Value >= 0x00 && Value <= 0x7F)
 
   00009	0f b6 44 24 08	 movzx	 eax, BYTE PTR Value$[rsp]
   0000e	85 c0		 test	 eax, eax
@@ -12007,7 +12112,7 @@ Flags$ = 16
   00017	83 f8 7f	 cmp	 eax, 127		; 0000007fH
   0001a	7f 15		 jg	 SHORT $LN2@setNegativ
 
-; 249  :         *Flags = *Flags & ~NEGATIVE_BIT; // clear negative flag
+; 238  :         *Flags = *Flags & ~NEGATIVE_BIT; // clear negative flag
 
   0001c	48 8b 44 24 10	 mov	 rax, QWORD PTR Flags$[rsp]
   00021	0f b6 00	 movzx	 eax, BYTE PTR [rax]
@@ -12015,12 +12120,12 @@ Flags$ = 16
   00028	48 8b 4c 24 10	 mov	 rcx, QWORD PTR Flags$[rsp]
   0002d	88 01		 mov	 BYTE PTR [rcx], al
 
-; 250  :     else
+; 239  :     else
 
   0002f	eb 13		 jmp	 SHORT $LN3@setNegativ
 $LN2@setNegativ:
 
-; 251  :         *Flags = *Flags | NEGATIVE_BIT; // set negative flag
+; 240  :         *Flags = *Flags | NEGATIVE_BIT; // set negative flag
 
   00031	48 8b 44 24 10	 mov	 rax, QWORD PTR Flags$[rsp]
   00036	0f b6 00	 movzx	 eax, BYTE PTR [rax]
@@ -12029,7 +12134,7 @@ $LN2@setNegativ:
   00042	88 01		 mov	 BYTE PTR [rcx], al
 $LN3@setNegativ:
 
-; 252  : }
+; 241  : }
 
   00044	c3		 ret	 0
 ?setNegative@@YAXEPEAE@Z ENDP				; setNegative
@@ -12042,18 +12147,18 @@ Value$ = 8
 Flags$ = 16
 ?setZero@@YAXEPEAE@Z PROC				; setZero, COMDAT
 
-; 240  : {
+; 229  : {
 
   00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   00005	88 4c 24 08	 mov	 BYTE PTR [rsp+8], cl
 
-; 241  :     if(Value == 0x00)
+; 230  :     if(Value == 0x00)
 
   00009	0f b6 44 24 08	 movzx	 eax, BYTE PTR Value$[rsp]
   0000e	85 c0		 test	 eax, eax
   00010	75 14		 jne	 SHORT $LN2@setZero
 
-; 242  :         *Flags = *Flags | ZERO_BIT;
+; 231  :         *Flags = *Flags | ZERO_BIT;
 
   00012	48 8b 44 24 10	 mov	 rax, QWORD PTR Flags$[rsp]
   00017	0f b6 00	 movzx	 eax, BYTE PTR [rax]
@@ -12061,12 +12166,12 @@ Flags$ = 16
   0001d	48 8b 4c 24 10	 mov	 rcx, QWORD PTR Flags$[rsp]
   00022	88 01		 mov	 BYTE PTR [rcx], al
 
-; 243  :     else
+; 232  :     else
 
   00024	eb 12		 jmp	 SHORT $LN3@setZero
 $LN2@setZero:
 
-; 244  :         *Flags = *Flags & ~ZERO_BIT;
+; 233  :         *Flags = *Flags & ~ZERO_BIT;
 
   00026	48 8b 44 24 10	 mov	 rax, QWORD PTR Flags$[rsp]
   0002b	0f b6 00	 movzx	 eax, BYTE PTR [rax]
@@ -12075,7 +12180,7 @@ $LN2@setZero:
   00036	88 01		 mov	 BYTE PTR [rcx], al
 $LN3@setZero:
 
-; 245  : }
+; 234  : }
 
   00038	c3		 ret	 0
 ?setZero@@YAXEPEAE@Z ENDP				; setZero
@@ -12087,7 +12192,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?clearOverflow@@YAXPEAE@Z PROC				; clearOverflow, COMDAT
 
-; 238  : inline void clearOverflow(uint8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
+; 227  : inline void clearOverflow(uint8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12105,7 +12210,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?setOverflow@@YAXPEAE@Z PROC				; setOverflow, COMDAT
 
-; 237  : inline void setOverflow(uint8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
+; 226  : inline void setOverflow(uint8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12123,7 +12228,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?setBlank@@YAXPEAE@Z PROC				; setBlank, COMDAT
 
-; 235  : inline void setBlank(uint8 *Flags)       { *Flags = *Flags | BLANK_BIT; }
+; 224  : inline void setBlank(uint8 *Flags)       { *Flags = *Flags | BLANK_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12141,7 +12246,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?clearBreak@@YAXPEAE@Z PROC				; clearBreak, COMDAT
 
-; 234  : inline void clearBreak(uint8 *Flags)     { *Flags = *Flags & ~BREAK_BIT; }
+; 223  : inline void clearBreak(uint8 *Flags)     { *Flags = *Flags & ~BREAK_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12159,7 +12264,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?setBreak@@YAXPEAE@Z PROC				; setBreak, COMDAT
 
-; 233  : inline void setBreak(uint8 *Flags)       { *Flags = *Flags | BREAK_BIT; }
+; 222  : inline void setBreak(uint8 *Flags)       { *Flags = *Flags | BREAK_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12177,7 +12282,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?clearDecimal@@YAXPEAE@Z PROC				; clearDecimal, COMDAT
 
-; 232  : inline void clearDecimal(uint8 *Flags)   { *Flags = *Flags & ~DECIMAL_BIT; }
+; 221  : inline void clearDecimal(uint8 *Flags)   { *Flags = *Flags & ~DECIMAL_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12195,7 +12300,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?setDecimal@@YAXPEAE@Z PROC				; setDecimal, COMDAT
 
-; 231  : inline void setDecimal(uint8 *Flags)     { *Flags = *Flags | DECIMAL_BIT; }
+; 220  : inline void setDecimal(uint8 *Flags)     { *Flags = *Flags | DECIMAL_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12213,7 +12318,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?clearInterrupt@@YAXPEAE@Z PROC				; clearInterrupt, COMDAT
 
-; 230  : inline void clearInterrupt(uint8 *Flags) { *Flags = *Flags & ~INTERRUPT_BIT; }
+; 219  : inline void clearInterrupt(uint8 *Flags) { *Flags = *Flags & ~INTERRUPT_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12231,7 +12336,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?setInterrupt@@YAXPEAE@Z PROC				; setInterrupt, COMDAT
 
-; 229  : inline void setInterrupt(uint8 *Flags)   { *Flags = *Flags | INTERRUPT_BIT; }
+; 218  : inline void setInterrupt(uint8 *Flags)   { *Flags = *Flags | INTERRUPT_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12249,7 +12354,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?clearCarry@@YAXPEAE@Z PROC				; clearCarry, COMDAT
 
-; 228  : inline void clearCarry(uint8 *Flags)     { *Flags = *Flags & ~CARRY_BIT; }
+; 217  : inline void clearCarry(uint8 *Flags)     { *Flags = *Flags & ~CARRY_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12267,7 +12372,7 @@ _TEXT	SEGMENT
 Flags$ = 8
 ?setCarry@@YAXPEAE@Z PROC				; setCarry, COMDAT
 
-; 227  : inline void setCarry(uint8 *Flags)       { *Flags = *Flags | CARRY_BIT; }
+; 216  : inline void setCarry(uint8 *Flags)       { *Flags = *Flags | CARRY_BIT; }
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 8b 44 24 08	 mov	 rax, QWORD PTR Flags$[rsp]
@@ -12285,12 +12390,12 @@ Value$ = 32
 Cpu$ = 64
 ?pop@@YAEPEAUcpu@@@Z PROC				; pop
 
-; 212  : {
+; 201  : {
 
   00000	48 89 4c 24 08	 mov	 QWORD PTR [rsp+8], rcx
   00005	48 83 ec 38	 sub	 rsp, 56			; 00000038H
 
-; 213  :     ++Cpu->StackPtr;
+; 202  :     ++Cpu->StackPtr;
 
   00009	48 8b 44 24 40	 mov	 rax, QWORD PTR Cpu$[rsp]
   0000e	0f b6 40 04	 movzx	 eax, BYTE PTR [rax+4]
@@ -12298,7 +12403,7 @@ Cpu$ = 64
   00014	48 8b 4c 24 40	 mov	 rcx, QWORD PTR Cpu$[rsp]
   00019	88 41 04	 mov	 BYTE PTR [rcx+4], al
 
-; 214  :     uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
+; 203  :     uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
 
   0001c	48 8b 44 24 40	 mov	 rax, QWORD PTR Cpu$[rsp]
   00021	0f b6 40 04	 movzx	 eax, BYTE PTR [rax+4]
@@ -12308,11 +12413,11 @@ Cpu$ = 64
   00031	e8 00 00 00 00	 call	 ?readCpu8@@YAEGPEAUcpu@@@Z ; readCpu8
   00036	88 44 24 20	 mov	 BYTE PTR Value$[rsp], al
 
-; 215  :     return(Value);
+; 204  :     return(Value);
 
   0003a	0f b6 44 24 20	 movzx	 eax, BYTE PTR Value$[rsp]
 
-; 216  : }
+; 205  : }
 
   0003f	48 83 c4 38	 add	 rsp, 56			; 00000038H
   00043	c3		 ret	 0
@@ -12325,13 +12430,13 @@ Byte$ = 48
 Cpu$ = 56
 ?push@@YAXEPEAUcpu@@@Z PROC				; push
 
-; 207  : {
+; 196  : {
 
   00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   00005	88 4c 24 08	 mov	 BYTE PTR [rsp+8], cl
   00009	48 83 ec 28	 sub	 rsp, 40			; 00000028H
 
-; 208  :     writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
+; 197  :     writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
 
   0000d	48 8b 44 24 38	 mov	 rax, QWORD PTR Cpu$[rsp]
   00012	0f b6 40 04	 movzx	 eax, BYTE PTR [rax+4]
@@ -12341,7 +12446,7 @@ Cpu$ = 56
   00022	0f b6 4c 24 30	 movzx	 ecx, BYTE PTR Byte$[rsp]
   00027	e8 00 00 00 00	 call	 ?writeCpu8@@YAXEGPEAUcpu@@@Z ; writeCpu8
 
-; 209  :     --Cpu->StackPtr;  
+; 198  :     --Cpu->StackPtr;  
 
   0002c	48 8b 44 24 38	 mov	 rax, QWORD PTR Cpu$[rsp]
   00031	0f b6 40 04	 movzx	 eax, BYTE PTR [rax+4]
@@ -12349,7 +12454,7 @@ Cpu$ = 56
   00037	48 8b 4c 24 38	 mov	 rcx, QWORD PTR Cpu$[rsp]
   0003c	88 41 04	 mov	 BYTE PTR [rcx+4], al
 
-; 210  : }
+; 199  : }
 
   0003f	48 83 c4 28	 add	 rsp, 40			; 00000028H
   00043	c3		 ret	 0
@@ -12366,23 +12471,23 @@ Address$ = 64
 Cpu$ = 72
 ?bugReadCpu16@@YAGGPEAUcpu@@@Z PROC			; bugReadCpu16
 
-; 194  : {
+; 183  : {
 
   00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   00005	66 89 4c 24 08	 mov	 WORD PTR [rsp+8], cx
   0000a	48 83 ec 38	 sub	 rsp, 56			; 00000038H
 
-; 195  :     // NOTE: This is a bug in the nes 6502 that will wrap the value instead of going to new page.
-; 196  :     //       Only happens with indirect addressing.
-; 197  :     
-; 198  :     uint8 LowByte = readCpu8(Address, Cpu);
+; 184  :     // NOTE: This is a bug in the nes 6502 that will wrap the value instead of going to new page.
+; 185  :     //       Only happens with indirect addressing.
+; 186  :     
+; 187  :     uint8 LowByte = readCpu8(Address, Cpu);
 
   0000e	48 8b 54 24 48	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00013	0f b7 4c 24 40	 movzx	 ecx, WORD PTR Address$[rsp]
   00018	e8 00 00 00 00	 call	 ?readCpu8@@YAEGPEAUcpu@@@Z ; readCpu8
   0001d	88 44 24 21	 mov	 BYTE PTR LowByte$[rsp], al
 
-; 199  :     uint16 Byte2Adrs = (Address & 0xFF00) | (uint16)((uint8)(Address + 1));
+; 188  :     uint16 Byte2Adrs = (Address & 0xFF00) | (uint16)((uint8)(Address + 1));
 
   00021	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   00026	25 00 ff 00 00	 and	 eax, 65280		; 0000ff00H
@@ -12392,15 +12497,15 @@ Cpu$ = 72
   00035	0b c1		 or	 eax, ecx
   00037	66 89 44 24 24	 mov	 WORD PTR Byte2Adrs$[rsp], ax
 
-; 200  :     uint8 HighByte = readCpu8(Byte2Adrs, Cpu);
+; 189  :     uint8 HighByte = readCpu8(Byte2Adrs, Cpu);
 
   0003c	48 8b 54 24 48	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00041	0f b7 4c 24 24	 movzx	 ecx, WORD PTR Byte2Adrs$[rsp]
   00046	e8 00 00 00 00	 call	 ?readCpu8@@YAEGPEAUcpu@@@Z ; readCpu8
   0004b	88 44 24 20	 mov	 BYTE PTR HighByte$[rsp], al
 
-; 201  :         
-; 202  :     uint16 NewAddress = (HighByte << 8) | LowByte;
+; 190  :         
+; 191  :     uint16 NewAddress = (HighByte << 8) | LowByte;
 
   0004f	0f b6 44 24 20	 movzx	 eax, BYTE PTR HighByte$[rsp]
   00054	c1 e0 08	 shl	 eax, 8
@@ -12408,11 +12513,11 @@ Cpu$ = 72
   0005c	0b c1		 or	 eax, ecx
   0005e	66 89 44 24 28	 mov	 WORD PTR NewAddress$[rsp], ax
 
-; 203  :     return(NewAddress);
+; 192  :     return(NewAddress);
 
   00063	0f b7 44 24 28	 movzx	 eax, WORD PTR NewAddress$[rsp]
 
-; 204  : }
+; 193  : }
 
   00068	48 83 c4 38	 add	 rsp, 56			; 00000038H
   0006c	c3		 ret	 0
@@ -12428,21 +12533,21 @@ Address$ = 64
 Cpu$ = 72
 ?readCpu16@@YAGGPEAUcpu@@@Z PROC			; readCpu16
 
-; 183  : {
+; 172  : {
 
   00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   00005	66 89 4c 24 08	 mov	 WORD PTR [rsp+8], cx
   0000a	48 83 ec 38	 sub	 rsp, 56			; 00000038H
 
-; 184  :     // NOTE: Little Endian
-; 185  :     uint8 LowByte = readCpu8(Address, Cpu);
+; 173  :     // NOTE: Little Endian
+; 174  :     uint8 LowByte = readCpu8(Address, Cpu);
 
   0000e	48 8b 54 24 48	 mov	 rdx, QWORD PTR Cpu$[rsp]
   00013	0f b7 4c 24 40	 movzx	 ecx, WORD PTR Address$[rsp]
   00018	e8 00 00 00 00	 call	 ?readCpu8@@YAEGPEAUcpu@@@Z ; readCpu8
   0001d	88 44 24 21	 mov	 BYTE PTR LowByte$[rsp], al
 
-; 186  :     uint8 HighByte = readCpu8(Address+1, Cpu);
+; 175  :     uint8 HighByte = readCpu8(Address+1, Cpu);
 
   00021	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   00026	ff c0		 inc	 eax
@@ -12451,8 +12556,8 @@ Cpu$ = 72
   00030	e8 00 00 00 00	 call	 ?readCpu8@@YAEGPEAUcpu@@@Z ; readCpu8
   00035	88 44 24 20	 mov	 BYTE PTR HighByte$[rsp], al
 
-; 187  :         
-; 188  :     uint16 NewAddress = (HighByte << 8) | LowByte;
+; 176  :         
+; 177  :     uint16 NewAddress = (HighByte << 8) | LowByte;
 
   00039	0f b6 44 24 20	 movzx	 eax, BYTE PTR HighByte$[rsp]
   0003e	c1 e0 08	 shl	 eax, 8
@@ -12460,11 +12565,11 @@ Cpu$ = 72
   00046	0b c1		 or	 eax, ecx
   00048	66 89 44 24 24	 mov	 WORD PTR NewAddress$[rsp], ax
 
-; 189  :     return(NewAddress);
+; 178  :     return(NewAddress);
 
   0004d	0f b7 44 24 24	 movzx	 eax, WORD PTR NewAddress$[rsp]
 
-; 190  : }
+; 179  : }
 
   00052	48 83 c4 38	 add	 rsp, 56			; 00000038H
   00056	c3		 ret	 0
@@ -12485,15 +12590,15 @@ Address$ = 72
 Cpu$ = 80
 ?writeCpu8@@YAXEGPEAUcpu@@@Z PROC			; writeCpu8
 
-; 98   : {
+; 96   : {
 
   00000	4c 89 44 24 18	 mov	 QWORD PTR [rsp+24], r8
   00005	66 89 54 24 10	 mov	 WORD PTR [rsp+16], dx
   0000a	88 4c 24 08	 mov	 BYTE PTR [rsp+8], cl
   0000e	48 83 ec 38	 sub	 rsp, 56			; 00000038H
 
-; 99   :     // NOTE: Mirrors the address for the 2kb ram 
-; 100  :     if(0x800 <= Address && Address < 0x2000)
+; 97   :     // NOTE: Mirrors the address for the 2kb ram 
+; 98   :     if(0x800 <= Address && Address < 0x2000)
 
   00012	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   00017	3d 00 08 00 00	 cmp	 eax, 2048		; 00000800H
@@ -12502,7 +12607,7 @@ Cpu$ = 80
   00023	3d 00 20 00 00	 cmp	 eax, 8192		; 00002000H
   00028	7d 1a		 jge	 SHORT $LN5@writeCpu8
 
-; 101  :         Address = (Address % 0x800);
+; 99   :         Address = (Address % 0x800);
 
   0002a	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   0002f	99		 cdq
@@ -12514,8 +12619,8 @@ Cpu$ = 80
   0003f	66 89 44 24 48	 mov	 WORD PTR Address$[rsp], ax
 $LN5@writeCpu8:
 
-; 102  :     // NOTE: Mirror for PPU Registers
-; 103  :     if(0x2008 <= Address && Address < 0x4000)
+; 100  :     // NOTE: Mirror for PPU Registers
+; 101  :     if(0x2008 <= Address && Address < 0x4000)
 
   00044	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   00049	3d 08 20 00 00	 cmp	 eax, 8200		; 00002008H
@@ -12524,7 +12629,7 @@ $LN5@writeCpu8:
   00055	3d 00 40 00 00	 cmp	 eax, 16384		; 00004000H
   0005a	7d 1a		 jge	 SHORT $LN6@writeCpu8
 
-; 104  :         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
+; 102  :         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
 
   0005c	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   00061	99		 cdq
@@ -12536,13 +12641,13 @@ $LN5@writeCpu8:
   00071	66 89 44 24 48	 mov	 WORD PTR Address$[rsp], ax
 $LN6@writeCpu8:
 
-; 105  :     if(Address == 0x2002)
+; 103  :     if(Address == 0x2002)
 
   00076	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   0007b	3d 02 20 00 00	 cmp	 eax, 8194		; 00002002H
   00080	75 12		 jne	 SHORT $LN7@writeCpu8
 
-; 106  :         Assert(0);
+; 104  :         Assert(0);
 
   00082	33 c0		 xor	 eax, eax
   00084	83 f8 01	 cmp	 eax, 1
@@ -12553,8 +12658,8 @@ $LN6@writeCpu8:
 $LN8@writeCpu8:
 $LN7@writeCpu8:
 
-; 107  :     
-; 108  :     write8(Byte, Address, Cpu->MemoryBase);
+; 105  :     
+; 106  :     write8(Byte, Address, Cpu->MemoryBase);
 
   00094	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
   00099	4c 8b 40 08	 mov	 r8, QWORD PTR [rax+8]
@@ -12562,67 +12667,67 @@ $LN7@writeCpu8:
   000a2	0f b6 4c 24 40	 movzx	 ecx, BYTE PTR Byte$[rsp]
   000a7	e8 00 00 00 00	 call	 ?write8@@YAXEG_K@Z	; write8
 
-; 109  : 
-; 110  :     if(Address == 0x2004) // OAM data
+; 107  : 
+; 108  :     if(Address == 0x2004) // OAM data
 
   000ac	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   000b1	3d 04 20 00 00	 cmp	 eax, 8196		; 00002004H
   000b6	75 0a		 jne	 SHORT $LN9@writeCpu8
 
-; 111  :         OamDataChange = true;
+; 109  :         OamDataChange = true;
 
   000b8	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?OamDataChange@@3HA, 1 ; OamDataChange
 $LN9@writeCpu8:
 
-; 112  :     if(Address == 0x2005) // Scroll address
+; 110  :     if(Address == 0x2005) // Scroll address
 
   000c2	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   000c7	3d 05 20 00 00	 cmp	 eax, 8197		; 00002005H
   000cc	75 0a		 jne	 SHORT $LN10@writeCpu8
 
-; 113  :         ScrollAdrsChange = true;
+; 111  :         ScrollAdrsChange = true;
 
   000ce	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?ScrollAdrsChange@@3HA, 1 ; ScrollAdrsChange
 $LN10@writeCpu8:
 
-; 114  :     if(Address == 0x2006) // Writing to ppu io address register
+; 112  :     if(Address == 0x2006) // Writing to ppu io address register
 
   000d8	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   000dd	3d 06 20 00 00	 cmp	 eax, 8198		; 00002006H
   000e2	75 0a		 jne	 SHORT $LN11@writeCpu8
 
-; 115  :         VRamAdrsChange = true;
+; 113  :         VRamAdrsChange = true;
 
   000e4	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?VRamAdrsChange@@3HA, 1 ; VRamAdrsChange
 $LN11@writeCpu8:
 
-; 116  :     if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
+; 114  :     if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
 
   000ee	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   000f3	3d 07 20 00 00	 cmp	 eax, 8199		; 00002007H
   000f8	75 0a		 jne	 SHORT $LN12@writeCpu8
 
-; 117  :         IOWriteFromCpu = true;
+; 115  :         IOWriteFromCpu = true;
 
   000fa	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?IOWriteFromCpu@@3HA, 1 ; IOWriteFromCpu
 $LN12@writeCpu8:
 
-; 118  : 
-; 119  : 
-; 120  :     // NOTE: OAM DMA Write
-; 121  :     if(Address == 0x4014)
+; 116  : 
+; 117  : 
+; 118  :     // NOTE: OAM DMA Write
+; 119  :     if(Address == 0x4014)
 
   00104	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   00109	3d 14 40 00 00	 cmp	 eax, 16404		; 00004014H
   0010e	0f 85 8f 00 00
 	00		 jne	 $LN13@writeCpu8
 
-; 122  :     {
-; 123  :         uint8 OamAddress = read8(0x2003, Cpu->MemoryBase);
+; 120  :     {
+; 121  :         uint8 OamAddress = read8(0x2003, Cpu->MemoryBase);
 
   00114	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
   00119	48 8b 50 08	 mov	 rdx, QWORD PTR [rax+8]
@@ -12630,15 +12735,15 @@ $LN12@writeCpu8:
   00121	e8 00 00 00 00	 call	 ?read8@@YAEG_K@Z	; read8
   00126	88 44 24 22	 mov	 BYTE PTR OamAddress$3[rsp], al
 
-; 124  : 
-; 125  :         if(OamData == 0)
+; 122  : 
+; 123  :         if(OamData == 0)
 
   0012a	48 83 3d 00 00
 	00 00 00	 cmp	 QWORD PTR ?OamData@@3PEAEEA, 0
   00132	75 12		 jne	 SHORT $LN14@writeCpu8
 
-; 126  :         {
-; 127  :             Assert(0);
+; 124  :         {
+; 125  :             Assert(0);
 
   00134	33 c0		 xor	 eax, eax
   00136	83 f8 01	 cmp	 eax, 1
@@ -12649,9 +12754,9 @@ $LN12@writeCpu8:
 $LN15@writeCpu8:
 $LN14@writeCpu8:
 
-; 128  :         }
-; 129  :         
-; 130  :         for(uint16 index = OamAddress; index < OAM_SIZE; ++index)
+; 126  :         }
+; 127  :         
+; 128  :         for(uint16 index = OamAddress; index < OAM_SIZE; ++index)
 
   00146	0f b6 44 24 22	 movzx	 eax, BYTE PTR OamAddress$3[rsp]
   0014b	66 89 44 24 28	 mov	 WORD PTR index$6[rsp], ax
@@ -12665,8 +12770,8 @@ $LN4@writeCpu8:
   00164	3d 00 01 00 00	 cmp	 eax, 256		; 00000100H
   00169	7d 38		 jge	 SHORT $LN3@writeCpu8
 
-; 131  :         {
-; 132  :             uint16 NewAddress = (Byte << 8) | index; 
+; 129  :         {
+; 130  :             uint16 NewAddress = (Byte << 8) | index; 
 
   0016b	0f b6 44 24 40	 movzx	 eax, BYTE PTR Byte$[rsp]
   00170	c1 e0 08	 shl	 eax, 8
@@ -12674,7 +12779,7 @@ $LN4@writeCpu8:
   00178	0b c1		 or	 eax, ecx
   0017a	66 89 44 24 2c	 mov	 WORD PTR NewAddress$7[rsp], ax
 
-; 133  :             OamData[index] = read8(NewAddress, Cpu->MemoryBase);
+; 131  :             OamData[index] = read8(NewAddress, Cpu->MemoryBase);
 
   0017f	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
   00184	48 8b 50 08	 mov	 rdx, QWORD PTR [rax+8]
@@ -12685,16 +12790,16 @@ $LN4@writeCpu8:
 	00 00		 mov	 rdx, QWORD PTR ?OamData@@3PEAEEA
   0019e	88 04 0a	 mov	 BYTE PTR [rdx+rcx], al
 
-; 134  :         }
+; 132  :         }
 
   001a1	eb af		 jmp	 SHORT $LN2@writeCpu8
 $LN3@writeCpu8:
 $LN13@writeCpu8:
 
-; 135  :     }
-; 136  :     
-; 137  :     // Input
-; 138  :     if(Address == 0x4016 || Address == 0x4017)
+; 133  :     }
+; 134  :     
+; 135  :     // Input
+; 136  :     if(Address == 0x4016 || Address == 0x4017)
 
   001a3	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   001a8	3d 16 40 00 00	 cmp	 eax, 16406		; 00004016H
@@ -12705,8 +12810,8 @@ $LN13@writeCpu8:
 	00		 jne	 $LN16@writeCpu8
 $LN17@writeCpu8:
 
-; 139  :     {
-; 140  :         uint8 Reg1Value = read8(0x4016, Cpu->MemoryBase);
+; 137  :     {
+; 138  :         uint8 Reg1Value = read8(0x4016, Cpu->MemoryBase);
 
   001bf	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
   001c4	48 8b 50 08	 mov	 rdx, QWORD PTR [rax+8]
@@ -12714,7 +12819,7 @@ $LN17@writeCpu8:
   001cc	e8 00 00 00 00	 call	 ?read8@@YAEG_K@Z	; read8
   001d1	88 44 24 23	 mov	 BYTE PTR Reg1Value$4[rsp], al
 
-; 141  :         uint8 Reg2Value = read8(0x4017, Cpu->MemoryBase);
+; 139  :         uint8 Reg2Value = read8(0x4017, Cpu->MemoryBase);
 
   001d5	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
   001da	48 8b 50 08	 mov	 rdx, QWORD PTR [rax+8]
@@ -12722,8 +12827,8 @@ $LN17@writeCpu8:
   001e2	e8 00 00 00 00	 call	 ?read8@@YAEG_K@Z	; read8
   001e7	88 44 24 24	 mov	 BYTE PTR Reg2Value$5[rsp], al
 
-; 142  : 
-; 143  :         uint8 Bit0 = (Reg1Value | Reg2Value) & 1;
+; 140  : 
+; 141  :         uint8 Bit0 = (Reg1Value | Reg2Value) & 1;
 
   001eb	0f b6 44 24 23	 movzx	 eax, BYTE PTR Reg1Value$4[rsp]
   001f0	0f b6 4c 24 24	 movzx	 ecx, BYTE PTR Reg2Value$5[rsp]
@@ -12731,66 +12836,66 @@ $LN17@writeCpu8:
   001f7	83 e0 01	 and	 eax, 1
   001fa	88 44 24 21	 mov	 BYTE PTR Bit0$2[rsp], al
 
-; 144  : 
-; 145  :         if(Bit0 == 0)
+; 142  : 
+; 143  :         if(Bit0 == 0)
 
   001fe	0f b6 44 24 21	 movzx	 eax, BYTE PTR Bit0$2[rsp]
   00203	85 c0		 test	 eax, eax
   00205	75 2b		 jne	 SHORT $LN18@writeCpu8
 
-; 146  :         {
-; 147  :             if(Cpu->PadStrobe)
+; 144  :         {
+; 145  :             if(Cpu->PadStrobe)
 
   00207	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  0020c	83 78 20 00	 cmp	 DWORD PTR [rax+32], 0
+  0020c	83 78 18 00	 cmp	 DWORD PTR [rax+24], 0
   00210	74 12		 je	 SHORT $LN20@writeCpu8
 
-; 148  :             {
-; 149  :                 Cpu->Pad1CurrentButton = Cpu->Pad2CurrentButton = input::B_A;
+; 146  :             {
+; 147  :                 Cpu->Pad1CurrentButton = Cpu->Pad2CurrentButton = input::B_A;
 
   00212	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00217	c6 40 68 00	 mov	 BYTE PTR [rax+104], 0
+  00217	c6 40 60 00	 mov	 BYTE PTR [rax+96], 0
   0021b	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00220	c6 40 44 00	 mov	 BYTE PTR [rax+68], 0
+  00220	c6 40 3c 00	 mov	 BYTE PTR [rax+60], 0
 $LN20@writeCpu8:
 
-; 150  :             }
-; 151  :             Cpu->PadStrobe = false;
+; 148  :             }
+; 149  :             Cpu->PadStrobe = false;
 
   00224	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00229	c7 40 20 00 00
-	00 00		 mov	 DWORD PTR [rax+32], 0
+  00229	c7 40 18 00 00
+	00 00		 mov	 DWORD PTR [rax+24], 0
   00230	eb 16		 jmp	 SHORT $LN19@writeCpu8
 $LN18@writeCpu8:
 
-; 152  :         }
-; 153  :         else if(Bit0 == 1)
+; 150  :         }
+; 151  :         else if(Bit0 == 1)
 
   00232	0f b6 44 24 21	 movzx	 eax, BYTE PTR Bit0$2[rsp]
   00237	83 f8 01	 cmp	 eax, 1
   0023a	75 0c		 jne	 SHORT $LN21@writeCpu8
 
-; 154  :         {
-; 155  :             Cpu->PadStrobe = true;
+; 152  :         {
+; 153  :             Cpu->PadStrobe = true;
 
   0023c	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00241	c7 40 20 01 00
-	00 00		 mov	 DWORD PTR [rax+32], 1
+  00241	c7 40 18 01 00
+	00 00		 mov	 DWORD PTR [rax+24], 1
 $LN21@writeCpu8:
 $LN19@writeCpu8:
 
-; 156  :         }        
-; 157  : 
-; 158  :         uint8 BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
+; 154  :         }        
+; 155  : 
+; 156  :         uint8 BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
 
   00248	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  0024d	0f b6 40 44	 movzx	 eax, BYTE PTR [rax+68]
+  0024d	0f b6 40 3c	 movzx	 eax, BYTE PTR [rax+60]
   00251	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cpu$[rsp]
-  00256	8b 44 81 24	 mov	 eax, DWORD PTR [rcx+rax*4+36]
+  00256	8b 44 81 1c	 mov	 eax, DWORD PTR [rcx+rax*4+28]
   0025a	83 e0 01	 and	 eax, 1
   0025d	88 44 24 20	 mov	 BYTE PTR BtnValue$1[rsp], al
 
-; 159  :         write8(BtnValue, 0x4016, Cpu->MemoryBase);
+; 157  :         write8(BtnValue, 0x4016, Cpu->MemoryBase);
 
   00261	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
   00266	4c 8b 40 08	 mov	 r8, QWORD PTR [rax+8]
@@ -12798,17 +12903,17 @@ $LN19@writeCpu8:
   0026e	0f b6 4c 24 20	 movzx	 ecx, BYTE PTR BtnValue$1[rsp]
   00273	e8 00 00 00 00	 call	 ?write8@@YAXEG_K@Z	; write8
 
-; 160  : 
-; 161  :         BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
+; 158  : 
+; 159  :         BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
 
   00278	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  0027d	0f b6 40 68	 movzx	 eax, BYTE PTR [rax+104]
+  0027d	0f b6 40 60	 movzx	 eax, BYTE PTR [rax+96]
   00281	48 8b 4c 24 50	 mov	 rcx, QWORD PTR Cpu$[rsp]
-  00286	8b 44 81 48	 mov	 eax, DWORD PTR [rcx+rax*4+72]
+  00286	8b 44 81 40	 mov	 eax, DWORD PTR [rcx+rax*4+64]
   0028a	83 e0 01	 and	 eax, 1
   0028d	88 44 24 20	 mov	 BYTE PTR BtnValue$1[rsp], al
 
-; 162  :         write8(BtnValue, 0x4017, Cpu->MemoryBase);
+; 160  :         write8(BtnValue, 0x4017, Cpu->MemoryBase);
 
   00291	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
   00296	4c 8b 40 08	 mov	 r8, QWORD PTR [rax+8]
@@ -12817,56 +12922,39 @@ $LN19@writeCpu8:
   002a3	e8 00 00 00 00	 call	 ?write8@@YAXEG_K@Z	; write8
 $LN16@writeCpu8:
 
-; 163  :     }
-; 164  : 
-; 165  : 
-; 166  :     if(Address >= 0x8000)
+; 161  :     }
+; 162  : 
+; 163  :     if(Address >= 0x8000)
 
   002a8	0f b7 44 24 48	 movzx	 eax, WORD PTR Address$[rsp]
   002ad	3d 00 80 00 00	 cmp	 eax, 32768		; 00008000H
-  002b2	7c 37		 jl	 SHORT $LN22@writeCpu8
+  002b2	7c 27		 jl	 SHORT $LN22@writeCpu8
 
-; 167  :     {
-; 168  :         MapperExtWrite = true;
+; 164  :     {
+; 165  :         Cpu->MapperWrite = true;
 
-  002b4	c7 05 00 00 00
-	00 01 00 00 00	 mov	 DWORD PTR ?MapperExtWrite@@3HA, 1
+  002b4	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
+  002b9	c7 40 14 01 00
+	00 00		 mov	 DWORD PTR [rax+20], 1
 
-; 169  : 
-; 170  :         if(Byte & 0x80)
+; 166  :         Cpu->MapperReg = Byte;
 
-  002be	0f b6 44 24 40	 movzx	 eax, BYTE PTR Byte$[rsp]
-  002c3	25 80 00 00 00	 and	 eax, 128		; 00000080H
-  002c8	85 c0		 test	 eax, eax
-  002ca	74 1f		 je	 SHORT $LN23@writeCpu8
+  002c0	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
+  002c5	0f b6 4c 24 40	 movzx	 ecx, BYTE PTR Byte$[rsp]
+  002ca	88 48 10	 mov	 BYTE PTR [rax+16], cl
 
-; 171  :         {
-; 172  :             *(Cpu->MapperWriteAddress) = Address;
+; 167  :         Cpu->MapperWriteAddress = Address;
 
-  002cc	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  002d1	48 8b 40 18	 mov	 rax, QWORD PTR [rax+24]
-  002d5	0f b7 4c 24 48	 movzx	 ecx, WORD PTR Address$[rsp]
-  002da	66 89 08	 mov	 WORD PTR [rax], cx
-
-; 173  :             *(Cpu->MapperReg) = 0;
-
-  002dd	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
-  002e2	48 8b 40 10	 mov	 rax, QWORD PTR [rax+16]
-  002e6	33 c9		 xor	 ecx, ecx
-  002e8	66 89 08	 mov	 WORD PTR [rax], cx
-$LN23@writeCpu8:
+  002cd	48 8b 44 24 50	 mov	 rax, QWORD PTR Cpu$[rsp]
+  002d2	0f b7 4c 24 48	 movzx	 ecx, WORD PTR Address$[rsp]
+  002d7	66 89 48 12	 mov	 WORD PTR [rax+18], cx
 $LN22@writeCpu8:
 
-; 174  :         }
-; 175  :         
-; 176  :     }
-; 177  : 
-; 178  : 
-; 179  :     
-; 180  : }
+; 168  :     }
+; 169  : }
 
-  002eb	48 83 c4 38	 add	 rsp, 56			; 00000038H
-  002ef	c3		 ret	 0
+  002db	48 83 c4 38	 add	 rsp, 56			; 00000038H
+  002df	c3		 ret	 0
 ?writeCpu8@@YAXEGPEAUcpu@@@Z ENDP			; writeCpu8
 _TEXT	ENDS
 ; Function compile flags: /Odtp
@@ -12884,14 +12972,14 @@ Address$ = 64
 Cpu$ = 72
 ?readCpu8@@YAEGPEAUcpu@@@Z PROC				; readCpu8
 
-; 41   : {
+; 39   : {
 
   00000	48 89 54 24 10	 mov	 QWORD PTR [rsp+16], rdx
   00005	66 89 4c 24 08	 mov	 WORD PTR [rsp+8], cx
   0000a	48 83 ec 38	 sub	 rsp, 56			; 00000038H
 
-; 42   :     // NOTE: Mirrors the address for the 2kb ram 
-; 43   :     if(0x800 <= Address && Address < 0x2000)
+; 40   :     // NOTE: Mirrors the address for the 2kb ram 
+; 41   :     if(0x800 <= Address && Address < 0x2000)
 
   0000e	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   00013	3d 00 08 00 00	 cmp	 eax, 2048		; 00000800H
@@ -12900,7 +12988,7 @@ Cpu$ = 72
   0001f	3d 00 20 00 00	 cmp	 eax, 8192		; 00002000H
   00024	7d 1a		 jge	 SHORT $LN2@readCpu8
 
-; 44   :         Address = (Address % 0x800);
+; 42   :         Address = (Address % 0x800);
 
   00026	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   0002b	99		 cdq
@@ -12912,8 +13000,8 @@ Cpu$ = 72
   0003b	66 89 44 24 40	 mov	 WORD PTR Address$[rsp], ax
 $LN2@readCpu8:
 
-; 45   :     // NOTE: Mirror for PPU Registers
-; 46   :     if(0x2008 <= Address && Address < 0x4000)
+; 43   :     // NOTE: Mirror for PPU Registers
+; 44   :     if(0x2008 <= Address && Address < 0x4000)
 
   00040	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   00045	3d 08 20 00 00	 cmp	 eax, 8200		; 00002008H
@@ -12922,7 +13010,7 @@ $LN2@readCpu8:
   00051	3d 00 40 00 00	 cmp	 eax, 16384		; 00004000H
   00056	7d 1a		 jge	 SHORT $LN3@readCpu8
 
-; 47   :         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
+; 45   :         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
 
   00058	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   0005d	99		 cdq
@@ -12934,21 +13022,21 @@ $LN2@readCpu8:
   0006d	66 89 44 24 40	 mov	 WORD PTR Address$[rsp], ax
 $LN3@readCpu8:
 
-; 48   :     
-; 49   :     if(Address == 0x2007) // Reading from the IO of ppu. First read is junk, unless its the colour palette
+; 46   :     
+; 47   :     if(Address == 0x2007) // Reading from the IO of ppu. First read is junk, unless its the colour palette
 
   00072	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   00077	3d 07 20 00 00	 cmp	 eax, 8199		; 00002007H
   0007c	75 0a		 jne	 SHORT $LN4@readCpu8
 
-; 50   :         IOReadFromCpu = true;
+; 48   :         IOReadFromCpu = true;
 
   0007e	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?IOReadFromCpu@@3HA, 1 ; IOReadFromCpu
 $LN4@readCpu8:
 
-; 51   :         
-; 52   :     uint8 Value = read8(Address, Cpu->MemoryBase);
+; 49   :         
+; 50   :     uint8 Value = read8(Address, Cpu->MemoryBase);
 
   00088	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   0008d	48 8b 50 08	 mov	 rdx, QWORD PTR [rax+8]
@@ -12956,33 +13044,33 @@ $LN4@readCpu8:
   00096	e8 00 00 00 00	 call	 ?read8@@YAEG_K@Z	; read8
   0009b	88 44 24 23	 mov	 BYTE PTR Value$[rsp], al
 
-; 53   :             
-; 54   :     if(Address == 0x2002)
+; 51   :             
+; 52   :     if(Address == 0x2002)
 
   0009f	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   000a4	3d 02 20 00 00	 cmp	 eax, 8194		; 00002002H
   000a9	75 39		 jne	 SHORT $LN5@readCpu8
 
-; 55   :     {
-; 56   :         // NOTE: Will reset 2005 and 2006 registers, and turn off bit 7 of 0x2002
-; 57   :         ResetScrollIOAdrs = true;
+; 53   :     {
+; 54   :         // NOTE: Will reset 2005 and 2006 registers, and turn off bit 7 of 0x2002
+; 55   :         ResetScrollIOAdrs = true;
 
   000ab	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?ResetScrollIOAdrs@@3HA, 1 ; ResetScrollIOAdrs
 
-; 58   :         ResetVRamIOAdrs = true;
+; 56   :         ResetVRamIOAdrs = true;
 
   000b5	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?ResetVRamIOAdrs@@3HA, 1 ; ResetVRamIOAdrs
 
-; 59   :         
-; 60   :         uint8 ResetValue = Value & ~(1 << 7);
+; 57   :         
+; 58   :         uint8 ResetValue = Value & ~(1 << 7);
 
   000bf	0f b6 44 24 23	 movzx	 eax, BYTE PTR Value$[rsp]
   000c4	0f ba f0 07	 btr	 eax, 7
   000c8	88 44 24 24	 mov	 BYTE PTR ResetValue$2[rsp], al
 
-; 61   :         write8(ResetValue, Address, Cpu->MemoryBase);
+; 59   :         write8(ResetValue, Address, Cpu->MemoryBase);
 
   000cc	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   000d1	4c 8b 40 08	 mov	 r8, QWORD PTR [rax+8]
@@ -12991,10 +13079,10 @@ $LN4@readCpu8:
   000df	e8 00 00 00 00	 call	 ?write8@@YAXEG_K@Z	; write8
 $LN5@readCpu8:
 
-; 62   :     }
-; 63   : 
-; 64   :     // Input
-; 65   :     if(Address == 0x4016 || Address == 0x4017)
+; 60   :     }
+; 61   : 
+; 62   :     // Input
+; 63   :     if(Address == 0x4016 || Address == 0x4017)
 
   000e4	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   000e9	3d 16 40 00 00	 cmp	 eax, 16406		; 00004016H
@@ -13005,103 +13093,103 @@ $LN5@readCpu8:
 	00		 jne	 $LN6@readCpu8
 $LN7@readCpu8:
 
-; 66   :     {
-; 67   :         if( !Cpu->PadStrobe )
+; 64   :     {
+; 65   :         if( !Cpu->PadStrobe )
 
   00100	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00105	83 78 20 00	 cmp	 DWORD PTR [rax+32], 0
+  00105	83 78 18 00	 cmp	 DWORD PTR [rax+24], 0
   00109	75 60		 jne	 SHORT $LN8@readCpu8
 
-; 68   :         {
-; 69   :             if(Address == 0x4016)
+; 66   :         {
+; 67   :             if(Address == 0x4016)
 
   0010b	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   00110	3d 16 40 00 00	 cmp	 eax, 16406		; 00004016H
   00115	75 2b		 jne	 SHORT $LN9@readCpu8
 
-; 70   :                 Cpu->Pad1CurrentButton = ++(Cpu->Pad1CurrentButton);
+; 68   :                 Cpu->Pad1CurrentButton = ++(Cpu->Pad1CurrentButton);
 
   00117	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
-  0011c	0f b6 40 44	 movzx	 eax, BYTE PTR [rax+68]
+  0011c	0f b6 40 3c	 movzx	 eax, BYTE PTR [rax+60]
   00120	fe c0		 inc	 al
   00122	88 44 24 20	 mov	 BYTE PTR tv137[rsp], al
   00126	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   0012b	0f b6 4c 24 20	 movzx	 ecx, BYTE PTR tv137[rsp]
-  00130	88 48 44	 mov	 BYTE PTR [rax+68], cl
+  00130	88 48 3c	 mov	 BYTE PTR [rax+60], cl
   00133	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00138	0f b6 4c 24 20	 movzx	 ecx, BYTE PTR tv137[rsp]
-  0013d	88 48 44	 mov	 BYTE PTR [rax+68], cl
+  0013d	88 48 3c	 mov	 BYTE PTR [rax+60], cl
 
-; 71   :             else
+; 69   :             else
 
   00140	eb 29		 jmp	 SHORT $LN10@readCpu8
 $LN9@readCpu8:
 
-; 72   :                 Cpu->Pad2CurrentButton = ++(Cpu->Pad2CurrentButton);
+; 70   :                 Cpu->Pad2CurrentButton = ++(Cpu->Pad2CurrentButton);
 
   00142	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00147	0f b6 40 68	 movzx	 eax, BYTE PTR [rax+104]
+  00147	0f b6 40 60	 movzx	 eax, BYTE PTR [rax+96]
   0014b	fe c0		 inc	 al
   0014d	88 44 24 21	 mov	 BYTE PTR tv141[rsp], al
   00151	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00156	0f b6 4c 24 21	 movzx	 ecx, BYTE PTR tv141[rsp]
-  0015b	88 48 68	 mov	 BYTE PTR [rax+104], cl
+  0015b	88 48 60	 mov	 BYTE PTR [rax+96], cl
   0015e	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   00163	0f b6 4c 24 21	 movzx	 ecx, BYTE PTR tv141[rsp]
-  00168	88 48 68	 mov	 BYTE PTR [rax+104], cl
+  00168	88 48 60	 mov	 BYTE PTR [rax+96], cl
 $LN10@readCpu8:
 $LN8@readCpu8:
 
-; 73   :         }
-; 74   :         
-; 75   :         uint16 InputAddress;
-; 76   :         uint8 BtnValue;
-; 77   :         if(Address == 0x4016)
+; 71   :         }
+; 72   :         
+; 73   :         uint16 InputAddress;
+; 74   :         uint8 BtnValue;
+; 75   :         if(Address == 0x4016)
 
   0016b	0f b7 44 24 40	 movzx	 eax, WORD PTR Address$[rsp]
   00170	3d 16 40 00 00	 cmp	 eax, 16406		; 00004016H
   00175	75 25		 jne	 SHORT $LN11@readCpu8
 
-; 78   :         {
-; 79   :             InputAddress = 0x4016;
+; 76   :         {
+; 77   :             InputAddress = 0x4016;
 
   00177	b8 16 40 00 00	 mov	 eax, 16406		; 00004016H
   0017c	66 89 44 24 28	 mov	 WORD PTR InputAddress$5[rsp], ax
 
-; 80   :             BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
+; 78   :             BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
 
   00181	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
-  00186	0f b6 40 44	 movzx	 eax, BYTE PTR [rax+68]
+  00186	0f b6 40 3c	 movzx	 eax, BYTE PTR [rax+60]
   0018a	48 8b 4c 24 48	 mov	 rcx, QWORD PTR Cpu$[rsp]
-  0018f	8b 44 81 24	 mov	 eax, DWORD PTR [rcx+rax*4+36]
+  0018f	8b 44 81 1c	 mov	 eax, DWORD PTR [rcx+rax*4+28]
   00193	83 e0 01	 and	 eax, 1
   00196	88 44 24 22	 mov	 BYTE PTR BtnValue$1[rsp], al
 
-; 81   :         }
-; 82   :         else
+; 79   :         }
+; 80   :         else
 
   0019a	eb 23		 jmp	 SHORT $LN12@readCpu8
 $LN11@readCpu8:
 
-; 83   :         {
-; 84   :             InputAddress = 0x4017;
+; 81   :         {
+; 82   :             InputAddress = 0x4017;
 
   0019c	b8 17 40 00 00	 mov	 eax, 16407		; 00004017H
   001a1	66 89 44 24 28	 mov	 WORD PTR InputAddress$5[rsp], ax
 
-; 85   :             BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
+; 83   :             BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
 
   001a6	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
-  001ab	0f b6 40 68	 movzx	 eax, BYTE PTR [rax+104]
+  001ab	0f b6 40 60	 movzx	 eax, BYTE PTR [rax+96]
   001af	48 8b 4c 24 48	 mov	 rcx, QWORD PTR Cpu$[rsp]
-  001b4	8b 44 81 48	 mov	 eax, DWORD PTR [rcx+rax*4+72]
+  001b4	8b 44 81 40	 mov	 eax, DWORD PTR [rcx+rax*4+64]
   001b8	83 e0 01	 and	 eax, 1
   001bb	88 44 24 22	 mov	 BYTE PTR BtnValue$1[rsp], al
 $LN12@readCpu8:
 
-; 86   :         }
-; 87   : 
-; 88   :         uint8 CurrentValue = read8(InputAddress, Cpu->MemoryBase);
+; 84   :         }
+; 85   : 
+; 86   :         uint8 CurrentValue = read8(InputAddress, Cpu->MemoryBase);
 
   001bf	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   001c4	48 8b 50 08	 mov	 rdx, QWORD PTR [rax+8]
@@ -13109,7 +13197,7 @@ $LN12@readCpu8:
   001cd	e8 00 00 00 00	 call	 ?read8@@YAEG_K@Z	; read8
   001d2	88 44 24 25	 mov	 BYTE PTR CurrentValue$3[rsp], al
 
-; 89   :         uint8 NewValue = (CurrentValue & 0xFE) | BtnValue;
+; 87   :         uint8 NewValue = (CurrentValue & 0xFE) | BtnValue;
 
   001d6	0f b6 44 24 25	 movzx	 eax, BYTE PTR CurrentValue$3[rsp]
   001db	25 fe 00 00 00	 and	 eax, 254		; 000000feH
@@ -13117,7 +13205,7 @@ $LN12@readCpu8:
   001e5	0b c1		 or	 eax, ecx
   001e7	88 44 24 26	 mov	 BYTE PTR NewValue$4[rsp], al
 
-; 90   :         write8(NewValue, InputAddress, Cpu->MemoryBase);
+; 88   :         write8(NewValue, InputAddress, Cpu->MemoryBase);
 
   001eb	48 8b 44 24 48	 mov	 rax, QWORD PTR Cpu$[rsp]
   001f0	4c 8b 40 08	 mov	 r8, QWORD PTR [rax+8]
@@ -13126,14 +13214,14 @@ $LN12@readCpu8:
   001fe	e8 00 00 00 00	 call	 ?write8@@YAXEG_K@Z	; write8
 $LN6@readCpu8:
 
-; 91   :     }
-; 92   :     
-; 93   :     
-; 94   :     return(Value);
+; 89   :     }
+; 90   :     
+; 91   :     
+; 92   :     return(Value);
 
   00203	0f b6 44 24 23	 movzx	 eax, BYTE PTR Value$[rsp]
 
-; 95   : }
+; 93   : }
 
   00208	48 83 c4 38	 add	 rsp, 56			; 00000038H
   0020c	c3		 ret	 0
@@ -14366,9 +14454,10 @@ CpuCyclesPerMS$16 = 216
 WinPerfCountFrequency$ = 224
 PpuRegisterLocation$17 = 232
 PpuMemoryBase$18 = 240
+tv295 = 248
 WindowClass$ = 256
-Message$19 = 336
-Cartridge$20 = 384
+Cartridge$19 = 336
+Message$20 = 416
 ScreenBackBuffer$ = 464
 Cpu$21 = 544
 Ppu$22 = 656
@@ -14379,7 +14468,7 @@ CommandLine$ = 1088
 CommandShow$ = 1096
 WinMain	PROC
 
-; 595  : {
+; 620  : {
 
 $LN21:
   00000	44 89 4c 24 20	 mov	 DWORD PTR [rsp+32], r9d
@@ -14395,38 +14484,38 @@ $LN21:
   00026	48 89 84 24 10
 	04 00 00	 mov	 QWORD PTR __$ArrayPad$[rsp], rax
 
-; 596  : 
-; 597  :     LARGE_INTEGER WinPerfCountFrequency;
-; 598  :     QueryPerformanceFrequency(&WinPerfCountFrequency); 
+; 621  : 
+; 622  :     LARGE_INTEGER WinPerfCountFrequency;
+; 623  :     QueryPerformanceFrequency(&WinPerfCountFrequency); 
 
   0002e	48 8d 8c 24 e0
 	00 00 00	 lea	 rcx, QWORD PTR WinPerfCountFrequency$[rsp]
   00036	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_QueryPerformanceFrequency
 
-; 599  :     uint64 PerfCountFrequency = WinPerfCountFrequency.QuadPart;            
+; 624  :     uint64 PerfCountFrequency = WinPerfCountFrequency.QuadPart;            
 
   0003c	48 8b 84 24 e0
 	00 00 00	 mov	 rax, QWORD PTR WinPerfCountFrequency$[rsp]
   00044	48 89 84 24 d0
 	00 00 00	 mov	 QWORD PTR PerfCountFrequency$[rsp], rax
 
-; 600  : 
-; 601  :     /**************************************/
-; 602  :     /* NOTE : Screen back buffer creation */
-; 603  :     
-; 604  :     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
+; 625  : 
+; 626  :     /**************************************/
+; 627  :     /* NOTE : Screen back buffer creation */
+; 628  :     
+; 629  :     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
 
   0004c	b8 00 01 00 00	 mov	 eax, 256		; 00000100H
   00051	66 89 44 24 70	 mov	 WORD PTR RenderScaleWidth$[rsp], ax
   00056	b8 f0 00 00 00	 mov	 eax, 240		; 000000f0H
   0005b	66 89 44 24 6c	 mov	 WORD PTR RenderScaleHeight$[rsp], ax
 
-; 605  :     uint8 ResScale = 5;
+; 630  :     uint8 ResScale = 5;
 
   00060	c6 44 24 61 05	 mov	 BYTE PTR ResScale$[rsp], 5
 
-; 606  :     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
+; 631  :     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
 
   00065	0f b7 44 24 70	 movzx	 eax, WORD PTR RenderScaleWidth$[rsp]
   0006a	0f b6 4c 24 61	 movzx	 ecx, BYTE PTR ResScale$[rsp]
@@ -14437,7 +14526,7 @@ $LN21:
   00081	0f af c1	 imul	 eax, ecx
   00084	66 89 44 24 64	 mov	 WORD PTR WindowHeight$[rsp], ax
 
-; 607  :     screen_buffer ScreenBackBuffer = {};
+; 632  :     screen_buffer ScreenBackBuffer = {};
 
   00089	48 8d 84 24 d0
 	01 00 00	 lea	 rax, QWORD PTR ScreenBackBuffer$[rsp]
@@ -14446,7 +14535,7 @@ $LN21:
   00096	b9 48 00 00 00	 mov	 ecx, 72			; 00000048H
   0009b	f3 aa		 rep stosb
 
-; 608  :     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
+; 633  :     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
 
   0009d	44 0f b7 44 24
 	6c		 movzx	 r8d, WORD PTR RenderScaleHeight$[rsp]
@@ -14455,11 +14544,11 @@ $LN21:
 	01 00 00	 lea	 rcx, QWORD PTR ScreenBackBuffer$[rsp]
   000b0	e8 00 00 00 00	 call	 ?createBackBuffer@@YAXPEAUscreen_buffer@@GG@Z ; createBackBuffer
 
-; 609  : 
-; 610  :     /**************************/
-; 611  :     /* NOTE : Window creation */
-; 612  : 
-; 613  :     WNDCLASSA WindowClass = {};
+; 634  : 
+; 635  :     /**************************/
+; 636  :     /* NOTE : Window creation */
+; 637  : 
+; 638  :     WNDCLASSA WindowClass = {};
 
   000b5	48 8d 84 24 00
 	01 00 00	 lea	 rax, QWORD PTR WindowClass$[rsp]
@@ -14468,46 +14557,46 @@ $LN21:
   000c2	b9 48 00 00 00	 mov	 ecx, 72			; 00000048H
   000c7	f3 aa		 rep stosb
 
-; 614  :     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
+; 639  :     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
 
   000c9	c7 84 24 00 01
 	00 00 03 00 00
 	00		 mov	 DWORD PTR WindowClass$[rsp], 3
 
-; 615  :     WindowClass.lpfnWndProc = WinInputCallback;
+; 640  :     WindowClass.lpfnWndProc = WinInputCallback;
 
   000d4	48 8d 05 00 00
 	00 00		 lea	 rax, OFFSET FLAT:?WinInputCallback@@YA_JPEAUHWND__@@I_K_J@Z ; WinInputCallback
   000db	48 89 84 24 08
 	01 00 00	 mov	 QWORD PTR WindowClass$[rsp+8], rax
 
-; 616  :     WindowClass.hInstance = WindowInstance;
+; 641  :     WindowClass.hInstance = WindowInstance;
 
   000e3	48 8b 84 24 30
 	04 00 00	 mov	 rax, QWORD PTR WindowInstance$[rsp]
   000eb	48 89 84 24 18
 	01 00 00	 mov	 QWORD PTR WindowClass$[rsp+24], rax
 
-; 617  :     WindowClass.lpszClassName = "NesEmu";
+; 642  :     WindowClass.lpszClassName = "NesEmu";
 
   000f3	48 8d 05 00 00
-	00 00		 lea	 rax, OFFSET FLAT:$SG89236
+	00 00		 lea	 rax, OFFSET FLAT:$SG89256
   000fa	48 89 84 24 40
 	01 00 00	 mov	 QWORD PTR WindowClass$[rsp+64], rax
 
-; 618  : 
-; 619  :     uint16 InitialWindowPosX = 0;
+; 643  : 
+; 644  :     uint16 InitialWindowPosX = 0;
 
   00102	33 c0		 xor	 eax, eax
   00104	66 89 44 24 78	 mov	 WORD PTR InitialWindowPosX$[rsp], ax
 
-; 620  :     uint16 InitialWindowPosY = 0;
+; 645  :     uint16 InitialWindowPosY = 0;
 
   00109	33 c0		 xor	 eax, eax
   0010b	66 89 44 24 74	 mov	 WORD PTR InitialWindowPosY$[rsp], ax
 
-; 621  :     
-; 622  :     if(RegisterClassA(&WindowClass))
+; 646  :     
+; 647  :     if(RegisterClassA(&WindowClass))
 
   00110	48 8d 8c 24 00
 	01 00 00	 lea	 rcx, QWORD PTR WindowClass$[rsp]
@@ -14515,11 +14604,11 @@ $LN21:
 	00		 call	 QWORD PTR __imp_RegisterClassA
   0011e	0f b7 c0	 movzx	 eax, ax
   00121	85 c0		 test	 eax, eax
-  00123	0f 84 2b 05 00
+  00123	0f 84 5f 05 00
 	00		 je	 $LN9@WinMain
 
-; 623  :     {        
-; 624  :         HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+; 648  :     {        
+; 649  :         HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
 
   00129	0f b7 44 24 64	 movzx	 eax, WORD PTR WindowHeight$[rsp]
   0012e	0f b7 4c 24 68	 movzx	 ecx, WORD PTR WindowWidth$[rsp]
@@ -14541,7 +14630,7 @@ $LN21:
   00175	41 b9 00 00 cf
 	10		 mov	 r9d, 282001408		; 10cf0000H
   0017b	4c 8d 05 00 00
-	00 00		 lea	 r8, OFFSET FLAT:$SG89239
+	00 00		 lea	 r8, OFFSET FLAT:$SG89259
   00182	48 8b 94 24 40
 	01 00 00	 mov	 rdx, QWORD PTR WindowClass$[rsp+64]
   0018a	33 c9		 xor	 ecx, ecx
@@ -14550,36 +14639,36 @@ $LN21:
   00192	48 89 84 24 80
 	00 00 00	 mov	 QWORD PTR Window$3[rsp], rax
 
-; 625  :                                       InitialWindowPosX, InitialWindowPosY, WindowWidth, WindowHeight,
-; 626  :                                       0, 0, WindowInstance, 0);
-; 627  : 
-; 628  :         if(Window) // If window was created successfully
+; 650  :                                       InitialWindowPosX, InitialWindowPosY, WindowWidth, WindowHeight,
+; 651  :                                       0, 0, WindowInstance, 0);
+; 652  : 
+; 653  :         if(Window) // If window was created successfully
 
   0019a	48 83 bc 24 80
 	00 00 00 00	 cmp	 QWORD PTR Window$3[rsp], 0
-  001a3	0f 84 97 04 00
+  001a3	0f 84 cb 04 00
 	00		 je	 $LN11@WinMain
 
-; 629  :         {
-; 630  :             HMENU WindowMenu = CreateMenu();
+; 654  :         {
+; 655  :             HMENU WindowMenu = CreateMenu();
 
   001a9	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_CreateMenu
   001af	48 89 84 24 b0
 	00 00 00	 mov	 QWORD PTR WindowMenu$12[rsp], rax
 
-; 631  :             HMENU SubMenu = CreatePopupMenu();
+; 656  :             HMENU SubMenu = CreatePopupMenu();
 
   001b7	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_CreatePopupMenu
   001bd	48 89 84 24 98
 	00 00 00	 mov	 QWORD PTR SubMenu$8[rsp], rax
 
-; 632  :             
-; 633  :             AppendMenu(SubMenu, MF_STRING, ID_OPEN_ROM_ITEM, "&Open Rom");
+; 657  :             
+; 658  :             AppendMenu(SubMenu, MF_STRING, ID_OPEN_ROM_ITEM, "&Open Rom");
 
   001c5	4c 8d 0d 00 00
-	00 00		 lea	 r9, OFFSET FLAT:$SG89242
+	00 00		 lea	 r9, OFFSET FLAT:$SG89262
   001cc	41 b8 e9 03 00
 	00		 mov	 r8d, 1001		; 000003e9H
   001d2	33 d2		 xor	 edx, edx
@@ -14588,10 +14677,10 @@ $LN21:
   001dc	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_AppendMenuA
 
-; 634  :             AppendMenu(SubMenu, MF_STRING, ID_CLOSE_ROM_ITEM, "&Close Rom");
+; 659  :             AppendMenu(SubMenu, MF_STRING, ID_CLOSE_ROM_ITEM, "&Close Rom");
 
   001e2	4c 8d 0d 00 00
-	00 00		 lea	 r9, OFFSET FLAT:$SG89243
+	00 00		 lea	 r9, OFFSET FLAT:$SG89263
   001e9	41 b8 ea 03 00
 	00		 mov	 r8d, 1002		; 000003eaH
   001ef	33 d2		 xor	 edx, edx
@@ -14600,10 +14689,10 @@ $LN21:
   001f9	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_AppendMenuA
 
-; 635  :             AppendMenu(SubMenu, MF_STRING, ID_QUIT_ITEM, "&Quit");
+; 660  :             AppendMenu(SubMenu, MF_STRING, ID_QUIT_ITEM, "&Quit");
 
   001ff	4c 8d 0d 00 00
-	00 00		 lea	 r9, OFFSET FLAT:$SG89244
+	00 00		 lea	 r9, OFFSET FLAT:$SG89264
   00206	41 b8 eb 03 00
 	00		 mov	 r8d, 1003		; 000003ebH
   0020c	33 d2		 xor	 edx, edx
@@ -14612,10 +14701,10 @@ $LN21:
   00216	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_AppendMenuA
 
-; 636  :             AppendMenu(WindowMenu, MF_STRING | MF_POPUP, (uint64)SubMenu, "&File");
+; 661  :             AppendMenu(WindowMenu, MF_STRING | MF_POPUP, (uint64)SubMenu, "&File");
 
   0021c	4c 8d 0d 00 00
-	00 00		 lea	 r9, OFFSET FLAT:$SG89245
+	00 00		 lea	 r9, OFFSET FLAT:$SG89265
   00223	4c 8b 84 24 98
 	00 00 00	 mov	 r8, QWORD PTR SubMenu$8[rsp]
   0022b	ba 10 00 00 00	 mov	 edx, 16
@@ -14624,8 +14713,8 @@ $LN21:
   00238	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_AppendMenuA
 
-; 637  : 
-; 638  :             SetMenu(Window, WindowMenu);
+; 662  : 
+; 663  :             SetMenu(Window, WindowMenu);
 
   0023e	48 8b 94 24 b0
 	00 00 00	 mov	 rdx, QWORD PTR WindowMenu$12[rsp]
@@ -14634,26 +14723,26 @@ $LN21:
   0024e	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_SetMenu
 
-; 639  : 
-; 640  :             /**************************************************************************/
-; 641  :             /* NOTE : creation and initialization of Emulators Cpu, Ppu, and Cartridge structures */
-; 642  : 
-; 643  : 
-; 644  :             // Memory allocation for the Cpu and Ppu.
-; 645  :             uint32 CpuMemorySize = Kilobytes(64);
+; 664  : 
+; 665  :             /**************************************************************************/
+; 666  :             /* NOTE : creation and initialization of Emulators Cpu, Ppu, and Cartridge structures */
+; 667  : 
+; 668  : 
+; 669  :             // Memory allocation for the Cpu and Ppu.
+; 670  :             uint32 CpuMemorySize = Kilobytes(64);
 
   00254	c7 84 24 88 00
 	00 00 00 00 01
 	00		 mov	 DWORD PTR CpuMemorySize$4[rsp], 65536 ; 00010000H
 
-; 646  :             uint32 PpuMemorySize = Kilobytes(64);
+; 671  :             uint32 PpuMemorySize = Kilobytes(64);
 
   0025f	c7 84 24 a0 00
 	00 00 00 00 01
 	00		 mov	 DWORD PTR PpuMemorySize$9[rsp], 65536 ; 00010000H
 
-; 647  : 
-; 648  :             uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+; 672  : 
+; 673  :             uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
   0026a	8b 84 24 a0 00
 	00 00		 mov	 eax, DWORD PTR PpuMemorySize$9[rsp]
@@ -14673,15 +14762,15 @@ $LN21:
   00294	48 89 84 24 b8
 	00 00 00	 mov	 QWORD PTR Memory$13[rsp], rax
 
-; 649  : 
-; 650  :             uint64 CpuMemoryBase = (uint64)Memory;
+; 674  : 
+; 675  :             uint64 CpuMemoryBase = (uint64)Memory;
 
   0029c	48 8b 84 24 b8
 	00 00 00	 mov	 rax, QWORD PTR Memory$13[rsp]
   002a4	48 89 84 24 c0
 	00 00 00	 mov	 QWORD PTR CpuMemoryBase$14[rsp], rax
 
-; 651  :             uint64 PpuMemoryBase = (uint64)Memory + CpuMemorySize;
+; 676  :             uint64 PpuMemoryBase = (uint64)Memory + CpuMemorySize;
 
   002ac	8b 84 24 88 00
 	00 00		 mov	 eax, DWORD PTR CpuMemorySize$4[rsp]
@@ -14692,19 +14781,19 @@ $LN21:
   002c1	48 89 84 24 f0
 	00 00 00	 mov	 QWORD PTR PpuMemoryBase$18[rsp], rax
 
-; 652  :             
-; 653  :             // Cpu Init             
-; 654  :             cpu Cpu = {};
+; 677  :             
+; 678  :             // Cpu Init             
+; 679  :             cpu Cpu = {};
 
   002c9	48 8d 84 24 20
 	02 00 00	 lea	 rax, QWORD PTR Cpu$21[rsp]
   002d1	48 8b f8	 mov	 rdi, rax
   002d4	33 c0		 xor	 eax, eax
-  002d6	b9 70 00 00 00	 mov	 ecx, 112		; 00000070H
+  002d6	b9 68 00 00 00	 mov	 ecx, 104		; 00000068H
   002db	f3 aa		 rep stosb
 
-; 655  :             
-; 656  :             initCpu(&Cpu, CpuMemoryBase);
+; 680  :             
+; 681  :             initCpu(&Cpu, CpuMemoryBase);
 
   002dd	48 8b 94 24 c0
 	00 00 00	 mov	 rdx, QWORD PTR CpuMemoryBase$14[rsp]
@@ -14712,9 +14801,9 @@ $LN21:
 	02 00 00	 lea	 rcx, QWORD PTR Cpu$21[rsp]
   002ed	e8 00 00 00 00	 call	 ?initCpu@@YAXPEAUcpu@@_K@Z ; initCpu
 
-; 657  :             
-; 658  :             // Ppu Init            
-; 659  :             ppu Ppu = {};
+; 682  :             
+; 683  :             // Ppu Init            
+; 684  :             ppu Ppu = {};
 
   002f2	48 8d 84 24 90
 	02 00 00	 lea	 rax, QWORD PTR Ppu$22[rsp]
@@ -14723,8 +14812,8 @@ $LN21:
   002ff	b9 80 01 00 00	 mov	 ecx, 384		; 00000180H
   00304	f3 aa		 rep stosb
 
-; 660  :             
-; 661  :             uint64 PpuRegisterLocation = CpuMemoryBase + PPU_REG_ADRS;
+; 685  :             
+; 686  :             uint64 PpuRegisterLocation = CpuMemoryBase + PPU_REG_ADRS;
 
   00306	48 8b 84 24 c0
 	00 00 00	 mov	 rax, QWORD PTR CpuMemoryBase$14[rsp]
@@ -14733,7 +14822,7 @@ $LN21:
   00314	48 89 84 24 e8
 	00 00 00	 mov	 QWORD PTR PpuRegisterLocation$17[rsp], rax
 
-; 662  :             initPpu(&Ppu, PpuMemoryBase, (uint32 *)ScreenBackBuffer.Memory, (ppu_registers *)PpuRegisterLocation);
+; 687  :             initPpu(&Ppu, PpuMemoryBase, (uint32 *)ScreenBackBuffer.Memory, (ppu_registers *)PpuRegisterLocation);
 
   0031c	4c 8b 8c 24 e8
 	00 00 00	 mov	 r9, QWORD PTR PpuRegisterLocation$17[rsp]
@@ -14745,33 +14834,33 @@ $LN21:
 	02 00 00	 lea	 rcx, QWORD PTR Ppu$22[rsp]
   0033c	e8 00 00 00 00	 call	 ?initPpu@@YAXPEAUppu@@_KPEAIPEAUppu_registers@@@Z ; initPpu
 
-; 663  : 
-; 664  :             // Cartidge Loading            
-; 665  :             cartridge Cartridge = {};
+; 688  : 
+; 689  :             // Cartidge Loading            
+; 690  :             cartridge Cartridge = {};
 
-  00341	48 8d 84 24 80
-	01 00 00	 lea	 rax, QWORD PTR Cartridge$20[rsp]
+  00341	48 8d 84 24 50
+	01 00 00	 lea	 rax, QWORD PTR Cartridge$19[rsp]
   00349	48 8b f8	 mov	 rdi, rax
   0034c	33 c0		 xor	 eax, eax
   0034e	b9 50 00 00 00	 mov	 ecx, 80			; 00000050H
   00353	f3 aa		 rep stosb
 
-; 666  : 
-; 667  :             loadCartridge(&Cartridge, "Balloon Fight.nes", &Cpu, &Ppu);
+; 691  : 
+; 692  :             loadCartridge(&Cartridge, "Balloon Fight.nes", &Cpu, &Ppu);
 
   00355	4c 8d 8c 24 90
 	02 00 00	 lea	 r9, QWORD PTR Ppu$22[rsp]
   0035d	4c 8d 84 24 20
 	02 00 00	 lea	 r8, QWORD PTR Cpu$21[rsp]
   00365	48 8d 15 00 00
-	00 00		 lea	 rdx, OFFSET FLAT:$SG89246
-  0036c	48 8d 8c 24 80
-	01 00 00	 lea	 rcx, QWORD PTR Cartridge$20[rsp]
+	00 00		 lea	 rdx, OFFSET FLAT:$SG89266
+  0036c	48 8d 8c 24 50
+	01 00 00	 lea	 rcx, QWORD PTR Cartridge$19[rsp]
   00374	e8 00 00 00 00	 call	 ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z ; loadCartridge
 
-; 668  : 
-; 669  :             // NOTE: Load the program counter with the reset vector
-; 670  :             Cpu.PrgCounter = readCpu16(RESET_VEC, &Cpu);
+; 693  : 
+; 694  :             // NOTE: Load the program counter with the reset vector
+; 695  :             Cpu.PrgCounter = readCpu16(RESET_VEC, &Cpu);
 
   00379	48 8d 94 24 20
 	02 00 00	 lea	 rdx, QWORD PTR Cpu$21[rsp]
@@ -14780,19 +14869,19 @@ $LN21:
   0038a	66 89 84 24 26
 	02 00 00	 mov	 WORD PTR Cpu$21[rsp+6], ax
 
-; 671  : 
-; 672  : 
-; 673  :             /*****************/
-; 674  :             /* NOTE : Timing */
-; 675  :             
-; 676  :             real32 CpuClockRateHz = 1789772.727272728;
+; 696  : 
+; 697  : 
+; 698  :             /*****************/
+; 699  :             /* NOTE : Timing */
+; 700  :             
+; 701  :             real32 CpuClockRateHz = 1789772.727272728;
 
   00392	f3 0f 10 05 00
 	00 00 00	 movss	 xmm0, DWORD PTR __real@49da7a66
   0039a	f3 0f 11 84 24
 	a4 00 00 00	 movss	 DWORD PTR CpuClockRateHz$10[rsp], xmm0
 
-; 677  :             real32 CpuCyclesPerMS = CpuClockRateHz / 1000.0;
+; 702  :             real32 CpuCyclesPerMS = CpuClockRateHz / 1000.0;
 
   003a3	f3 0f 5a 84 24
 	a4 00 00 00	 cvtss2sd xmm0, DWORD PTR CpuClockRateHz$10[rsp]
@@ -14802,26 +14891,26 @@ $LN21:
   003b8	f3 0f 11 84 24
 	d8 00 00 00	 movss	 DWORD PTR CpuCyclesPerMS$16[rsp], xmm0
 
-; 678  :             
-; 679  :             uint32 CpuCyclesElapsed = 0;
+; 703  :             
+; 704  :             uint32 CpuCyclesElapsed = 0;
 
   003c1	c7 84 24 8c 00
 	00 00 00 00 00
 	00		 mov	 DWORD PTR CpuCyclesElapsed$5[rsp], 0
 
-; 680  :             uint32 TickCycles = 0;
+; 705  :             uint32 TickCycles = 0;
 
   003cc	c7 44 24 7c 00
 	00 00 00	 mov	 DWORD PTR TickCycles$2[rsp], 0
 
-; 681  :             
-; 682  :             real32 ElapsedSecs = 0;
+; 706  :             
+; 707  :             real32 ElapsedSecs = 0;
 
   003d4	0f 57 c0	 xorps	 xmm0, xmm0
   003d7	f3 0f 11 84 24
 	a8 00 00 00	 movss	 DWORD PTR ElapsedSecs$11[rsp], xmm0
 
-; 683  :             real32 CurrentSecs, PrevSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
+; 708  :             real32 CurrentSecs, PrevSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
 
   003e0	48 8b 8c 24 d0
 	00 00 00	 mov	 rcx, QWORD PTR PerfCountFrequency$[rsp]
@@ -14831,35 +14920,35 @@ $LN21:
   003f5	f3 0f 11 84 24
 	94 00 00 00	 movss	 DWORD PTR PrevSecs$7[rsp], xmm0
 
-; 684  : 
-; 685  :             /********************/
-; 686  :             /* NOTE : Main Loop */
-; 687  :             
-; 688  :             GlobalRunning = true; 
+; 709  : 
+; 710  :             /********************/
+; 711  :             /* NOTE : Main Loop */
+; 712  :             
+; 713  :             GlobalRunning = true; 
 
   003fe	c7 05 00 00 00
 	00 01 00 00 00	 mov	 DWORD PTR ?GlobalRunning@@3HA, 1
 $LN2@WinMain:
 
-; 689  :             while(GlobalRunning)
+; 714  :             while(GlobalRunning)
 
   00408	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?GlobalRunning@@3HA, 0
-  0040f	0f 84 29 02 00
+  0040f	0f 84 5d 02 00
 	00		 je	 $LN3@WinMain
 
-; 690  :             {
-; 691  :                 MSG Message = {}; 
+; 715  :             {
+; 716  :                 MSG Message = {}; 
 
-  00415	48 8d 84 24 50
-	01 00 00	 lea	 rax, QWORD PTR Message$19[rsp]
+  00415	48 8d 84 24 a0
+	01 00 00	 lea	 rax, QWORD PTR Message$20[rsp]
   0041d	48 8b f8	 mov	 rdi, rax
   00420	33 c0		 xor	 eax, eax
   00422	b9 30 00 00 00	 mov	 ecx, 48			; 00000030H
   00427	f3 aa		 rep stosb
 $LN4@WinMain:
 
-; 692  :                 while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
+; 717  :                 while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
 
   00429	c7 44 24 20 01
 	00 00 00	 mov	 DWORD PTR [rsp+32], 1
@@ -14867,50 +14956,50 @@ $LN4@WinMain:
   00434	45 33 c0	 xor	 r8d, r8d
   00437	48 8b 94 24 80
 	00 00 00	 mov	 rdx, QWORD PTR Window$3[rsp]
-  0043f	48 8d 8c 24 50
-	01 00 00	 lea	 rcx, QWORD PTR Message$19[rsp]
+  0043f	48 8d 8c 24 a0
+	01 00 00	 lea	 rcx, QWORD PTR Message$20[rsp]
   00447	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_PeekMessageA
   0044d	85 c0		 test	 eax, eax
   0044f	74 1e		 je	 SHORT $LN5@WinMain
 
-; 693  :                 {
-; 694  :                     TranslateMessage(&Message);
+; 718  :                 {
+; 719  :                     TranslateMessage(&Message);
 
-  00451	48 8d 8c 24 50
-	01 00 00	 lea	 rcx, QWORD PTR Message$19[rsp]
+  00451	48 8d 8c 24 a0
+	01 00 00	 lea	 rcx, QWORD PTR Message$20[rsp]
   00459	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_TranslateMessage
 
-; 695  :                     DispatchMessage(&Message);
+; 720  :                     DispatchMessage(&Message);
 
-  0045f	48 8d 8c 24 50
-	01 00 00	 lea	 rcx, QWORD PTR Message$19[rsp]
+  0045f	48 8d 8c 24 a0
+	01 00 00	 lea	 rcx, QWORD PTR Message$20[rsp]
   00467	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_DispatchMessageA
 
-; 696  :                 }
+; 721  :                 }
 
   0046d	eb ba		 jmp	 SHORT $LN4@WinMain
 $LN5@WinMain:
 
-; 697  : 
-; 698  :                 if(PowerHit)
+; 722  : 
+; 723  :                 if(PowerHit)
 
   0046f	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?PowerHit@@3HA, 0
   00476	74 27		 je	 SHORT $LN13@WinMain
 
-; 699  :                 {
-; 700  :                     PowerHit = false;
+; 724  :                 {
+; 725  :                     PowerHit = false;
 
   00478	c7 05 00 00 00
 	00 00 00 00 00	 mov	 DWORD PTR ?PowerHit@@3HA, 0
 
-; 701  :                     power(&Cpu, &Ppu, &Cartridge);
+; 726  :                     power(&Cpu, &Ppu, &Cartridge);
 
-  00482	4c 8d 84 24 80
-	01 00 00	 lea	 r8, QWORD PTR Cartridge$20[rsp]
+  00482	4c 8d 84 24 50
+	01 00 00	 lea	 r8, QWORD PTR Cartridge$19[rsp]
   0048a	48 8d 94 24 90
 	02 00 00	 lea	 rdx, QWORD PTR Ppu$22[rsp]
   00492	48 8d 8c 24 20
@@ -14918,21 +15007,21 @@ $LN5@WinMain:
   0049a	e8 00 00 00 00	 call	 ?power@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z ; power
 $LN13@WinMain:
 
-; 702  :                 }
-; 703  :                 
-; 704  :                 if(ResetHit)
+; 727  :                 }
+; 728  :                 
+; 729  :                 if(ResetHit)
 
   0049f	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?ResetHit@@3HA, 0
   004a6	74 4b		 je	 SHORT $LN14@WinMain
 
-; 705  :                 {
-; 706  :                     ResetHit = false;
+; 730  :                 {
+; 731  :                     ResetHit = false;
 
   004a8	c7 05 00 00 00
 	00 00 00 00 00	 mov	 DWORD PTR ?ResetHit@@3HA, 0
 
-; 707  :                     loadCartridge(&Cartridge, RomFileName, &Cpu, &Ppu);
+; 732  :                     loadCartridge(&Cartridge, RomFileName, &Cpu, &Ppu);
 
   004b2	4c 8d 8c 24 90
 	02 00 00	 lea	 r9, QWORD PTR Ppu$22[rsp]
@@ -14940,14 +15029,14 @@ $LN13@WinMain:
 	02 00 00	 lea	 r8, QWORD PTR Cpu$21[rsp]
   004c2	48 8d 15 00 00
 	00 00		 lea	 rdx, OFFSET FLAT:?RomFileName@@3PADA
-  004c9	48 8d 8c 24 80
-	01 00 00	 lea	 rcx, QWORD PTR Cartridge$20[rsp]
+  004c9	48 8d 8c 24 50
+	01 00 00	 lea	 rcx, QWORD PTR Cartridge$19[rsp]
   004d1	e8 00 00 00 00	 call	 ?loadCartridge@@YAXPEAUcartridge@@PEADPEAUcpu@@PEAUppu@@@Z ; loadCartridge
 
-; 708  :                     reset(&Cpu, &Ppu, &Cartridge);
+; 733  :                     reset(&Cpu, &Ppu, &Cartridge);
 
-  004d6	4c 8d 84 24 80
-	01 00 00	 lea	 r8, QWORD PTR Cartridge$20[rsp]
+  004d6	4c 8d 84 24 50
+	01 00 00	 lea	 r8, QWORD PTR Cartridge$19[rsp]
   004de	48 8d 94 24 90
 	02 00 00	 lea	 rdx, QWORD PTR Ppu$22[rsp]
   004e6	48 8d 8c 24 20
@@ -14955,231 +15044,245 @@ $LN13@WinMain:
   004ee	e8 00 00 00 00	 call	 ?reset@@YAXPEAUcpu@@PEAUppu@@PEAUcartridge@@@Z ; reset
 $LN14@WinMain:
 
-; 709  :                 }
-; 710  : 
-; 711  :                 if(MapperExtWrite)
+; 734  :                 }
+; 735  : 
+; 736  :                 if(Cpu.MapperWrite)
 
-  004f3	83 3d 00 00 00
-	00 00		 cmp	 DWORD PTR ?MapperExtWrite@@3HA, 0
-  004fa	74 0a		 je	 SHORT $LN15@WinMain
+  004f3	83 bc 24 34 02
+	00 00 00	 cmp	 DWORD PTR Cpu$21[rsp+20], 0
+  004fb	74 3d		 je	 SHORT $LN15@WinMain
 
-; 712  :                 {
-; 713  :                     MapperExtWrite = false;
+; 737  :                 {
+; 738  :                     Cpu.MapperWrite = false;
 
-  004fc	c7 05 00 00 00
-	00 00 00 00 00	 mov	 DWORD PTR ?MapperExtWrite@@3HA, 0
+  004fd	c7 84 24 34 02
+	00 00 00 00 00
+	00		 mov	 DWORD PTR Cpu$21[rsp+20], 0
+
+; 739  :                     mapperUpdate[Cartridge.MapperNum](&Cpu, &Cartridge);
+
+  00508	0f b6 84 24 89
+	01 00 00	 movzx	 eax, BYTE PTR Cartridge$19[rsp+57]
+  00510	48 8d 0d 00 00
+	00 00		 lea	 rcx, OFFSET FLAT:?mapperUpdate@@3PAP6AXPEAUcpu@@PEAUcartridge@@@ZA ; mapperUpdate
+  00517	48 89 8c 24 f8
+	00 00 00	 mov	 QWORD PTR tv295[rsp], rcx
+  0051f	48 8d 94 24 50
+	01 00 00	 lea	 rdx, QWORD PTR Cartridge$19[rsp]
+  00527	48 8d 8c 24 20
+	02 00 00	 lea	 rcx, QWORD PTR Cpu$21[rsp]
+  0052f	48 8b bc 24 f8
+	00 00 00	 mov	 rdi, QWORD PTR tv295[rsp]
+  00537	ff 14 c7	 call	 QWORD PTR [rdi+rax*8]
 $LN15@WinMain:
 
-; 714  :                     
-; 715  :                     
-; 716  : 
-; 717  :                 }
-; 718  :                 
-; 719  :                 if(PowerOn)
+; 740  :                 }
+; 741  :                 
+; 742  :                 if(PowerOn)
 
-  00506	83 3d 00 00 00
+  0053a	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?PowerOn@@3HA, 0
-  0050d	74 68		 je	 SHORT $LN16@WinMain
+  00541	74 68		 je	 SHORT $LN16@WinMain
 
-; 720  :                 {
-; 721  :                     TickCycles = cpuTick(&Cpu, &WinInput);
+; 743  :                 {
+; 744  :                     TickCycles = cpuTick(&Cpu, &WinInput);
 
-  0050f	48 8d 15 00 00
+  00543	48 8d 15 00 00
 	00 00		 lea	 rdx, OFFSET FLAT:?WinInput@@3Uinput@@A
-  00516	48 8d 8c 24 20
+  0054a	48 8d 8c 24 20
 	02 00 00	 lea	 rcx, QWORD PTR Cpu$21[rsp]
-  0051e	e8 00 00 00 00	 call	 ?cpuTick@@YAEPEAUcpu@@PEAUinput@@@Z ; cpuTick
-  00523	0f b6 c0	 movzx	 eax, al
-  00526	89 44 24 7c	 mov	 DWORD PTR TickCycles$2[rsp], eax
+  00552	e8 00 00 00 00	 call	 ?cpuTick@@YAEPEAUcpu@@PEAUinput@@@Z ; cpuTick
+  00557	0f b6 c0	 movzx	 eax, al
+  0055a	89 44 24 7c	 mov	 DWORD PTR TickCycles$2[rsp], eax
 
-; 722  :                     
-; 723  :                     for(uint8 i = 0; i < (3*TickCycles); ++i)
+; 745  :                     
+; 746  :                     for(uint8 i = 0; i < (3*TickCycles); ++i)
 
-  0052a	c6 44 24 60 00	 mov	 BYTE PTR i$1[rsp], 0
-  0052f	eb 0b		 jmp	 SHORT $LN8@WinMain
+  0055e	c6 44 24 60 00	 mov	 BYTE PTR i$1[rsp], 0
+  00563	eb 0b		 jmp	 SHORT $LN8@WinMain
 $LN6@WinMain:
-  00531	0f b6 44 24 60	 movzx	 eax, BYTE PTR i$1[rsp]
-  00536	fe c0		 inc	 al
-  00538	88 44 24 60	 mov	 BYTE PTR i$1[rsp], al
+  00565	0f b6 44 24 60	 movzx	 eax, BYTE PTR i$1[rsp]
+  0056a	fe c0		 inc	 al
+  0056c	88 44 24 60	 mov	 BYTE PTR i$1[rsp], al
 $LN8@WinMain:
-  0053c	0f b6 44 24 60	 movzx	 eax, BYTE PTR i$1[rsp]
-  00541	6b 4c 24 7c 03	 imul	 ecx, DWORD PTR TickCycles$2[rsp], 3
-  00546	3b c1		 cmp	 eax, ecx
-  00548	73 17		 jae	 SHORT $LN7@WinMain
+  00570	0f b6 44 24 60	 movzx	 eax, BYTE PTR i$1[rsp]
+  00575	6b 4c 24 7c 03	 imul	 ecx, DWORD PTR TickCycles$2[rsp], 3
+  0057a	3b c1		 cmp	 eax, ecx
+  0057c	73 17		 jae	 SHORT $LN7@WinMain
 
-; 724  :                     {
-; 725  :                         ppuTick(&ScreenBackBuffer, &Ppu);
+; 747  :                     {
+; 748  :                         ppuTick(&ScreenBackBuffer, &Ppu);
 
-  0054a	48 8d 94 24 90
+  0057e	48 8d 94 24 90
 	02 00 00	 lea	 rdx, QWORD PTR Ppu$22[rsp]
-  00552	48 8d 8c 24 d0
+  00586	48 8d 8c 24 d0
 	01 00 00	 lea	 rcx, QWORD PTR ScreenBackBuffer$[rsp]
-  0055a	e8 00 00 00 00	 call	 ?ppuTick@@YAXPEAUscreen_buffer@@PEAUppu@@@Z ; ppuTick
+  0058e	e8 00 00 00 00	 call	 ?ppuTick@@YAXPEAUscreen_buffer@@PEAUppu@@@Z ; ppuTick
 
-; 726  :                     }
+; 749  :                     }
 
-  0055f	eb d0		 jmp	 SHORT $LN6@WinMain
+  00593	eb d0		 jmp	 SHORT $LN6@WinMain
 $LN7@WinMain:
 
-; 727  : 
-; 728  :                     CpuCyclesElapsed += TickCycles;
+; 750  : 
+; 751  :                     CpuCyclesElapsed += TickCycles;
 
-  00561	8b 44 24 7c	 mov	 eax, DWORD PTR TickCycles$2[rsp]
-  00565	8b 8c 24 8c 00
+  00595	8b 44 24 7c	 mov	 eax, DWORD PTR TickCycles$2[rsp]
+  00599	8b 8c 24 8c 00
 	00 00		 mov	 ecx, DWORD PTR CpuCyclesElapsed$5[rsp]
-  0056c	03 c8		 add	 ecx, eax
-  0056e	8b c1		 mov	 eax, ecx
-  00570	89 84 24 8c 00
+  005a0	03 c8		 add	 ecx, eax
+  005a2	8b c1		 mov	 eax, ecx
+  005a4	89 84 24 8c 00
 	00 00		 mov	 DWORD PTR CpuCyclesElapsed$5[rsp], eax
 $LN16@WinMain:
 
-; 729  :                 }
-; 730  :                 
-; 731  :                 if(DrawScreen) // NOTE: Gets called everytime the vblank happens in Ppu TODO: Should it be the end of vblank?
+; 752  :                 }
+; 753  :                 
+; 754  :                 if(DrawScreen) // NOTE: Gets called everytime the vblank happens in Ppu TODO: Should it be the end of vblank?
 
-  00577	83 3d 00 00 00
+  005ab	83 3d 00 00 00
 	00 00		 cmp	 DWORD PTR ?DrawScreen@@3HA, 0 ; DrawScreen
-  0057e	74 6e		 je	 SHORT $LN17@WinMain
+  005b2	74 6e		 je	 SHORT $LN17@WinMain
 
-; 732  :                 {
-; 733  :                     DrawScreen = false; 
+; 755  :                 {
+; 756  :                     DrawScreen = false; 
 
-  00580	c7 05 00 00 00
+  005b4	c7 05 00 00 00
 	00 00 00 00 00	 mov	 DWORD PTR ?DrawScreen@@3HA, 0 ; DrawScreen
 
-; 734  :                     getWindowSize(Window, &WindowWidth, &WindowHeight);
+; 757  :                     getWindowSize(Window, &WindowWidth, &WindowHeight);
 
-  0058a	4c 8d 44 24 64	 lea	 r8, QWORD PTR WindowHeight$[rsp]
-  0058f	48 8d 54 24 68	 lea	 rdx, QWORD PTR WindowWidth$[rsp]
-  00594	48 8b 8c 24 80
+  005be	4c 8d 44 24 64	 lea	 r8, QWORD PTR WindowHeight$[rsp]
+  005c3	48 8d 54 24 68	 lea	 rdx, QWORD PTR WindowWidth$[rsp]
+  005c8	48 8b 8c 24 80
 	00 00 00	 mov	 rcx, QWORD PTR Window$3[rsp]
-  0059c	e8 00 00 00 00	 call	 ?getWindowSize@@YAXPEAUHWND__@@PEAG1@Z ; getWindowSize
+  005d0	e8 00 00 00 00	 call	 ?getWindowSize@@YAXPEAUHWND__@@PEAG1@Z ; getWindowSize
 
-; 735  :                 
-; 736  :                     // NOTE: Drawing the backbuffer to the window 
-; 737  :                     HDC DeviceContext = GetDC(Window);
+; 758  :                 
+; 759  :                     // NOTE: Drawing the backbuffer to the window 
+; 760  :                     HDC DeviceContext = GetDC(Window);
 
-  005a1	48 8b 8c 24 80
+  005d5	48 8b 8c 24 80
 	00 00 00	 mov	 rcx, QWORD PTR Window$3[rsp]
-  005a9	ff 15 00 00 00
+  005dd	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_GetDC
-  005af	48 89 84 24 c8
+  005e3	48 89 84 24 c8
 	00 00 00	 mov	 QWORD PTR DeviceContext$15[rsp], rax
 
-; 738  :                     drawScreenBuffer(&ScreenBackBuffer, DeviceContext,
+; 761  :                     drawScreenBuffer(&ScreenBackBuffer, DeviceContext,
 
-  005b7	44 0f b7 4c 24
+  005eb	44 0f b7 4c 24
 	64		 movzx	 r9d, WORD PTR WindowHeight$[rsp]
-  005bd	44 0f b7 44 24
+  005f1	44 0f b7 44 24
 	68		 movzx	 r8d, WORD PTR WindowWidth$[rsp]
-  005c3	48 8b 94 24 c8
+  005f7	48 8b 94 24 c8
 	00 00 00	 mov	 rdx, QWORD PTR DeviceContext$15[rsp]
-  005cb	48 8d 8c 24 d0
+  005ff	48 8d 8c 24 d0
 	01 00 00	 lea	 rcx, QWORD PTR ScreenBackBuffer$[rsp]
-  005d3	e8 00 00 00 00	 call	 ?drawScreenBuffer@@YAXPEAUscreen_buffer@@PEAUHDC__@@GG@Z ; drawScreenBuffer
+  00607	e8 00 00 00 00	 call	 ?drawScreenBuffer@@YAXPEAUscreen_buffer@@PEAUHDC__@@GG@Z ; drawScreenBuffer
 
-; 739  :                                      WindowWidth, WindowHeight);
-; 740  :                     ReleaseDC(Window, DeviceContext);
+; 762  :                                      WindowWidth, WindowHeight);
+; 763  :                     ReleaseDC(Window, DeviceContext);
 
-  005d8	48 8b 94 24 c8
+  0060c	48 8b 94 24 c8
 	00 00 00	 mov	 rdx, QWORD PTR DeviceContext$15[rsp]
-  005e0	48 8b 8c 24 80
+  00614	48 8b 8c 24 80
 	00 00 00	 mov	 rcx, QWORD PTR Window$3[rsp]
-  005e8	ff 15 00 00 00
+  0061c	ff 15 00 00 00
 	00		 call	 QWORD PTR __imp_ReleaseDC
 $LN17@WinMain:
 
-; 741  :                 }
-; 742  : 
-; 743  :                 
-; 744  :                 CurrentSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
+; 764  :                 }
+; 765  : 
+; 766  :                 
+; 767  :                 CurrentSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
 
-  005ee	48 8b 8c 24 d0
+  00622	48 8b 8c 24 d0
 	00 00 00	 mov	 rcx, QWORD PTR PerfCountFrequency$[rsp]
-  005f6	e8 00 00 00 00	 call	 ?getMilliSeconds@@YAM_K@Z ; getMilliSeconds
-  005fb	f3 0f 5e 05 00
+  0062a	e8 00 00 00 00	 call	 ?getMilliSeconds@@YAM_K@Z ; getMilliSeconds
+  0062f	f3 0f 5e 05 00
 	00 00 00	 divss	 xmm0, DWORD PTR __real@447a0000
-  00603	f3 0f 11 84 24
+  00637	f3 0f 11 84 24
 	90 00 00 00	 movss	 DWORD PTR CurrentSecs$6[rsp], xmm0
 
-; 745  :                 ElapsedSecs = CurrentSecs - PrevSecs;
+; 768  :                 ElapsedSecs = CurrentSecs - PrevSecs;
 
-  0060c	f3 0f 10 84 24
+  00640	f3 0f 10 84 24
 	90 00 00 00	 movss	 xmm0, DWORD PTR CurrentSecs$6[rsp]
-  00615	f3 0f 5c 84 24
+  00649	f3 0f 5c 84 24
 	94 00 00 00	 subss	 xmm0, DWORD PTR PrevSecs$7[rsp]
-  0061e	f3 0f 11 84 24
+  00652	f3 0f 11 84 24
 	a8 00 00 00	 movss	 DWORD PTR ElapsedSecs$11[rsp], xmm0
 
-; 746  :                 PrevSecs = CurrentSecs;
+; 769  :                 PrevSecs = CurrentSecs;
 
-  00627	f3 0f 10 84 24
+  0065b	f3 0f 10 84 24
 	90 00 00 00	 movss	 xmm0, DWORD PTR CurrentSecs$6[rsp]
-  00630	f3 0f 11 84 24
+  00664	f3 0f 11 84 24
 	94 00 00 00	 movss	 DWORD PTR PrevSecs$7[rsp], xmm0
 
-; 747  :             }
+; 770  :             }
 
-  00639	e9 ca fd ff ff	 jmp	 $LN2@WinMain
+  0066d	e9 96 fd ff ff	 jmp	 $LN2@WinMain
 $LN3@WinMain:
 
-; 748  : 
-; 749  :         }
-; 750  :         else
+; 771  : 
+; 772  :         }
+; 773  :         else
 
-  0063e	eb 12		 jmp	 SHORT $LN12@WinMain
+  00672	eb 12		 jmp	 SHORT $LN12@WinMain
 $LN11@WinMain:
 
-; 751  :         {
-; 752  :             // NOTE: Window failed to create
-; 753  :             // TODO: Handle this in a better way
-; 754  :             Assert(0);
+; 774  :         {
+; 775  :             // NOTE: Window failed to create
+; 776  :             // TODO: Handle this in a better way
+; 777  :             Assert(0);
 
-  00640	33 c0		 xor	 eax, eax
-  00642	83 f8 01	 cmp	 eax, 1
-  00645	74 0b		 je	 SHORT $LN18@WinMain
-  00647	c7 04 25 00 00
+  00674	33 c0		 xor	 eax, eax
+  00676	83 f8 01	 cmp	 eax, 1
+  00679	74 0b		 je	 SHORT $LN18@WinMain
+  0067b	c7 04 25 00 00
 	00 00 00 00 00
 	00		 mov	 DWORD PTR ds:0, 0
 $LN18@WinMain:
 $LN12@WinMain:
 
-; 755  :         }
-; 756  :     }
-; 757  :     else
+; 778  :         }
+; 779  :     }
+; 780  :     else
 
-  00652	eb 12		 jmp	 SHORT $LN10@WinMain
+  00686	eb 12		 jmp	 SHORT $LN10@WinMain
 $LN9@WinMain:
 
-; 758  :     {
-; 759  :         // NOTE: Failed to register window
-; 760  :         // TODO: Handle this in a better way
-; 761  :         Assert(0);
+; 781  :     {
+; 782  :         // NOTE: Failed to register window
+; 783  :         // TODO: Handle this in a better way
+; 784  :         Assert(0);
 
-  00654	33 c0		 xor	 eax, eax
-  00656	83 f8 01	 cmp	 eax, 1
-  00659	74 0b		 je	 SHORT $LN19@WinMain
-  0065b	c7 04 25 00 00
+  00688	33 c0		 xor	 eax, eax
+  0068a	83 f8 01	 cmp	 eax, 1
+  0068d	74 0b		 je	 SHORT $LN19@WinMain
+  0068f	c7 04 25 00 00
 	00 00 00 00 00
 	00		 mov	 DWORD PTR ds:0, 0
 $LN19@WinMain:
 $LN10@WinMain:
 
-; 762  :     }
-; 763  :     return(0);
+; 785  :     }
+; 786  :     return(0);
 
-  00666	33 c0		 xor	 eax, eax
+  0069a	33 c0		 xor	 eax, eax
 
-; 764  : } 
+; 787  : } 
 
-  00668	48 8b 8c 24 10
+  0069c	48 8b 8c 24 10
 	04 00 00	 mov	 rcx, QWORD PTR __$ArrayPad$[rsp]
-  00670	48 33 cc	 xor	 rcx, rsp
-  00673	e8 00 00 00 00	 call	 __security_check_cookie
-  00678	48 81 c4 20 04
+  006a4	48 33 cc	 xor	 rcx, rsp
+  006a7	e8 00 00 00 00	 call	 __security_check_cookie
+  006ac	48 81 c4 20 04
 	00 00		 add	 rsp, 1056		; 00000420H
-  0067f	5f		 pop	 rdi
-  00680	c3		 ret	 0
+  006b3	5f		 pop	 rdi
+  006b4	c3		 ret	 0
 WinMain	ENDP
 _TEXT	ENDS
 END

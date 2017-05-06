@@ -11,7 +11,6 @@
 #define INSTRUCTION_COUNT 256
 #define STACK_ADDRESS 0x100
 
-
 struct cpu
 {
     uint8 A;
@@ -22,8 +21,9 @@ struct cpu
     uint16 PrgCounter;
     uint64 MemoryBase;
 
-    uint16 *MapperReg;
-    uint16 *MapperWriteAddress;
+    uint8  MapperReg;
+    uint16 MapperWriteAddress;
+    bool32 MapperWrite;
     
     bool32 PadStrobe; 
     
@@ -32,9 +32,7 @@ struct cpu
 
     input InputPad2;
     uint8 Pad2CurrentButton;
-
 };
-
 
 
 internal uint8 readCpu8(uint16 Address, cpu *Cpu)
@@ -162,21 +160,12 @@ internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
         write8(BtnValue, 0x4017, Cpu->MemoryBase);
     }
 
-
     if(Address >= 0x8000)
     {
-        MapperExtWrite = true;
-
-        if(Byte & 0x80)
-        {
-            *(Cpu->MapperWriteAddress) = Address;
-            *(Cpu->MapperReg) = 0;
-        }
-        
+        Cpu->MapperWrite = true;
+        Cpu->MapperReg = Byte;
+        Cpu->MapperWriteAddress = Address;
     }
-
-
-    
 }
 
 internal uint16 readCpu16(uint16 Address, cpu * Cpu)
