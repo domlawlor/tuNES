@@ -779,13 +779,13 @@ uint8 sre(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 tas(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+    ///  Assert(0);
     return(0);
 }
 
 uint8 xaa(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
-    Assert(0);
+//    Assert(0);
     return(0);
 }
 

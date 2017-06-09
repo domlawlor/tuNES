@@ -20,6 +20,10 @@
 
 #define ATTRIBUTE_OFFSET 0x3C0
 
+#define PIXELS_PER_TILE 8
+
+#define PIXELS_PER_ATRB_BYTE 32
+#define ATRB_BYTE_PER_ROW 8
 
 #define SECOND_OAM_SPRITE_NUM 8
 
@@ -31,7 +35,6 @@ struct oam_sprite
     uint8 X;
 };
 
-
 struct ppu_registers
 {
     uint8 Ctrl1;
@@ -42,6 +45,26 @@ struct ppu_registers
     uint8 ScrollAddress;
     uint8 VRamAddress;
     uint8 VRamIO;
+};
+
+struct bgrd_data
+{
+    uint8 NametableByte;
+    uint8 AtrbByte;
+    uint8 LowTile;
+    uint8 HighTile;
+};
+            
+bgrd_data CurrentTile;
+bgrd_data NextTile;
+bgrd_data LoadingTile;
+            
+struct vram_io
+{
+    uint16 VRamAdrs;
+    uint16 TempVRamAdrs;
+    uint8 LatchWrite;
+    uint8 FineX;
 };
 
 struct ppu
@@ -62,20 +85,7 @@ struct ppu
     uint16 Scanline;
     uint16 ScanlineCycle;
 
-    uint16 VRamIOAddress;
-    uint16 ScrollPosition;
-
-    uint8 PixelFetchX;
-    uint8 PixelFetchY;
-    
-    uint8 NameTableByte1;
-    uint8 NameTableByte2;
-
-    uint8 AtrbTableByte1;
-    uint8 AtrbTableByte2;
-
-    uint8 LowBGTileByte1;
-    uint8 LowBGTileByte2;
+    vram_io VRamIO;
 };
 
 inline void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
@@ -84,97 +94,114 @@ inline void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
     *CurrentPixel  = ((Colour[0] << 16) | (Colour[1] << 8) | Colour[2]);
 }
 
-internal uint8 readPpu8(uint16 Address, uint64 MemoryOffset)
+internal uint8 readPpu8(uint16 Address, ppu *Ppu)
 {
-    if(0x3000 <= Address && Address < 0x3F00)
-        Address = (Address % (0x3000 - 0x2000)) + 0x2000;
-    if(0x3F20 <= Address && Address < 0x4000)
-        Address = (Address % (0x3F20 - 0x3F00)) + 0x3F00;
-    if(Address >= 0x4000)
-        Address = Address % 0x4000; 
-
-    uint8 Result = read8(Address, MemoryOffset);
+    Address = ppuMemoryMirror(Address);
+         
+    uint8 Result = read8(Address, Ppu->MemoryBase);
     return(Result);
 }
-internal void writePpu8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+internal void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
 {
-    if(0x3000 <= Address && Address < 0x3F00)
-        Address = (Address % (0x3000 - 0x2000)) + 0x2000;
-    if(0x3F20 <= Address && Address < 0x4000)
-        Address = (Address % (0x3F20 - 0x3F00)) + 0x3F00;
-    if(Address >= 0x4000)
-        Address = Address % 0x4000; 
-    
-    write8(Byte, Address, MemoryOffset);
+    Address = ppuMemoryMirror(Address);
+    write8(Byte, Address, Ppu->MemoryBase);
 }
 
-internal uint8 getNameTableValue(uint16 X, uint16 Y, uint16 TableBaseAddress, uint64 MemoryOffset)
+static uint8 getLowTileByte(uint8 NameTableValue, uint16 PatternBase, ppu *Ppu)
 {
-    uint16 TileX = X / PIXEL_PER_TILE;
-    uint16 TileY = Y / PIXEL_PER_TILE;
-    
-    Assert(0 <= TileX && TileX < TILES_COUNT_X);
-    Assert(0 <= TileY && TileY < TILES_COUNT_Y);
-
-    uint16 Address = (TableBaseAddress + (TileY * TILES_COUNT_X)) + TileX;
-    uint8 Value = readPpu8(Address, MemoryOffset);
-    return(Value);
+    uint16 FineY = (Ppu->VRamIO.VRamAdrs & 0xF000) >> 12;
+    uint64 LowAddress = (PatternBase + (NameTableValue * 16)) + FineY;
+    uint8 LowPattern = readPpu8(LowAddress, Ppu);
+    return(LowPattern);
 }
 
-#define PIXELS_PER_TILE 8
-
-internal uint8 getPatternValue(uint16 X, uint16 Y, uint8 NameTableValue, uint16 PatternBase, uint64 MemoryOffset)
+static uint8 getHighTileByte(uint8 NameTableValue, uint16 PatternBase, ppu *Ppu)
 {
-    uint8 TileRelX = X % PIXEL_PER_TILE;
-    uint8 TileRelY = Y % PIXEL_PER_TILE;
-    
-    Assert(0 <= TileRelX && TileRelX < PIXEL_PER_TILE);
-    Assert(0 <= TileRelY && TileRelY < PIXEL_PER_TILE);
-  
-    uint64 LowAddress = (PatternBase + (NameTableValue * 16)) + TileRelY;
-    uint64 HighAddress = (PatternBase + (NameTableValue * 16) + 8) + TileRelY;
-    
-    uint8 LowPattern = readPpu8(LowAddress, MemoryOffset);
-    uint8 HighPattern = readPpu8(HighAddress, MemoryOffset);
-
-    LowPattern  = (LowPattern >> (7 - TileRelX)) & 1;
-    HighPattern = (HighPattern >> (7 - TileRelX)) & 1;
-
-    uint8 Value = (HighPattern << 1) | LowPattern;
-    
-    return(Value);
+    uint16 FineY = (Ppu->VRamIO.VRamAdrs & 0xF000) >> 12;
+    uint64 HighAddress = (PatternBase + (NameTableValue * 16)) + FineY + 8;
+    uint8 HighPattern = readPpu8(HighAddress, Ppu);
+    return(HighPattern);
 }
 
-#define PIXELS_PER_ATRB_BYTE 32
-#define ATRB_BYTE_PER_ROW 8
-
-internal uint8 getAttributeValue(uint16 X, uint16 Y, uint16 AtrbTableBaseAdrs, uint64 MemoryOffset)
+static uint8 getPixelPattern(uint8 X, uint8 FineX, bgrd_data CurrentTile, bgrd_data NextTile)
 {
-    uint8 AttributeByteX = X / PIXELS_PER_ATRB_BYTE;
-    uint8 AttributeByteY = Y / PIXELS_PER_ATRB_BYTE;
-    
-    uint16 AtrbByteAdrs = (AtrbTableBaseAdrs + (AttributeByteY * ATRB_BYTE_PER_ROW)) + AttributeByteX;
-    uint8 Attribute = readPpu8(AtrbByteAdrs, MemoryOffset);
-    
-    uint8 BlockRelX = (X % PIXELS_PER_ATRB_BYTE) / 16;
-    uint8 BlockRelY = (Y % PIXELS_PER_ATRB_BYTE) / 16;
+    uint16 RelX = (X % 8) + FineX;
 
-    uint8 Value;
+    uint8 LowTile = CurrentTile.LowTile;
+    uint8 HighTile = CurrentTile.HighTile;
     
-    if(BlockRelX == 0)
-        if(BlockRelY == 0)
-            Value = Attribute;
-        else if(BlockRelY == 1)
-            Value = Attribute >> 4;
-    if(BlockRelX == 1)
-        if(BlockRelY == 0)
-            Value = Attribute >> 2;
-        else if(BlockRelY == 1)
-            Value = Attribute >> 6;
+    if(RelX >= 8)
+    {
+        RelX -= 8;
+        LowTile = NextTile.LowTile;
+        HighTile = NextTile.HighTile;
+    }
     
-    Value = Value & 3;
+    return (((HighTile >> (7 - RelX)) & 1) << 1) | (LowTile  >> (7 - RelX)) & 1;
+}
+static uint8 getPixelAtrb(uint8 X, vram_io *VRamIO, bgrd_data CurrentTile, bgrd_data NextTile)
+{    
+    uint8 CoarseX = VRamIO->VRamAdrs & 0x001F;
+    uint8 CoarseY = (VRamIO->VRamAdrs & 0x03E0) >> 5 ;
+    uint16 RelX = (X % 8) + VRamIO->FineX;
+    uint16 ActualX = X + VRamIO->FineX; 
     
-    return(Value);
+    uint8 Attribute = CurrentTile.AtrbByte;
+
+    if( (CoarseX % 4 == 3) && (RelX >= 8) )
+    {
+        RelX -= 8;
+        Attribute = NextTile.AtrbByte;
+    }
+    
+    uint8 BlockRelX = (ActualX % PIXELS_PER_ATRB_BYTE) / 16;
+    uint8 BlockRelY = (CoarseY % 4) / 2;
+
+    uint8 AtrbValue;
+    
+    if(BlockRelX == 0 && BlockRelY == 0)
+        AtrbValue = Attribute;
+    else if(BlockRelX == 0 && BlockRelY == 1)
+        AtrbValue = Attribute >> 4;
+    else if(BlockRelX == 1 && BlockRelY == 0)
+        AtrbValue = Attribute >> 2;
+    else if(BlockRelX == 1 && BlockRelY == 1)
+        AtrbValue = Attribute >> 6;
+       
+    return(AtrbValue & 3);    
+}
+
+static void loadFutureData(ppu *Ppu, bgrd_data *Current, bgrd_data *Next, bgrd_data *Loading)
+{                            
+    if((Ppu->ScanlineCycle % 8) == 1) 
+    {
+        uint16 NametableAddress = 0x2000 | (Ppu->VRamIO.VRamAdrs & 0x0FFF);
+        Loading->NametableByte = readPpu8(NametableAddress, Ppu);
+    }
+    if((Ppu->ScanlineCycle % 8) == 3)
+    {
+        uint16 AtrbAddress = 0x23C0 | (Ppu->VRamIO.VRamAdrs & 0x0C00) |
+            ((Ppu->VRamIO.VRamAdrs >> 4) & 0x38) | ((Ppu->VRamIO.VRamAdrs >> 2) & 0x07);   
+        Loading->AtrbByte = readPpu8(AtrbAddress, Ppu);
+    }
+
+    uint16 BgrdPatternBase = 0x0000;
+    if(Ppu->Registers->Ctrl1 & (1 << 4))
+        BgrdPatternBase = 0x1000;
+    
+    if((Ppu->ScanlineCycle % 8) == 5)
+    {
+        Loading->LowTile = getLowTileByte(Loading->NametableByte, BgrdPatternBase, Ppu); 
+    }
+    if((Ppu->ScanlineCycle % 8) == 7)
+    {
+        Loading->HighTile = getHighTileByte(Loading->NametableByte, BgrdPatternBase, Ppu);
+    }           
+    if((Ppu->ScanlineCycle % 8) == 0)
+    {
+        *Current = *Next;
+        *Next = *Loading;
+    }
 }
 
 static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *PreparedSprites, uint16 Scanline)
@@ -205,46 +232,124 @@ static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *PreparedSprites, uint16
     }
 }
 
+void resetScrollHorz(vram_io *VRamIO)
+{   
+    VRamIO->VRamAdrs &= ~(0x041F);
+    VRamIO->VRamAdrs |= (VRamIO->TempVRamAdrs & 0x041F);
+}
+
+void resetScrollVert(vram_io *VRamIO)
+{
+    VRamIO->VRamAdrs &= ~(0x7BE0);
+    VRamIO->VRamAdrs |= (VRamIO->TempVRamAdrs & 0x7BE0);
+}
+
+
+void scrollIncHorz(vram_io *Vram)
+{
+    // NOTE: Code take from nesdev wiki. Could be quicker??
+    if ((Vram->VRamAdrs & 0x001F) == 31) // if coarse X == 31
+    {
+        Vram->VRamAdrs &= ~0x001F;  // coarse X = 0
+        Vram->VRamAdrs ^= 0x0400;   // switch horizontal nametable
+    }
+    else
+        Vram->VRamAdrs += 1;                // increment coarse X
+}
+
+void scrollIncVert(vram_io *Vram)
+{
+    // NOTE: Code take from nesdev wiki. Could be quicker??
+    if ((Vram->VRamAdrs & 0x7000) != 0x7000) // if fine Y < 7
+        Vram->VRamAdrs += 0x1000; // increment fine Y
+    else
+    {
+        Vram->VRamAdrs &= ~0x7000; // fine Y = 0        
+        uint16 y = (Vram->VRamAdrs & 0x03E0) >> 5 ; // let y = coarse Y
+    
+        if (y == 29)
+        {
+            y = 0; // coarse Y = 0
+            Vram->VRamAdrs ^= 0x0800; // switch vertical nametable
+        }
+        else if (y == 31)
+            y = 0; // coarse Y = 0, nametable not switched
+        else
+        {
+            y += 1; // increment coarse Y
+            Vram->VRamAdrs = (Vram->VRamAdrs & ~0x03E0) | (y << 5); // put coarse Y back into v
+        }
+    }
+}
+
 void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 {    
     ppu_registers *Registers = Ppu->Registers;
-
+    vram_io *VRamIO = &Ppu->VRamIO; 
+    
     if(OamDataChange)
     {
         OamDataChange = false;
         Ppu->Oam[Registers->OamAddress] = Registers->OamIO;
         ++Registers->OamAddress;
     }
-    
+
     if(ScrollAdrsChange)
     {
         ScrollAdrsChange = false;
-        Ppu->ScrollPosition = (Ppu->ScrollPosition << 8) | (uint16)Registers->ScrollAddress;
+
+        if(VRamIO->LatchWrite == 0)
+        {
+            VRamIO->FineX = Registers->ScrollAddress & 7; // Bit 0,1, and 2 are fine X
+            VRamIO->TempVRamAdrs &= ~(0x001F); // Clear Bits
+            VRamIO->TempVRamAdrs |= ((uint16)Registers->ScrollAddress) >> 3;
+            VRamIO->LatchWrite = 1;
+        }
+        else
+        {
+            VRamIO->TempVRamAdrs &= ~(0x73E0); // Clear Bits
+            VRamIO->TempVRamAdrs |= ((uint16)(Registers->ScrollAddress & 0x0007)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
+            VRamIO->TempVRamAdrs |= ((uint16)(Registers->ScrollAddress & 0x00F8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
+            VRamIO->LatchWrite = 0;
+        }
     }
     
     // NOTE: This is where data is transferred from Cpu via IO registers
     if(VRamAdrsChange)
     {
         VRamAdrsChange = false;
-        Ppu->VRamIOAddress = (Ppu->VRamIOAddress << 8) | (uint16)Registers->VRamAddress;
-        
-        // NOTE: If address is on the pallette. Then IO register is updated immediately
-        if(0x3F00 <= Ppu->VRamIOAddress && Ppu->VRamIOAddress <= 0x3FFF)
-            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryBase);
+
+        if(VRamIO->LatchWrite == 0)
+        {
+            VRamIO->TempVRamAdrs &= ~(0x7F00); // Clear Bits. 14th bit does not get set again
+            VRamIO->TempVRamAdrs |= ((uint16)(Registers->VRamAddress & 0x003F)) << 8;
+            VRamIO->LatchWrite = 1;
+        }
+        else
+        { 
+            VRamIO->TempVRamAdrs &= ~(0x00FF); // Clear Bit that are about to be loaded
+            VRamIO->TempVRamAdrs |= (uint16)(Registers->VRamAddress & 0x00FF); 
+            VRamIO->VRamAdrs = VRamIO->TempVRamAdrs;
+            VRamIO->LatchWrite = 0;
+            
+            // NOTE: If address is on the pallette. Then IO register is updated immediately
+            if(0x3F00 <= VRamIO->VRamAdrs && VRamIO->VRamAdrs <= 0x3FFF)
+                Registers->VRamIO = readPpu8(VRamIO->VRamAdrs, Ppu);
+        }
     }
 
     if(IOWriteFromCpu)
     {
         IOWriteFromCpu = false;
         
-        writePpu8(Registers->VRamIO, Ppu->VRamIOAddress, Ppu->MemoryBase);
+        writePpu8(Registers->VRamIO, VRamIO->VRamAdrs, Ppu);
         if(Registers->Ctrl1 & (1 << 2))
-            Ppu->VRamIOAddress += 32;
+            VRamIO->VRamAdrs += 32;
         else
-            ++Ppu->VRamIOAddress;
+            VRamIO->VRamAdrs += 1;
     }
 
-    VRamAdrsOnPalette = (0x3F00 <= Ppu->VRamIOAddress && Ppu->VRamIOAddress <= 0x3FFF);
+    bool32 VRamAdrsOnPalette = (0x3F00 <= VRamIO->VRamAdrs && VRamIO->VRamAdrs <= 0x3FFF);
     
     if(IOReadFromCpu)
     {
@@ -253,54 +358,40 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
         if(VRamAdrsOnPalette)
         {
             if(Registers->Ctrl1 & (1 << 2))
-                Ppu->VRamIOAddress += 32;
+                VRamIO->VRamAdrs += 32;
             else
-                ++Ppu->VRamIOAddress;
-            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryBase);
+                VRamIO->VRamAdrs += 1;
+            Registers->VRamIO = readPpu8(VRamIO->VRamAdrs, Ppu);
         }
         else
         {
-            Registers->VRamIO = readPpu8(Ppu->VRamIOAddress, Ppu->MemoryBase);
+            Registers->VRamIO = readPpu8(VRamIO->VRamAdrs, Ppu);
             if(Registers->Ctrl1 & (1 << 2))
-                Ppu->VRamIOAddress += 32;
+                VRamIO->VRamAdrs += 32;
             else
-                ++Ppu->VRamIOAddress;
+                VRamIO->VRamAdrs += 1;
         }
     }
     
     if(ResetVRamIOAdrs)
     {
-        Ppu->VRamIOAddress = 0;
+        VRamIO->LatchWrite = 0;
         ResetVRamIOAdrs = false;
     }
     if(ResetScrollIOAdrs)
     {
-        Ppu->ScrollPosition = 0;
+        VRamIO->LatchWrite = 0;
         ResetScrollIOAdrs = false;
     }
     
-
     uint16 Sprite8x16 = Registers->Ctrl1 & (1 << 5);
-
-        
+    
     uint16 SpritePatternBase = 0x0000;
-    if(Registers->Ctrl1 & (1 << 3))
-        SpritePatternBase = 0x1000;
-
-    uint16 BgrdPatternBase = 0x0000;
-    if(Registers->Ctrl1 & (1 << 4))
-        BgrdPatternBase = 0x1000;
-
-    uint8 NameTableBaseNum = Registers->Ctrl1 & 3;
-    uint16 NameTableBaseAdrs; 
-    if(NameTableBaseNum == 0)
-        NameTableBaseAdrs = 0x2000;
-    else if(NameTableBaseNum == 1)
-        NameTableBaseAdrs = 0x2400;
-    else if(NameTableBaseNum == 2)
-        NameTableBaseAdrs = 0x2800;
-    else if(NameTableBaseNum == 3)
-        NameTableBaseAdrs = 0x2C00;
+    if(!Sprite8x16 && Registers->Ctrl1 & (1 << 3))
+    {
+        SpritePatternBase = 0x1000;        
+    }
+    
 
     bool32 BackgroundEnabled = Registers->Ctrl2 & (1 << 3);
     bool32 SpritesEnabled = Registers->Ctrl2 & (1 << 4);
@@ -309,15 +400,12 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     bool32 PostRenderLine = (Ppu->Scanline == 240);
     bool32 VBlankLine = (241 <= Ppu->Scanline && Ppu->Scanline <= 260);
     bool32 PreRenderLine = (Ppu->Scanline == 261);
-
+    
     if(VisibleLine)
     {
-        // NOTE: At the moment I am going to just produce a pixel per cycle with fetching happening each time.
-        // TODO: Timing of fetches so less loading happens, using fine X scrolling to move through bytes
-
-        // NOTE: Do sprite Evaluation
+        // NOTE: Do sprite Evaluation and set 'camera' x and y
         if(Ppu->ScanlineCycle == 0)
-        {
+        {            
             evaluateSecondaryOam(Ppu->Oam, Ppu->PreparedSprites, Ppu->Scanline);
             
             for(uint8 SpriteIdx = 0; SpriteIdx < SECOND_OAM_SPRITE_NUM; ++SpriteIdx)
@@ -325,6 +413,14 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 oam_sprite Sprite = Ppu->PreparedSprites[SpriteIdx];
 
                 bool32 FlippedVert = Sprite.Atrb & (1 << 7);
+
+                if(Sprite8x16)
+                {
+                    if(Sprite.Tile & 1)
+                        SpritePatternBase = 0x1000;
+                    else
+                        SpritePatternBase = 0;
+                }
                 
                 if((Sprite.Y+1) != 0 && Sprite.X != 0)
                 {
@@ -345,24 +441,24 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                         HighAddress = (SpritePatternBase + (Sprite.Tile * 16) + 8) + TileRelY;
                     }
                     
-                    Ppu->SpriteTileLow[SpriteIdx] = readPpu8(LowAddress, Ppu->MemoryBase);
-                    Ppu->SpriteTileHigh[SpriteIdx] = readPpu8(HighAddress, Ppu->MemoryBase);
+                    Ppu->SpriteTileLow[SpriteIdx] = readPpu8(LowAddress, Ppu);
+                    Ppu->SpriteTileHigh[SpriteIdx] = readPpu8(HighAddress, Ppu);
                 }
             }
         }
         
-        if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= PIXEL_WIDTH)
+        if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
         {
             uint16 PixelX = Ppu->ScanlineCycle - 1;
             uint16 PixelY = Ppu->Scanline;
-            
+                                    
             /* *********************** */
             /* Background Calculations */
-            
-            uint8 NameTableValue = getNameTableValue(PixelX, PixelY, NameTableBaseAdrs, Ppu->MemoryBase);
-            uint8 PatternPixelValue = getPatternValue(PixelX, PixelY, NameTableValue, BgrdPatternBase, Ppu->MemoryBase);
-            uint8 AttributeValue = getAttributeValue(PixelX, PixelY, NameTableBaseAdrs + ATTRIBUTE_OFFSET, Ppu->MemoryBase);
-            uint8 BgrdColourIndex = (AttributeValue << 2) | PatternPixelValue;
+                      
+            uint8 PatternPixelValue = getPixelPattern(PixelX, VRamIO->FineX, CurrentTile, NextTile);
+            uint8 AtrbPixelValue = getPixelAtrb(PixelX, VRamIO, CurrentTile, NextTile);
+
+            uint8 BgrdColourIndex = (AtrbPixelValue << 2) | PatternPixelValue;
 
             /* ******************* */
             /* Sprite Calculations */
@@ -371,16 +467,12 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             oam_sprite *Sprite;
             uint8 SpriteColourIndex = NO_COLOUR;
 
-            if(Sprite8x16)
-                Assert(0);
-                
             for(int8 SpriteIdx = SECOND_OAM_SPRITE_NUM - 1; SpriteIdx >= 0; --SpriteIdx)
             {
                 Sprite = Ppu->PreparedSprites + SpriteIdx; 
 
                 bool32 FlippedHorz = Sprite->Atrb & (1 << 6);
-                
-                
+                                
                 if(Sprite->X != 0 && PixelX >= Sprite->X && PixelX < (Sprite->X + 8)) 
                 {
                     uint8 PixColourHigh = Sprite->Atrb & 3; 
@@ -422,7 +514,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 if((BgrdColourIndex % 4) != 0)
                     BgrdBaseColour = false;
 
-                uint8 BgrdPaletteIndex = readPpu8(BGRD_PALETTE_ADRS + BgrdColourIndex, Ppu->MemoryBase);
+                uint8 BgrdPaletteIndex = readPpu8(BGRD_PALETTE_ADRS + BgrdColourIndex, Ppu);
                 getPaletteValue(BgrdPaletteIndex, Colour);
             }
 
@@ -438,7 +530,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 {
                     if(BgrdBaseColour || (!BgrdBaseColour && Priority))
                     {
-                        uint8 SprtPaletteIndex = readPpu8(SPRT_PALETTE_ADRS + SpriteColourIndex, Ppu->MemoryBase);                       
+                        uint8 SprtPaletteIndex = readPpu8(SPRT_PALETTE_ADRS + SpriteColourIndex, Ppu);                       
                         getPaletteValue(SprtPaletteIndex, Colour);                        
                     }
                 }
@@ -451,50 +543,81 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             // Draw Pixel
             if(BackgroundEnabled || SpritesEnabled)
                 drawPixel(Ppu, PixelX, PixelY, Colour);
+            
+            // NOTE: Loading next background information. Also scrolling
+            loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
+            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+                scrollIncHorz(VRamIO);            
 
+            
+            if(Ppu->ScanlineCycle == 256 && BackgroundEnabled)
+                scrollIncVert(VRamIO);
+        }
+
+        if(Ppu->ScanlineCycle == 257 && BackgroundEnabled)
+            resetScrollHorz(VRamIO);
+        
+        if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 340)
+        {
+            loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
+            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+                scrollIncHorz(VRamIO);
         }
     }
     if(PostRenderLine)
     {
         DrawScreen = true;
-        // NOTE: Ppu sits idle for this scanline
     }
     if(VBlankLine)
     {
         if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
         {
-            // TODO: if turning on NMI when in vblank. The nmi will be generated immediately.
-            if(Registers->Ctrl1 & (1 << 7))
-            {
-                NmiTriggered = true;
-            }
-            Registers->Status = Registers->Status | (1 << 7); // Set VBlank Status
+            Registers->Status |= (1 << 7); // Set VBlank Status
         }
     }
     if(PreRenderLine)
     {
-        switch(Ppu->ScanlineCycle)
+        if(Ppu->ScanlineCycle == 1)
         {
-            case 1:
-            {
-                Registers->Status = Registers->Status & ~(1 << 5); // Clear Sprite Overflow
-                Registers->Status = Registers->Status & ~(1 << 6); // Clear Sprite Zero Hit
-                Registers->Status = Registers->Status & ~(1 << 7); // Clear Vblank status
-                break;
-            }
-            case 321:
-            case 329:
-            {
-                Ppu->NameTableByte1 = Ppu->NameTableByte2;
-                //Ppu->NameTableByte2 = getNameTableValue(PixelFetchX, PixelFetchY, TableBaseNum, Ppu->MemoryBase);
-                break;
-            }
+            Registers->Status &= ~(1 << 5); // Clear Sprite Overflow
+            Registers->Status &= ~(1 << 6); // Clear Sprite Zero Hit
+            Registers->Status &= ~(1 << 7); // Clear Vblank status
+        }
+    
+        if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
+        {
+            loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
+            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+                scrollIncHorz(VRamIO);
+        }
+
+        if(Ppu->ScanlineCycle == 256 && BackgroundEnabled)
+            scrollIncVert(VRamIO);
+        
+        if(Ppu->ScanlineCycle == 257 && BackgroundEnabled)
+            resetScrollHorz(VRamIO);
+        
+        if(280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304 && BackgroundEnabled)
+            resetScrollVert(VRamIO);
+        
+        if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 340)
+        {            
+            loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
+            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+                scrollIncHorz(VRamIO);        
         }
     }
 
+
+    // NOTE: if turning on NMI when in vblank. The nmi will be generated immediately.
+    if( (Registers->Status & (1 << 7)) && ( Registers->Ctrl1 & (1 << 7)) )
+    {
+        NmiTriggered = true;
+    }
+    
     ++Ppu->ScanlineCycle;
 
-    if(Ppu->ScanlineCycle > 341)
+    if(Ppu->ScanlineCycle == 341)
     {
         Ppu->Scanline += 1;
         Ppu->ScanlineCycle = 0;

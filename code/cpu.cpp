@@ -24,6 +24,7 @@ struct cpu
     uint8  MapperReg;
     uint16 MapperWriteAddress;
     bool32 MapperWrite;
+    uint8 MapperWriteCount;
     
     bool32 PadStrobe; 
     
@@ -32,23 +33,58 @@ struct cpu
 
     input InputPad2;
     uint8 Pad2CurrentButton;
+
+    vram_io *PpuVramIO;   
 };
 
-
-internal uint8 readCpu8(uint16 Address, cpu *Cpu)
+static uint16 cpuMemoryMirror(uint16 Address)
 {
     // NOTE: Mirrors the address for the 2kb ram 
-    if(0x800 <= Address && Address < 0x2000)
-        Address = (Address % 0x800);
+    if(0x0800 <= Address && Address < 0x2000)
+        Address = (Address % 0x0800);
     // NOTE: Mirror for PPU Registers
     if(0x2008 <= Address && Address < 0x4000)
         Address = (Address % (0x2008 - 0x2000)) + 0x2000;
+    return(Address);
+}
+
+static void ppuIORead(uint16 Address, vram_io *VRamIO)
+{
+    uint8 PpuCtrl1 = read8(0x2000, GlobalCpuMemoryBase);
     
+    uint16 PpuAddress = ppuMemoryMirror(VRamIO->VRamAdrs);
+    uint8 NewRegValue = read8(PpuAddress, GlobalPpuMemoryBase);
+    
+    bool32 OnPpuPalette = (0x3F00 <= VRamIO->VRamAdrs && VRamIO->VRamAdrs < 0x4000);
+    
+    if(OnPpuPalette)
+    {
+        if(PpuCtrl1 & (1 << 2))
+            VRamIO->VRamAdrs += 32;
+        else
+            VRamIO->VRamAdrs += 1;
+
+        write8(NewRegValue, 0x2007, GlobalCpuMemoryBase);
+    }
+    else
+    {
+        write8(NewRegValue, 0x2007, GlobalCpuMemoryBase);
+        if(PpuCtrl1 & (1 << 2))
+            VRamIO->VRamAdrs += 32;
+        else
+            VRamIO->VRamAdrs += 1;
+    }    
+}
+
+internal uint8 readCpu8(uint16 Address, cpu *Cpu)
+{
+    Address = cpuMemoryMirror(Address);
+
     if(Address == 0x2007) // Reading from the IO of ppu. First read is junk, unless its the colour palette
         IOReadFromCpu = true;
-        
+    
     uint8 Value = read8(Address, Cpu->MemoryBase);
-            
+
     if(Address == 0x2002)
     {
         // NOTE: Will reset 2005 and 2006 registers, and turn off bit 7 of 0x2002
@@ -58,7 +94,7 @@ internal uint8 readCpu8(uint16 Address, cpu *Cpu)
         uint8 ResetValue = Value & ~(1 << 7);
         write8(ResetValue, Address, Cpu->MemoryBase);
     }
-
+        
     // Input
     if(Address == 0x4016 || Address == 0x4017)
     {
@@ -88,32 +124,28 @@ internal uint8 readCpu8(uint16 Address, cpu *Cpu)
         write8(NewValue, InputAddress, Cpu->MemoryBase);
     }
     
-    
     return(Value);
 }
 
 internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
 {
-    // NOTE: Mirrors the address for the 2kb ram 
-    if(0x800 <= Address && Address < 0x2000)
-        Address = (Address % 0x800);
-    // NOTE: Mirror for PPU Registers
-    if(0x2008 <= Address && Address < 0x4000)
-        Address = (Address % (0x2008 - 0x2000)) + 0x2000;
+    Address = cpuMemoryMirror(Address);
+
     if(Address == 0x2002)
         Assert(0);
     
     write8(Byte, Address, Cpu->MemoryBase);
 
-    if(Address == 0x2004) // OAM data
-        OamDataChange = true;
     if(Address == 0x2005) // Scroll address
         ScrollAdrsChange = true;
     if(Address == 0x2006) // Writing to ppu io address register
         VRamAdrsChange = true;
     if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
         IOWriteFromCpu = true;
-
+    
+    
+    if(Address == 0x2004) // OAM data
+        OamDataChange = true;
 
     // NOTE: OAM DMA Write
     if(Address == 0x4014)
@@ -177,7 +209,6 @@ internal uint16 readCpu16(uint16 Address, cpu * Cpu)
     uint16 NewAddress = (HighByte << 8) | LowByte;
     return(NewAddress);
 }
-
 
 internal uint16 bugReadCpu16(uint16 Address, cpu * Cpu)
 {
@@ -544,7 +575,7 @@ internal uint8 cpuTick(cpu *Cpu, input *NewInput)
         CyclesElapsed += AdditionalCycles;
     }
 
-    #if 0
+#if 0
     char LogInstrData[16];
     if(InstrLength == 3)
         sprintf(LogInstrData, "%2X %2X %2X", InstrData[0], InstrData[1], InstrData[2]);
