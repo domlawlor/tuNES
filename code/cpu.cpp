@@ -143,6 +143,12 @@ internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
     if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
         IOWriteFromCpu = true;
     
+
+    if(Address == 0x2000)
+    {
+        Cpu->PpuVramIO->TempVRamAdrs |= (Byte & 3) << 10;
+    }
+
     
     if(Address == 0x2004) // OAM data
         OamDataChange = true;
@@ -421,7 +427,7 @@ internal uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
     push(Cpu->Flags, Cpu); 
     setInterrupt(&Cpu->Flags);
 
-    Cpu->PrgCounter = readCpu16(Address, Cpu);
+    Cpu->PrgCounter = (read8(Address+1, Cpu->MemoryBase) << 8) | read8(Address, Cpu->MemoryBase);
     return(0);
 }
 
@@ -463,10 +469,13 @@ internal uint8 cpuTick(cpu *Cpu, input *NewInput)
         InstrName = "NMI";
         InstrCycles = 7;
         InstrData[0] = 0;
+
+        NmiTriggered = false;
+        nmi_irq(Address, Cpu, AddressMode);
     }
     else if(IrqTriggered)
     {
-        LogCpu.PrgCounter = IRQ_BRK_VEC;
+        LogCpu.PrgCounter = readCpu16(IRQ_BRK_VEC, Cpu);
         Address = IRQ_BRK_VEC;
         AddressMode = IMPL;
         InstrLength = 0;
@@ -486,95 +495,81 @@ internal uint8 cpuTick(cpu *Cpu, input *NewInput)
         {
             InstrData[i] = readCpu8(Cpu->PrgCounter + i, Cpu); 
         }
-    }
+        
     
-    switch(AddressMode)
-    {
-        case ACM:
-            break;            
-        case IMPL:
-            break;
-        case IMED:
-            Address = Cpu->PrgCounter + 1;
-            break;
-        case ZERO:
-            Address = (uint16)InstrData[1];
-            break;
-        case ZERX:
-            Address = ((uint16)InstrData[1] + Cpu->X) & 0xFF;
-            break;
-        case ZERY:
-            Address = ((uint16)InstrData[1] + Cpu->Y) & 0xFF;
-            break;
-        case ABS:
-            Address = ((uint16)InstrData[2] << 8) | InstrData[1];
-            break;
-        case ABSX:
-            Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->X;
-            CrossedPage = crossedPageCheck(Address - Cpu->X, Address);
-            break;
-        case ABSY:
-            Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->Y;
-            CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
-            break;
-        case REL:
+        switch(AddressMode)
         {
-            int8 RelOffset = InstrData[1];
-            Address = Cpu->PrgCounter + 2 + RelOffset;
-            break;
+            case ACM:
+                break;            
+            case IMPL:
+                break;
+            case IMED:
+                Address = Cpu->PrgCounter + 1;
+                break;
+            case ZERO:
+                Address = (uint16)InstrData[1];
+                break;
+            case ZERX:
+                Address = ((uint16)InstrData[1] + Cpu->X) & 0xFF;
+                break;
+            case ZERY:
+                Address = ((uint16)InstrData[1] + Cpu->Y) & 0xFF;
+                break;
+            case ABS:
+                Address = ((uint16)InstrData[2] << 8) | InstrData[1];
+                break;
+            case ABSX:
+                Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->X;
+                CrossedPage = crossedPageCheck(Address - Cpu->X, Address);
+                break;
+            case ABSY:
+                Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->Y;
+                CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
+                break;
+            case REL:
+            {
+                int8 RelOffset = InstrData[1];
+                Address = Cpu->PrgCounter + 2 + RelOffset;
+                break;
+            }
+            case INDX:
+            {
+                uint8 ZeroAddress = InstrData[1];
+                uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
+                Address = bugReadCpu16(AddedAddress, Cpu);
+                break;
+            }
+            case INDY:
+            {
+                uint8 ZeroAddress = InstrData[1];
+                Address = bugReadCpu16(ZeroAddress, Cpu) + Cpu->Y;
+                CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
+                break;
+            }
+            case INDI:
+            {
+                uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
+                Address = bugReadCpu16(IndirectAddress, Cpu);
+                break;
+            }
+            case NUL:
+            {
+                Assert(0);
+                break;
+            }        
         }
-        case INDX:
-        {
-            uint8 ZeroAddress = InstrData[1];
-            uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
-            Address = bugReadCpu16(AddedAddress, Cpu);
-            break;
-        }
-        case INDY:
-        {
-            uint8 ZeroAddress = InstrData[1];
-            Address = bugReadCpu16(ZeroAddress, Cpu) + Cpu->Y;
-            CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
-            break;
-        }
-        case INDI:
-        {
-            uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
-            Address = bugReadCpu16(IndirectAddress, Cpu);
-            break;
-        }
-        case NUL:
-        {
-            Assert(0);
-            break;
-        }        
-    }
     
-    Cpu->PrgCounter += InstrLength;
-    CyclesElapsed += InstrCycles;
+        Cpu->PrgCounter += InstrLength;
+        CyclesElapsed += InstrCycles;
 
-    if(NmiTriggered || IrqTriggered)
-    {
-        if(NmiTriggered)
-        {
-            NmiTriggered = false;
-        }
-        else
-        {
-            IrqTriggered = false;
-        }
-        nmi_irq(Address, Cpu, AddressMode);
-    }
-    else
-    {
         // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
         if(CrossedPage)
             CyclesElapsed += instBoundaryCheck[Instruction];
      
         uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
         CyclesElapsed += AdditionalCycles;
-    }
 
+    }
 #if 0
     char LogInstrData[16];
     if(InstrLength == 3)

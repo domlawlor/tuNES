@@ -94,6 +94,84 @@ inline void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
     *CurrentPixel  = ((Colour[0] << 16) | (Colour[1] << 8) | Colour[2]);
 }
 
+
+static uint16 ppuMemoryMirror(uint16 InAddress)
+{
+    uint16 Address = InAddress;
+    if(Address >= 0x4000) // Over half of the memory map is mirrored
+        Address = Address % 0x4000; 
+
+    if(0x3F20 <= Address && Address < 0x4000)
+        Address = (Address % (0x3F20 - 0x3F00)) + 0x3F00;
+        
+    if(0x3F00 <= Address && Address < 0x3F20) // Palette
+    {
+        if(Address == 0x3F10)
+            Address = 0x3F00;
+        if(Address == 0x3F14)
+            Address = 0x3F04;
+        if(Address == 0x3F18)
+            Address = 0x3F08;
+        if(Address == 0x3F1C)
+            Address = 0x3F0C;
+        if(Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C)
+            Address = 0x3F00;
+    }
+   
+    // NOTE: Nametable Mirroring. Controlled by Cartridge
+    if(0x3000 <= Address && Address < 0x3F00) // This first as it maps to the nametable range
+        Address = (Address % 0x0F00) + 0x2000;
+    
+    if(Address >= 0x2000 && Address < 0x3000) 
+    {
+        switch(GlobalMirrorType)
+        {
+            case SINGLE_SCREEN_MIRROR:
+            {
+                Address = (Address % 0x0400) + 0x2000;
+                break;
+            }
+            case VERTICAL_MIRROR:
+            {
+                if(Address >= 0x2800 && Address < 0x3000)
+                    Address -= 0x0800;
+                break;
+            }
+            case HORIZONTAL_MIRROR:
+            {
+                if( (Address >= 0x2400 && Address < 0x2800) ||
+                    (Address >= 0x2C00 && Address < 0x3000) )
+                    Address -= 0x0400; 
+                break;
+            }
+            case FOUR_SCREEN_MIRROR:
+            {
+                break;
+            }
+            default:
+            {
+                Assert(0);
+                break;
+            }
+        }
+    }
+
+#if 1
+    // Debug tests, first is doing mirror again to see if it changes,
+    // if so then need to reorder mirror
+    uint16 TestAddress = Address;
+    if(InAddress != Address)
+        TestAddress = ppuMemoryMirror(Address); 
+    Assert(TestAddress == Address);
+    Assert(Address < 0x4000);
+    Assert( !(Address >= 0x3F20 && Address < 0x4000) );
+    Assert( !(Address >= 0x3000 && Address < 0x3F00) );
+#endif
+
+    return Address;
+}
+
+
 internal uint8 readPpu8(uint16 Address, ppu *Ppu)
 {
     Address = ppuMemoryMirror(Address);
@@ -234,14 +312,16 @@ static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *PreparedSprites, uint16
 
 void resetScrollHorz(vram_io *VRamIO)
 {   
-    VRamIO->VRamAdrs &= ~(0x041F);
+    VRamIO->VRamAdrs &= ~(0x0C1F);//~(0x041F);
     VRamIO->VRamAdrs |= (VRamIO->TempVRamAdrs & 0x041F);
 }
 
 void resetScrollVert(vram_io *VRamIO)
 {
-    VRamIO->VRamAdrs &= ~(0x7BE0);
+/*    VRamIO->VRamAdrs &= ~(0x7BE0);
     VRamIO->VRamAdrs |= (VRamIO->TempVRamAdrs & 0x7BE0);
+*/
+    VRamIO->VRamAdrs = VRamIO->TempVRamAdrs;
 }
 
 
@@ -281,6 +361,7 @@ void scrollIncVert(vram_io *Vram)
         }
     }
 }
+
 
 void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 {    
@@ -403,7 +484,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     
     if(VisibleLine)
     {
-        // NOTE: Do sprite Evaluation and set 'camera' x and y
+        // NOTE: Do sprite Evaluation
         if(Ppu->ScanlineCycle == 0)
         {            
             evaluateSecondaryOam(Ppu->Oam, Ppu->PreparedSprites, Ppu->Scanline);
@@ -536,6 +617,8 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 }
             }
 
+            // TODO: NOTE: SPRITE 0 should only work for the first sprite in the secondary oam ??? Causes problems with scrolling
+            
             // Sprite 0
             if(!BgrdBaseColour && !SprtPixTransparent)
                 Registers->Status = Registers->Status | (1 << 6);
@@ -543,29 +626,30 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             // Draw Pixel
             if(BackgroundEnabled || SpritesEnabled)
                 drawPixel(Ppu, PixelX, PixelY, Colour);
-            
+
             // NOTE: Loading next background information. Also scrolling
             loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
-            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+            if((Ppu->ScanlineCycle % 8) == 0 && (BackgroundEnabled || SpritesEnabled) )
                 scrollIncHorz(VRamIO);            
 
             
-            if(Ppu->ScanlineCycle == 256 && BackgroundEnabled)
+            if(Ppu->ScanlineCycle == 256 && (BackgroundEnabled || SpritesEnabled))
                 scrollIncVert(VRamIO);
         }
 
-        if(Ppu->ScanlineCycle == 257 && BackgroundEnabled)
+        if(Ppu->ScanlineCycle == 257 && (BackgroundEnabled || SpritesEnabled))
             resetScrollHorz(VRamIO);
         
         if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 340)
         {
             loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
-            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+            if((Ppu->ScanlineCycle % 8) == 0 && (BackgroundEnabled || SpritesEnabled))
                 scrollIncHorz(VRamIO);
         }
     }
     if(PostRenderLine)
     {
+        //debugOutputPatternTable(Ppu);
         DrawScreen = true;
     }
     if(VBlankLine)
@@ -573,6 +657,12 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
         if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
         {
             Registers->Status |= (1 << 7); // Set VBlank Status
+
+            // NOTE: if turning on NMI when in vblank. The nmi will be generated immediately.
+            if( (Registers->Status & (1 << 7)) && ( Registers->Ctrl1 & (1 << 7)) )
+            {
+                NmiTriggered = true;
+            }
         }
     }
     if(PreRenderLine)
@@ -582,37 +672,31 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             Registers->Status &= ~(1 << 5); // Clear Sprite Overflow
             Registers->Status &= ~(1 << 6); // Clear Sprite Zero Hit
             Registers->Status &= ~(1 << 7); // Clear Vblank status
+            NmiTriggered = false;
         }
     
         if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
         {
             loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
-            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+            if((Ppu->ScanlineCycle % 8) == 0 && (BackgroundEnabled || SpritesEnabled))
                 scrollIncHorz(VRamIO);
         }
 
-        if(Ppu->ScanlineCycle == 256 && BackgroundEnabled)
+        if(Ppu->ScanlineCycle == 256 && (BackgroundEnabled || SpritesEnabled))
             scrollIncVert(VRamIO);
         
         if(Ppu->ScanlineCycle == 257 && BackgroundEnabled)
             resetScrollHorz(VRamIO);
-        
-        if(280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304 && BackgroundEnabled)
+
+        if(280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304 && (BackgroundEnabled || SpritesEnabled))
             resetScrollVert(VRamIO);
-        
+
         if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 340)
         {            
             loadFutureData(Ppu, &CurrentTile, &NextTile, &LoadingTile);            
-            if((Ppu->ScanlineCycle % 8) == 0 && BackgroundEnabled)
+            if((Ppu->ScanlineCycle % 8) == 0 && (BackgroundEnabled || SpritesEnabled))
                 scrollIncHorz(VRamIO);        
         }
-    }
-
-
-    // NOTE: if turning on NMI when in vblank. The nmi will be generated immediately.
-    if( (Registers->Status & (1 << 7)) && ( Registers->Ctrl1 & (1 << 7)) )
-    {
-        NmiTriggered = true;
     }
     
     ++Ppu->ScanlineCycle;
@@ -630,3 +714,99 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 }
 
 
+
+
+// NOTE: Debug functions
+
+
+// TODO: Not yet functional with atributes.
+void debugOutputPatternTable(ppu *Ppu) {
+    for(int y = 0; y < 128; ++y)
+    {
+        for(int x = 0; x < 128; ++x)
+        {
+            uint8 PatternBase = 0x0000; // 0x1000;
+
+            uint16 PatternIndex = ((y * 128) + x) / 8;
+            
+            uint8 RelX = x % 8;
+            uint8 RelY = y % 8;
+
+            uint64 LowAdrs = PatternBase + (PatternIndex * 16) + RelY;
+            uint8 LowPattern = readPpu8(LowAdrs, Ppu);
+
+            uint64 HighAdrs = PatternBase + (PatternIndex * 16) + RelY + 8;
+            uint8 HighPattern = readPpu8(HighAdrs, Ppu);
+            
+            uint8 PatternValue = ((HighPattern >> (7 - RelX)) & 1) << 1 | (LowPattern  >> (7 - RelX)) & 1;
+
+
+
+            // Attrib
+            uint8 AttribIndex = PatternIndex / 4;
+            uint16 AttribAds = (0x2000 + 0x3C0) + AttribIndex;
+            uint8 Atrb = readPpu8(AttribAds, Ppu);
+            
+/*            
+            
+            uint8 CoarseX = VRamIO->VRamAdrs & 0x001F;
+            uint8 CoarseY = (VRamIO->VRamAdrs & 0x03E0) >> 5 ;
+            uint16 RelX = (X % 8) + VRamIO->FineX;
+            uint16 ActualX = X + VRamIO->FineX; 
+    
+            uint8 BlockRelX = (ActualX % PIXELS_PER_ATRB_BYTE) / 16;
+            uint8 BlockRelY = (CoarseY % 4) / 2;
+
+            uint8 AtrbValue;
+    
+            if(BlockRelX == 0 && BlockRelY == 0)
+                AtrbValue = Attribute;
+            else if(BlockRelX == 1 && BlockRelY == 0)
+                AtrbValue = Attribute >> 2;
+            else if(BlockRelX == 0 && BlockRelY == 1)
+                AtrbValue = Attribute >> 4;
+            else if(BlockRelX == 1 && BlockRelY == 1)
+                AtrbValue = Attribute >> 6;
+
+            AtrbValue &= 3;
+            
+            uint8 BgrdColourIndex = (AtrbValue << 2) | PatternValue;
+
+            uint8 BgrdPaletteIndex = readPpu8(BGRD_PALETTE_ADRS + BgrdColourIndex, Ppu);
+            */
+            uint8 Colour[3] = {};
+
+            //getPaletteValue(BgrdPaletteIndex, Colour);
+
+            
+            if(PatternValue == 0)
+            {
+                Colour[0] = 255;
+                Colour[1] = 0;
+                Colour[2] = 0;
+            }
+            else if(PatternValue == 1)
+            {
+
+                Colour[0] = 0;
+                Colour[1] = 255;
+                Colour[2] = 0;                
+            }
+            else if(PatternValue == 2)
+            {
+                Colour[0] = 0;
+                Colour[1] = 0;
+                Colour[2] = 255;
+
+            }
+            else if(PatternValue == 3)
+            {
+                Colour[0] = 255;
+                Colour[1] = 255;
+                Colour[2] = 255;
+            }
+                        
+            drawPixel(Ppu, x, y, Colour);
+        }
+    }
+}

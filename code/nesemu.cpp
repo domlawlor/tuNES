@@ -115,85 +115,6 @@ internal uint8 read8(uint16 Address, uint64 MemoryOffset)
 }
 
 
-static uint16 ppuMemoryMirror(uint16 InAddress)
-{
-    uint16 Address = InAddress;
-    if(Address >= 0x4000) // Over half of the memory map is mirrored
-        Address = Address % 0x4000; 
-
-    if(0x3F20 <= Address && Address < 0x4000)
-        Address = (Address % (0x3F20 - 0x3F00)) + 0x3F00;
-        
-    if(0x3F00 <= Address && Address < 0x3F20) // Palette
-    {
-        if(Address == 0x3F10)
-            Address = 0x3F00;
-        if(Address == 0x3F14)
-            Address = 0x3F04;
-        if(Address == 0x3F18)
-            Address = 0x3F08;
-        if(Address == 0x3F1C)
-            Address = 0x3F0C;
-        if(Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C)
-            Address = 0x3F00;
-    }
-   
-    // NOTE: Nametable Mirroring. Controlled by Cartridge
-    if(0x3000 <= Address && Address < 0x3F00) // This first as it maps to the nametable range
-        Address = (Address % 0x0F00) + 0x2000;
-    
-    if(Address >= 0x2000 && Address < 0x3000) 
-    {
-        switch(GlobalMirrorType)
-        {
-            case SINGLE_SCREEN_MIRROR:
-            {
-                Address = (Address % 0x0400) + 0x2000;
-                break;
-            }
-            case VERTICAL_MIRROR:
-            {
-                if(Address >= 0x2800 && Address < 0x2C00)
-                    Address = (Address % 0x0400) + 0x2000;
-                if(Address >= 0x2C00)
-                    Address = (Address % 0x0400) + 0x2400;
-                break;
-            }
-            case HORIZONTAL_MIRROR:
-            {
-                if(Address >= 0x2400 && Address < 0x2800)
-                    Address = (Address % 0x0400) + 0x2000;
-                if(Address >= 0x2C00)
-                    Address = (Address % 0x0400) + 0x2800;
-                break;
-            }
-            case FOUR_SCREEN_MIRROR:
-            {
-                break;
-            }
-            default:
-            {
-                Assert(0);
-                break;
-            }
-        }
-    }
-
-#if 1
-    // Debug tests, first is doing mirror again to see if it changes,
-    // if so then need to reorder mirror
-    uint16 TestAddress = Address;
-    if(InAddress != Address)
-        TestAddress = ppuMemoryMirror(Address); 
-    Assert(TestAddress == Address);
-    Assert(Address < 0x4000);
-    Assert( !(Address >= 0x3F20 && Address < 0x4000) );
-    Assert( !(Address >= 0x3000 && Address < 0x3F00) );
-#endif
-
-    return Address;
-}
-
 #define ID_OPEN_ROM_ITEM        1001
 #define ID_CLOSE_ROM_ITEM        1002
 #define ID_QUIT_ITEM            1003
@@ -779,7 +700,7 @@ power(nes *Nes)
     if(PowerOn)
     {
         loadCartridge(Nes, RomFileName);
-        Nes->Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes->Cpu);        
+        Nes->Cpu.PrgCounter = (read8(RESET_VEC+1, Nes->Cpu.MemoryBase) << 8) | read8(RESET_VEC, Nes->Cpu.MemoryBase);
     }
     else
     {
@@ -887,7 +808,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)ScreenBackBuffer.Memory, (ppu_registers *)PpuRegisterLocation);
             Nes.Cpu.PpuVramIO = &Nes.Ppu.VRamIO;
             
-            loadCartridge(&Nes, "Donkey Kong.nes");
+            loadCartridge(&Nes, "Mario Bros.nes");
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
