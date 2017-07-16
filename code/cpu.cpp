@@ -142,11 +142,11 @@ internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
         VRamAdrsChange = true;
     if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
         IOWriteFromCpu = true;
-    
 
+    // Update the nametable
     if(Address == 0x2000)
     {
-        Cpu->PpuVramIO->TempVRamAdrs |= (Byte & 3) << 10;
+        Cpu->PpuVramIO->TempVRamAdrs |= ((uint16)Byte & 3) << 10;
     }
 
     

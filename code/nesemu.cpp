@@ -751,7 +751,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     /* NOTE : Screen back buffer creation */
     
     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
-    uint8 ResScale = 5;
+    uint8 ResScale = 2;
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
@@ -812,7 +812,6 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
-
 
             /*****************/
             /* NOTE : Timing */

@@ -239,8 +239,9 @@ static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *SecondaryOam, uint16 Sc
         if(Scanline >= Sprite->Y && Scanline < (Sprite->Y + PIXEL_PER_TILE))
         {
             if(PreparedCount < SECOND_OAM_SPRITE_NUM)
+            {
                 SecondaryOam[PreparedCount++] = *Sprite;
-
+            }
             if(Sprite->Y == 0xFF)
                 Assert(1);
         }
@@ -265,7 +266,7 @@ void resetScrollVert(vram_io *VRamIO)
 
 void scrollIncHorz(vram_io *Vram)
 {
-    // NOTE: Code take from nesdev wiki. Could be quicker??
+// NOTE: Code take from nesdev wiki. Could be quicker??
     if ((Vram->VRamAdrs & 0x001F) == 31) // if coarse X == 31
     {
         Vram->VRamAdrs &= ~0x001F;  // coarse X = 0
@@ -410,8 +411,9 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     {
         SpritePatternBase = 0x1000;        
     }
-    
 
+    bool32 ClipLeftMostBackground = (Registers->Ctrl2 & (1 << 1)) == 0;
+    bool32 ClipLeftMostSprite = (Registers->Ctrl2 & (1 << 1)) == 0;
     bool32 BackgroundEnabled = Registers->Ctrl2 & (1 << 3);
     bool32 SpritesEnabled = Registers->Ctrl2 & (1 << 4);
     
@@ -462,34 +464,45 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 Ppu->SpriteTileLow[SpriteIdx] = readPpu8(LowAddress, Ppu);
                 Ppu->SpriteTileHigh[SpriteIdx] = readPpu8(HighAddress, Ppu);                
             }
+
+            // NOTE: Cycle zero of the first scanline is skipped if it is an odd frame
+            // Only if rendering is on
+            // TODO: Clean up
+            static bool32 oddFrame = false;
+            if(oddFrame && BackgroundEnabled)
+                Ppu->ScanlineCycle += 1;
+            oddFrame = !oddFrame;
         }
 
-        // TODO: Move to a proper scanline timing. Will have to create a new prepared sprites struct?
         if(Ppu->ScanlineCycle == 257)
         {
             clearSecondaryOam(Ppu->SecondaryOam);          
             evaluateSecondaryOam(Ppu->Oam, Ppu->SecondaryOam, Ppu->Scanline);
         }   
-        
-        
+                
         if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
         {
             if(BackgroundEnabled || SpritesEnabled)
             {
                 uint16 PixelX = Ppu->ScanlineCycle - 1;
                 uint16 PixelY = Ppu->Scanline;
-
-                uint8 XOffset = 15 - (VRamIO->FineX + ((PixelX-1) % 8));
                 
                 /* *********************** */
                 /* Background Calculations */
- 
-                uint8 PatternPixelValue = (((HighPatternShiftReg >> (XOffset - 1) ) & 2) |
-                                           (LowPatternShiftReg >> XOffset) & 1);
-                uint8 AtrbPixelValue = (XOffset >= 8) ? PaletteLatchOld : PaletteLatchNew;
 
-                uint8 BgrdColourIndex = AtrbPixelValue | PatternPixelValue;
+                uint8 BgrdColourIndex;
+                
+                if(!(ClipLeftMostBackground && PixelX < 8))
+                {
+                    uint8 XOffset = 15 - (VRamIO->FineX + ((PixelX-1) % 8));
+                
+                    uint8 PatternPixelValue = (((HighPatternShiftReg >> (XOffset - 1) ) & 2) |
+                                               (LowPatternShiftReg >> XOffset) & 1);
+                    uint8 AtrbPixelValue = (XOffset >= 8) ? PaletteLatchOld : PaletteLatchNew;
 
+                    BgrdColourIndex = AtrbPixelValue | PatternPixelValue;
+                }
+                
                 /* ******************* */
                 /* Sprite Calculations */
 
@@ -498,42 +511,43 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 #define NO_COLOUR 0xFF
                 oam_sprite *Sprite;
                 uint8 SpriteColourIndex = NO_COLOUR;
-
-                for(int8 SpriteIdx = SECOND_OAM_SPRITE_NUM - 1; SpriteIdx >= 0; --SpriteIdx)
+                if( !(ClipLeftMostSprite && PixelX < 8) )
                 {
-                    Sprite = Ppu->SecondaryOam + SpriteIdx; 
-
-                    bool32 FlippedHorz = Sprite->Atrb & (1 << 6);
-                                
-                    if(PixelX >= Sprite->X && PixelX < (Sprite->X + PIXEL_PER_TILE)) 
+                    for(int8 SpriteIdx = SECOND_OAM_SPRITE_NUM - 1; SpriteIdx >= 0; --SpriteIdx)
                     {
-                        uint8 PixColourHigh = Sprite->Atrb & 3; 
-                        uint8 PatternLow = Ppu->SpriteTileLow[SpriteIdx];
-                        uint8 PatternHigh = Ppu->SpriteTileHigh[SpriteIdx];
-                        
-                        uint8 RelX = (PixelX - Sprite->X) % 8 ; 
+                        Sprite = Ppu->SecondaryOam + SpriteIdx;
 
-                        uint8 LowPattern;
-                        uint8 HighPattern;
-                    
-                        if(FlippedHorz)
+                        if(PixelX >= Sprite->X+1 && PixelX < (Sprite->X+1 + PIXEL_PER_TILE)) 
                         {
-                            LowPattern  = (PatternLow >> RelX) & 1;
-                            HighPattern = (PatternHigh >> RelX) & 1;
-                        }
-                        else
-                        {
-                            LowPattern  = (PatternLow >> (7 - RelX)) & 1;
-                            HighPattern = (PatternHigh >> (7 - RelX)) & 1;
-                        }
-                    
-                        uint8 Value = (HighPattern << 1) | LowPattern;
-                    
-                        if((((PixColourHigh << 2) | Value) % 4) != 0)
-                            SpriteColourIndex = (PixColourHigh << 2) | Value;
+                            uint8 PixColourHigh = Sprite->Atrb & 3; 
+                            uint8 PatternLow = Ppu->SpriteTileLow[SpriteIdx];
+                            uint8 PatternHigh = Ppu->SpriteTileHigh[SpriteIdx];
+                            uint8 LowPattern;
+                            uint8 HighPattern;
 
-                        if(SpriteIdx == 0 && ((SpriteColourIndex % 4) != 0) && SpriteColourIndex != NO_COLOUR)
-                            Sprite0Check = true;
+                            if(Sprite->Atrb & (1 << 6))
+                            {
+                                uint8 RelX = ((PixelX - (Sprite->X + 1)) % 8); 
+                                LowPattern  = (PatternLow >> RelX) & 1;
+                                HighPattern = (PatternHigh >> RelX) & 1;
+                            }                        
+                            else
+                            {
+                                uint8 RelX = ((PixelX - (Sprite->X + 1)) % 8);
+                                LowPattern  = (PatternLow >> (7 - RelX)) & 1;
+                                HighPattern = (PatternHigh >> (7 - RelX)) & 1;
+                            }
+                    
+                            uint8 Value = (HighPattern << 1) | LowPattern;
+                    
+                            if((((PixColourHigh << 2) | Value) % 4) != 0)
+                                SpriteColourIndex = (PixColourHigh << 2) | Value;
+
+                            if(SpriteIdx == 0 && ((SpriteColourIndex % 4) != 0) && SpriteColourIndex != NO_COLOUR)
+                            {
+                                Sprite0Check = true;
+                            }
+                        }
                     }
                 }
 
@@ -570,16 +584,8 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                     }
                 }
 
-                // TODO: NOTE: SPRITE 0 should only work for the first sprite in the secondary oam ??? Causes problems with scrolling
-
-                /*
-                // Sprite 0
-                if(!BgrdBaseColour && !SprtPixTransparent)
-                Registers->Status = Registers->Status | (1 << 6);
-                */
                 if(SpritesEnabled && !BgrdBaseColour && Sprite0Check)
                 {
-                    Sprite0Check = false;
                     Registers->Status = Registers->Status | (1 << 6);
                 }
             
@@ -609,7 +615,6 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     }
     if(PostRenderLine)
     {
-        //debugOutputPatternTable(Ppu);
         DrawScreen = true;
     }
     if(VBlankLine)
@@ -637,9 +642,9 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
         
         if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
         {
-            loadFutureData(Ppu);
             if((Ppu->ScanlineCycle % 8) == 0 && (BackgroundEnabled || SpritesEnabled))
                 scrollIncHorz(VRamIO);
+            loadFutureData(Ppu);
         }
 
         if(Ppu->ScanlineCycle == 256 && (BackgroundEnabled || SpritesEnabled))
@@ -653,14 +658,17 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 
         if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 340)
         {            
-            loadFutureData(Ppu);
             if((Ppu->ScanlineCycle % 8) == 0 && (BackgroundEnabled || SpritesEnabled))
                 scrollIncHorz(VRamIO);        
+            loadFutureData(Ppu);
         }
     }
-    
-    ++Ppu->ScanlineCycle;
 
+
+    // Incrementing to the next cycle. If reached end of
+    // scanline cycles then increment scanline.
+    ++Ppu->ScanlineCycle;
+    
     if(Ppu->ScanlineCycle == 341)
     {
         Ppu->Scanline += 1;
