@@ -132,7 +132,7 @@ internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
     Address = cpuMemoryMirror(Address);
 
     if(Address == 0x2002)
-        Assert(0);
+        return;//Assert(0);
     
     write8(Byte, Address, Cpu->MemoryBase);
 
@@ -149,7 +149,6 @@ internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
         Cpu->PpuVramIO->TempVRamAdrs |= ((uint16)Byte & 3) << 10;
     }
 
-    
     if(Address == 0x2004) // OAM data
         OamDataChange = true;
 

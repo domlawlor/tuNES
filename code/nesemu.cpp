@@ -751,7 +751,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     /* NOTE : Screen back buffer creation */
     
     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
-    uint8 ResScale = 2;
+    uint8 ResScale = 3;
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
