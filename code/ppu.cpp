@@ -5,79 +5,15 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
+#include "memory.cpp"
 #include "palette.cpp"
 
-#define PIXEL_WIDTH 256
-#define PIXEL_HEIGHT 240
 
-#define TILES_COUNT_X 32
-#define TILES_COUNT_Y 30
-
-#define PIXEL_PER_TILE 8
-
-#define BGRD_PALETTE_ADRS 0x3F00
-#define SPRT_PALETTE_ADRS 0x3F10
-
-#define ATTRIBUTE_OFFSET 0x3C0
-
-#define PIXELS_PER_TILE 8
-
-#define PIXELS_PER_ATRB_BYTE 32
-#define ATRB_BYTE_PER_ROW 8
-
-#define SECOND_OAM_SPRITE_NUM 8
-
-struct oam_sprite
+static void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
 {
-    uint8 Y;
-    uint8 Tile;
-    uint8 Atrb;
-    uint8 X;
-};
-
-struct ppu_registers
-{
-    uint8 Ctrl1;
-    uint8 Ctrl2;
-    uint8 Status;
-    uint8 OamAddress;
-    uint8 OamIO;
-    uint8 ScrollAddress;
-    uint8 VRamAddress;
-    uint8 VRamIO;
-};
-          
-struct vram_io
-{
-    uint16 VRamAdrs;
-    uint16 TempVRamAdrs;
-    uint8 LatchWrite;
-    uint8 FineX;
-};
-
-struct ppu
-{
-    uint64 MemoryBase;
-    uint32 *BasePixel;
-    
-    ppu_registers *Registers; // NOTE: Pointer because points to cpu memory
-
-    uint8 *OamDma;
-    
-    uint8 Oam[OAM_SIZE];
-    oam_sprite SecondaryOam[SECOND_OAM_SPRITE_NUM];
-    uint8 SpriteTileLow[SECOND_OAM_SPRITE_NUM];
-    uint8 SpriteTileHigh[SECOND_OAM_SPRITE_NUM];
-    bool32 EnabledSprite[SECOND_OAM_SPRITE_NUM];
-    
-    uint16 Scanline;
-    uint16 ScanlineCycle;
-
-    vram_io VRamIO;
-
-    bool32 OddFrame;
-};
-
+    uint32 *CurrentPixel = (Ppu->BasePixel + (Y * PIXEL_WIDTH)) + X;
+    *CurrentPixel  = ((Colour[0] << 16) | (Colour[1] << 8) | Colour[2]);
+}
 
 uint16 LowPatternShiftReg;
 uint16 HighPatternShiftReg;
@@ -88,104 +24,6 @@ uint8 NextLowPattern;
 uint8 NextHighPattern;
 uint8 NextAtrbByte;
 uint16 NextNametableAdrs;
-
-
-inline void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
-{
-    uint32 *CurrentPixel = (Ppu->BasePixel + (Y * PIXEL_WIDTH)) + X;
-    *CurrentPixel  = ((Colour[0] << 16) | (Colour[1] << 8) | Colour[2]);
-}
-
-
-static uint16 ppuMemoryMirror(uint16 InAddress)
-{
-    uint16 Address = InAddress;
-    if(Address >= 0x4000) // Over half of the memory map is mirrored
-        Address = Address % 0x4000; 
-
-    if(0x3F20 <= Address && Address < 0x4000)
-        Address = (Address % (0x3F20 - 0x3F00)) + 0x3F00;
-        
-    if(0x3F00 <= Address && Address < 0x3F20) // Palette
-    {
-        if(Address == 0x3F10)
-            Address = 0x3F00;
-        if(Address == 0x3F14)
-            Address = 0x3F04;
-        if(Address == 0x3F18)
-            Address = 0x3F08;
-        if(Address == 0x3F1C)
-            Address = 0x3F0C;
-        if(Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C)
-            Address = 0x3F00;
-    }
-   
-    // NOTE: Nametable Mirroring. Controlled by Cartridge
-    if(0x3000 <= Address && Address < 0x3F00) // This first as it maps to the nametable range
-        Address = (Address % 0x0F00) + 0x2000;
-    
-    if(Address >= 0x2000 && Address < 0x3000) 
-    {
-        switch(GlobalMirrorType)
-        {
-            case SINGLE_SCREEN_MIRROR:
-            {
-                Address = (Address % 0x0400) + 0x2000;
-                break;
-            }
-            case VERTICAL_MIRROR:
-            {
-                if(Address >= 0x2800 && Address < 0x3000)
-                    Address -= 0x0800;
-                break;
-            }
-            case HORIZONTAL_MIRROR:
-            {
-                if( (Address >= 0x2400 && Address < 0x2800) ||
-                    (Address >= 0x2C00 && Address < 0x3000) )
-                    Address -= 0x0400; 
-                break;
-            }
-            case FOUR_SCREEN_MIRROR:
-            {
-                break;
-            }
-            default:
-            {
-                Assert(0);
-                break;
-            }
-        }
-    }
-
-#if 1
-    // Debug tests, first is doing mirror again to see if it changes,
-    // if so then need to reorder mirror
-    uint16 TestAddress = Address;
-    if(InAddress != Address)
-        TestAddress = ppuMemoryMirror(Address); 
-    Assert(TestAddress == Address);
-    Assert(Address < 0x4000);
-    Assert( !(Address >= 0x3F20 && Address < 0x4000) );
-    Assert( !(Address >= 0x3000 && Address < 0x3F00) );
-#endif
-
-    return Address;
-}
-
-internal uint8 readPpu8(uint16 Address, ppu *Ppu)
-{
-    Address = ppuMemoryMirror(Address);
-         
-    uint8 Result = read8(Address, Ppu->MemoryBase);
-    return(Result);
-}
-internal void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
-{    
-    Address = ppuMemoryMirror(Address);
-    write8(Byte, Address, Ppu->MemoryBase);
-}
-
 
 void resetScrollHorz(vram_io *VRamIO)
 {   
@@ -249,7 +87,7 @@ static void loadFutureData(ppu *Ppu)
                 
         uint16 NametableAddress = 0x2000 | (Ppu->VRamIO.VRamAdrs & 0x0FFF);
         NextNametableAdrs = readPpu8(NametableAddress, Ppu) << 4;
-        NextNametableAdrs += (Ppu->Registers->Ctrl1 & (1 << 4)) ? 0x1000 : 0;        
+        NextNametableAdrs += Ppu->BGPatternBase;
     }
     if(Cycle == 2)
     {
@@ -261,7 +99,7 @@ static void loadFutureData(ppu *Ppu)
         NextAtrbByte = ((0xFF & Atrb) >> (quadrantSelect*2)) & 3;       
     }   
     if(Cycle == 4)
-    {
+    {        
         NextNametableAdrs = NextNametableAdrs + ((Ppu->VRamIO.VRamAdrs & 0x7000) >> 12);
         NextLowPattern = readPpu8(NextNametableAdrs, Ppu);
     }
@@ -317,14 +155,10 @@ static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *SecondaryOam, uint16 Sc
 
 static void spriteEvaluation(ppu *Ppu)
 {
-    uint16 Sprite8x16 = Ppu->Registers->Ctrl1 & (1 << 5);
+    uint16 Sprite8x16 = Ppu->SpriteSize8x16;
     
-    uint16 SpritePatternBase = 0x0000;
-    if(!Sprite8x16 && Ppu->Registers->Ctrl1 & (1 << 3))
-    {
-        SpritePatternBase = 0x1000;        
-    }
-
+    uint16 SpritePatternBase = Ppu->SPRTPattenBase;
+    
     for(uint8 SpriteIdx = 0; SpriteIdx < SECOND_OAM_SPRITE_NUM; ++SpriteIdx)
     {
         oam_sprite Sprite = Ppu->SecondaryOam[SpriteIdx];
@@ -367,113 +201,12 @@ static void spriteEvaluation(ppu *Ppu)
 
 void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 {    
-    ppu_registers *Registers = Ppu->Registers;
+    ppu_registers *Registers = &Ppu->Registers;
     vram_io *VRamIO = &Ppu->VRamIO; 
-    
-    if(OamDataChange)
-    {
-        OamDataChange = false;
-        Ppu->Oam[Registers->OamAddress] = Registers->OamIO;
-        ++Registers->OamAddress;
-    }
 
-    if(ScrollAdrsChange)
-    {
-        ScrollAdrsChange = false;
-
-        if(VRamIO->LatchWrite == 0)
-        {
-            VRamIO->FineX = Registers->ScrollAddress & 7; // Bit 0,1, and 2 are fine X
-            VRamIO->TempVRamAdrs &= ~(0x001F); // Clear Bits
-            VRamIO->TempVRamAdrs |= ((uint16)Registers->ScrollAddress) >> 3;
-            VRamIO->LatchWrite = 1;
-        }
-        else
-        {
-            VRamIO->TempVRamAdrs &= ~(0x73E0); // Clear Bits
-            VRamIO->TempVRamAdrs |= ((uint16)(Registers->ScrollAddress & 0x0007)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
-            VRamIO->TempVRamAdrs |= ((uint16)(Registers->ScrollAddress & 0x00F8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
-            VRamIO->LatchWrite = 0;
-        }
-    }
+    bool32 RenderingEnabled = Ppu->ShowBackground || Ppu->ShowSprites;
     
-    // NOTE: This is where data is transferred from Cpu via IO registers
-    if(VRamAdrsChange)
-    {
-        VRamAdrsChange = false;
-
-        if(VRamIO->LatchWrite == 0)
-        {
-            VRamIO->TempVRamAdrs &= ~(0x7F00); // Clear Bits. 14th bit does not get set again
-            VRamIO->TempVRamAdrs |= ((uint16)(Registers->VRamAddress & 0x003F)) << 8;
-            VRamIO->LatchWrite = 1;
-        }
-        else
-        { 
-            VRamIO->TempVRamAdrs &= ~(0x00FF); // Clear Bit that are about to be loaded
-            VRamIO->TempVRamAdrs |= (uint16)(Registers->VRamAddress & 0x00FF); 
-            VRamIO->VRamAdrs = VRamIO->TempVRamAdrs;
-            VRamIO->LatchWrite = 0;
-            
-            // NOTE: If address is on the pallette. Then IO register is updated immediately
-            if(0x3F00 <= VRamIO->VRamAdrs && VRamIO->VRamAdrs <= 0x3FFF)
-                Registers->VRamIO = readPpu8(VRamIO->VRamAdrs, Ppu);
-        }
-    }
-
-    if(IOWriteFromCpu)
-    {
-        IOWriteFromCpu = false;
-        
-        writePpu8(Registers->VRamIO, VRamIO->VRamAdrs, Ppu);
-        if(Registers->Ctrl1 & (1 << 2))
-            VRamIO->VRamAdrs += 32;
-        else
-            VRamIO->VRamAdrs += 1;
-    }
-
-    bool32 VRamAdrsOnPalette = (0x3F00 <= VRamIO->VRamAdrs && VRamIO->VRamAdrs <= 0x3FFF);
-    
-    if(IOReadFromCpu)
-    {
-        IOReadFromCpu = false;
-
-        if(VRamAdrsOnPalette)
-        {
-            if(Registers->Ctrl1 & (1 << 2))
-                VRamIO->VRamAdrs += 32;
-            else
-                VRamIO->VRamAdrs += 1;
-            Registers->VRamIO = readPpu8(VRamIO->VRamAdrs, Ppu);
-        }
-        else
-        {
-            Registers->VRamIO = readPpu8(VRamIO->VRamAdrs, Ppu);
-            if(Registers->Ctrl1 & (1 << 2))
-                VRamIO->VRamAdrs += 32;
-            else
-                VRamIO->VRamAdrs += 1;
-        }
-    }
-    
-    if(ResetVRamIOAdrs)
-    {
-        VRamIO->LatchWrite = 0;
-        ResetVRamIOAdrs = false;
-    }
-    if(ResetScrollIOAdrs)
-    {
-        VRamIO->LatchWrite = 0;
-        ResetScrollIOAdrs = false;
-    }
-    
-    bool32 ClipLeftMostBackground = (Registers->Ctrl2 & (1 << 1)) == 0;
-    bool32 ClipLeftMostSprite = (Registers->Ctrl2 & (1 << 1)) == 0;
-    
-    bool32 BackgroundEnabled = Registers->Ctrl2 & (1 << 3);
-    bool32 SpritesEnabled = Registers->Ctrl2 & (1 << 4);
-    bool32 RenderingEnabled = BackgroundEnabled || SpritesEnabled;
-    
+    // TODO: Should pre render line actually be scanline zero instead?? Might put sprites in wrong position?
     bool32 VisibleLine = (0 <= Ppu->Scanline && Ppu->Scanline <= 239);
     bool32 PostRenderLine = (Ppu->Scanline == 240);
     bool32 VBlankLine = (241 <= Ppu->Scanline && Ppu->Scanline <= 260);
@@ -485,12 +218,6 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
         if(Ppu->ScanlineCycle == 0)
         {
             spriteEvaluation(Ppu);
-            
-            // NOTE: Cycle zero of the first scanline is skipped if it is an odd frame
-            // Only if rendering is on
-            if(Ppu->OddFrame && RenderingEnabled && Ppu->Scanline == 0)
-                Ppu->ScanlineCycle += 1;
-            Ppu->OddFrame = !Ppu->OddFrame;
         }
 
         if(Ppu->ScanlineCycle == 257)
@@ -511,7 +238,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 
                 uint8 BgrdColourIndex;
                 
-                if(!(ClipLeftMostBackground && PixelX < 8))
+                if(!(Ppu->ShowBGLeft8Pixels && PixelX < 8))
                 {
                     uint8 XOffset = 15 - (VRamIO->FineX + ((PixelX-1) % 8));
                 
@@ -531,7 +258,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 #define NO_COLOUR 0xFF
                 oam_sprite *Sprite;
                 uint8 SpriteColourIndex = NO_COLOUR;
-                if( !(ClipLeftMostSprite && PixelX < 8) )
+                if( !(Ppu->ShowSPRTLeft8Pixels && PixelX < 8) )
                 {
                     for(int8 SpriteIdx = SECOND_OAM_SPRITE_NUM - 1; SpriteIdx >= 0; --SpriteIdx)
                     {
@@ -579,7 +306,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 uint8 Colour[3] = {};
                 bool32 BgrdTransparent = true;
             
-                if(BackgroundEnabled)
+                if(Ppu->ShowBackground)
                 {
                     if((BgrdColourIndex & 3) != 0)
                         BgrdTransparent = false;
@@ -590,7 +317,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 
                 bool32 SpriteTransparent = true; 
             
-                if(SpritesEnabled)
+                if(Ppu->ShowSprites)
                 {
                     if((SpriteColourIndex & 3) != 0)
                         SpriteTransparent = false;
@@ -603,7 +330,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                             getPaletteValue(SprtPaletteIndex, Colour);                        
                         }
 
-                        if(!BgrdTransparent && Sprite0Check)
+                        if(!BgrdTransparent && Sprite0Check && Ppu->ScanlineCycle != 256 && Ppu->Scanline != 255 && !Ppu->ShowSPRTLeft8Pixels)
                         {
                             Registers->Status = Registers->Status | (1 << 6);
                         }
@@ -630,10 +357,11 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     {
         if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
         {
-            Registers->Status |= (1 << 7); // Set VBlank Status
+            if(!PpuStatusReadLastCycle)
+                Registers->Status |= (1 << 7); // Set VBlank Status
 
             // NOTE: if turning on NMI when in vblank. The nmi will be generated immediately.
-            if( (Registers->Status & (1 << 7)) && ( Registers->Ctrl1 & (1 << 7)) )
+            if( Ppu->GenerateNMI && Ppu->VerticalBlank )
             {
                 NmiTriggered = true;
             }
@@ -648,18 +376,29 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             Registers->Status &= ~(1 << 7); // Clear Vblank status
             NmiTriggered = false;
         }
-        
-        if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256 && RenderingEnabled)
-            loadFutureData(Ppu);
-        if(Ppu->ScanlineCycle == 257 && RenderingEnabled)
-            resetScrollHorz(VRamIO);
-        if(280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304 && RenderingEnabled)
-            resetScrollVert(VRamIO);
-        if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 336 && RenderingEnabled)
-            loadFutureData(Ppu);
+
+        if(RenderingEnabled)
+        {
+            if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
+                loadFutureData(Ppu);
+            if(Ppu->ScanlineCycle == 257)
+                resetScrollHorz(VRamIO);
+            if(Ppu->ScanlineCycle == 279)
+                VRamIO->TempVRamAdrs |= ((uint16)Registers->Control & 3) << 10;
+            if(280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304)
+                resetScrollVert(VRamIO);
+            if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 336)
+                loadFutureData(Ppu);
+
+            // NOTE: Last cycle of prerender is skipped if it is an odd frame
+            if(Ppu->OddFrame && Ppu->ScanlineCycle == 339)
+                Ppu->ScanlineCycle += 1;
+        }
     }
 
-
+    Ppu->OddFrame = !Ppu->OddFrame;
+    PpuStatusReadLastCycle = false;
+        
     // Incrementing to the next cycle. If reached end of
     // scanline cycles then increment scanline.
     ++Ppu->ScanlineCycle;

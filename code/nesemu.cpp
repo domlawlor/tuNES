@@ -1,9 +1,6 @@
 #include <windows.h>
-
 #include <stdio.h>
 
-#define internal static 
-#define local_static static 
 #define global static
 
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
@@ -83,7 +80,7 @@ global bool32 GlobalRunning;
 global uint8 GlobalMirrorType = 0;
 
 
-internal real32 getMilliSeconds(uint64 PerfCountFrequency)
+static real32 getMilliSeconds(uint64 PerfCountFrequency)
 {
     LARGE_INTEGER Counter;
     QueryPerformanceCounter(&Counter);
@@ -94,24 +91,11 @@ internal real32 getMilliSeconds(uint64 PerfCountFrequency)
     return(MSElapsed);
 }
 
-internal void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
+static void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
 {
     // NOTE: Very basic copy. Not bounds protection
     for(uint16 Byte = 0; Byte < Size; ++Byte)
         Dest[Byte] = Src[Byte];
-}
-
-internal void write8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
-{   
-    uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
-    *NewAddress = Byte;
-}
-
-internal uint8 read8(uint16 Address, uint64 MemoryOffset)
-{
-    uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
-    uint8 Value = *NewAddress;
-    return(Value);
 }
 
 
@@ -298,7 +282,7 @@ WinInputCallback(HWND WindowHandle, UINT Message,
     return Result;
 }
 
-internal void * LoadFile(char * Filename, uint32 *Size)
+static void * LoadFile(char * Filename, uint32 *Size)
 {
     void *FileData = 0;
     
@@ -343,50 +327,22 @@ global uint8 *OamData = 0;
 bool32 NmiTriggered = false;
 bool32 IrqTriggered = false;
 
+bool32 PpuStatusReadLastCycle = false;
+
 bool32 OamDataChange = false;
 
-global uint64 GlobalCpuMemoryBase = 0;
-global uint64 GlobalPpuMemoryBase = 0;
 
 // TODO: This will change location once other functions above get relocated.
 #include "ppu.cpp"
 #include "cpu.cpp"
 
-struct cartridge
-{
-    char * FileName;
-    uint32 FileSize;
-    uint8 * Data;
+#include "nes.h"
 
-    uint8 PrgBankCount;
-    uint8 * PrgData;
 
-    uint8 ChrBankCount;
-    uint8 * ChrData;
-    
-    uint8 PrgRamSize;
 
-    uint8 MapperNum;
 
-    uint16 ExtRegister;
-    
-    bool32 UseVertMirror;
-    bool32 HasBatteryRam;
-    bool32 HasTrainer;
-    bool32 UseFourScreenMirror;
 
-    uint8 MapperInternalReg;
-};
-
-struct nes
-{
-    cpu Cpu;
-    ppu Ppu;
-    //Apu
-    cartridge Cartridge;
-};
-
-internal void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
+static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
 {
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
@@ -395,7 +351,7 @@ internal void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
 }
 
 
-internal void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
+static void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
 {
     if(Buffer->Memory)
     {
@@ -418,7 +374,7 @@ internal void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Heigh
     Buffer->Pitch = Width * Buffer->BytesPerPixel;
 }
 
-internal void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
+static void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
                                uint16 WindowWidth, uint16 WindowHeight)
 {                
     StretchDIBits(DeviceContext,
@@ -442,7 +398,7 @@ initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel, ppu_registers * PpuRegi
     OamData = Ppu->Oam;
 
     Ppu->MemoryBase = MemoryBase;
-    Ppu->Registers = PpuRegisters;
+    Ppu->Registers = *PpuRegisters;
     Ppu->BasePixel = BasePixel;
 }
 
@@ -710,11 +666,9 @@ power(nes *Nes)
 
         MemoryBase = Nes->Ppu.MemoryBase;
         uint32 *BasePixel = Nes->Ppu.BasePixel;
-        ppu_registers *Registers = Nes->Ppu.Registers; 
         Nes->Ppu = {};
         Nes->Ppu.MemoryBase = MemoryBase;
         Nes->Ppu.BasePixel = BasePixel;
-        Nes->Ppu.Registers = Registers;
     }
 }
 
@@ -727,7 +681,7 @@ reset(nes *Nes)
     Nes->Cpu.StackPtr -= 3;
     setInterrupt(&Nes->Cpu.Flags);
 
-    ppu_registers *PpuReg = Nes->Ppu.Registers;
+    /*
     PpuReg->Ctrl1 = 0;
     PpuReg->Ctrl2 = 0;
     PpuReg->ScrollAddress = 0;
@@ -737,7 +691,8 @@ reset(nes *Nes)
     PpuIO->TempVRamAdrs = 0;
     PpuIO->LatchWrite = 0;
     PpuIO->FineX = 0;
-}
+    */
+    }
 
 int CALLBACK
 WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
@@ -751,7 +706,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     /* NOTE : Screen back buffer creation */
     
     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
-    uint8 ResScale = 3;
+    uint8 ResScale = 4;
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
@@ -801,12 +756,17 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             GlobalCpuMemoryBase = CpuMemoryBase;
             GlobalPpuMemoryBase = PpuMemoryBase;
 
+            char MemoryInfoBuffer[64];
+            sprintf(MemoryInfoBuffer, "Cpu Base = %X , Ppu Base = %X\n", (uint32)CpuMemoryBase, (uint32)PpuMemoryBase);
+            OutputDebugString(MemoryInfoBuffer);
+            
             uint64 PpuRegisterLocation = CpuMemoryBase + PPU_REG_ADRS;
             
             nes Nes = {};
             initCpu(&Nes.Cpu, CpuMemoryBase);
             initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)ScreenBackBuffer.Memory, (ppu_registers *)PpuRegisterLocation);
-            Nes.Cpu.PpuVramIO = &Nes.Ppu.VRamIO;
+            GlobalCpu = &Nes.Cpu;
+            GlobalPpu = &Nes.Ppu;
             
             loadCartridge(&Nes, "Mario Bros.nes");
 

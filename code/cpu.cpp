@@ -5,250 +5,20 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
-#define NMI_VEC     0xFFFA
-#define RESET_VEC   0xFFFC
-#define IRQ_BRK_VEC 0xFFFE 
-#define INSTRUCTION_COUNT 256
-#define STACK_ADDRESS 0x100
+#include "cpu.h"
 
-struct cpu
-{
-    uint8 A;
-    uint8 X;
-    uint8 Y; 
-    uint8 Flags;
-    uint8 StackPtr;
-    uint16 PrgCounter;
-    uint64 MemoryBase;
-
-    uint8  MapperReg;
-    uint16 MapperWriteAddress;
-    bool32 MapperWrite;
-    uint8 MapperWriteCount;
-    
-    bool32 PadStrobe; 
-    
-    input InputPad1;
-    uint8 Pad1CurrentButton;
-
-    input InputPad2;
-    uint8 Pad2CurrentButton;
-
-    vram_io *PpuVramIO;   
-};
-
-static uint16 cpuMemoryMirror(uint16 Address)
-{
-    // NOTE: Mirrors the address for the 2kb ram 
-    if(0x0800 <= Address && Address < 0x2000)
-        Address = (Address % 0x0800);
-    // NOTE: Mirror for PPU Registers
-    if(0x2008 <= Address && Address < 0x4000)
-        Address = (Address % (0x2008 - 0x2000)) + 0x2000;
-    return(Address);
-}
-
-static void ppuIORead(uint16 Address, vram_io *VRamIO)
-{
-    uint8 PpuCtrl1 = read8(0x2000, GlobalCpuMemoryBase);
-    
-    uint16 PpuAddress = ppuMemoryMirror(VRamIO->VRamAdrs);
-    uint8 NewRegValue = read8(PpuAddress, GlobalPpuMemoryBase);
-    
-    bool32 OnPpuPalette = (0x3F00 <= VRamIO->VRamAdrs && VRamIO->VRamAdrs < 0x4000);
-    
-    if(OnPpuPalette)
-    {
-        if(PpuCtrl1 & (1 << 2))
-            VRamIO->VRamAdrs += 32;
-        else
-            VRamIO->VRamAdrs += 1;
-
-        write8(NewRegValue, 0x2007, GlobalCpuMemoryBase);
-    }
-    else
-    {
-        write8(NewRegValue, 0x2007, GlobalCpuMemoryBase);
-        if(PpuCtrl1 & (1 << 2))
-            VRamIO->VRamAdrs += 32;
-        else
-            VRamIO->VRamAdrs += 1;
-    }    
-}
-
-internal uint8 readCpu8(uint16 Address, cpu *Cpu)
-{
-    Address = cpuMemoryMirror(Address);
-
-    if(Address == 0x2007) // Reading from the IO of ppu. First read is junk, unless its the colour palette
-        IOReadFromCpu = true;
-    
-    uint8 Value = read8(Address, Cpu->MemoryBase);
-
-    if(Address == 0x2002)
-    {
-        // NOTE: Will reset 2005 and 2006 registers, and turn off bit 7 of 0x2002
-        ResetScrollIOAdrs = true;
-        ResetVRamIOAdrs = true;
-        
-        uint8 ResetValue = Value & ~(1 << 7);
-        write8(ResetValue, Address, Cpu->MemoryBase);
-    }
-        
-    // Input
-    if(Address == 0x4016 || Address == 0x4017)
-    {
-        if( !Cpu->PadStrobe )
-        {
-            if(Address == 0x4016)
-                Cpu->Pad1CurrentButton = ++(Cpu->Pad1CurrentButton);
-            else
-                Cpu->Pad2CurrentButton = ++(Cpu->Pad2CurrentButton);
-        }
-        
-        uint16 InputAddress;
-        uint8 BtnValue;
-        if(Address == 0x4016)
-        {
-            InputAddress = 0x4016;
-            BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
-        }
-        else
-        {
-            InputAddress = 0x4017;
-            BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
-        }
-
-        uint8 CurrentValue = read8(InputAddress, Cpu->MemoryBase);
-        uint8 NewValue = (CurrentValue & 0xFE) | BtnValue;
-        write8(NewValue, InputAddress, Cpu->MemoryBase);
-    }
-    
-    return(Value);
-}
-
-internal void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
-{
-    Address = cpuMemoryMirror(Address);
-
-    if(Address == 0x2002)
-        return;//Assert(0);
-    
-    write8(Byte, Address, Cpu->MemoryBase);
-
-    if(Address == 0x2005) // Scroll address
-        ScrollAdrsChange = true;
-    if(Address == 0x2006) // Writing to ppu io address register
-        VRamAdrsChange = true;
-    if(Address == 0x2007) // Write to IO for ppu. Happens after two writes to 0x2006
-        IOWriteFromCpu = true;
-
-    // Update the nametable
-    if(Address == 0x2000)
-    {
-        Cpu->PpuVramIO->TempVRamAdrs |= ((uint16)Byte & 3) << 10;
-    }
-
-    if(Address == 0x2004) // OAM data
-        OamDataChange = true;
-
-    // NOTE: OAM DMA Write
-    if(Address == 0x4014)
-    {
-        uint8 OamAddress = read8(0x2003, Cpu->MemoryBase);
-
-        if(OamData == 0)
-        {
-            Assert(0);
-        }
-        
-        for(uint16 index = OamAddress; index < OAM_SIZE; ++index)
-        {
-            uint16 NewAddress = (Byte << 8) | index; 
-            OamData[index] = read8(NewAddress, Cpu->MemoryBase);
-        }
-    }
-    
-    // Input
-    if(Address == 0x4016 || Address == 0x4017)
-    {
-        uint8 Reg1Value = read8(0x4016, Cpu->MemoryBase);
-        uint8 Reg2Value = read8(0x4017, Cpu->MemoryBase);
-
-        uint8 Bit0 = (Reg1Value | Reg2Value) & 1;
-
-        if(Bit0 == 0)
-        {
-            if(Cpu->PadStrobe)
-            {
-                Cpu->Pad1CurrentButton = Cpu->Pad2CurrentButton = input::B_A;
-            }
-            Cpu->PadStrobe = false;
-        }
-        else if(Bit0 == 1)
-        {
-            Cpu->PadStrobe = true;
-        }        
-
-        uint8 BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
-        write8(BtnValue, 0x4016, Cpu->MemoryBase);
-
-        BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
-        write8(BtnValue, 0x4017, Cpu->MemoryBase);
-    }
-
-    if(Address >= 0x8000)
-    {
-        Cpu->MapperWrite = true;
-        Cpu->MapperReg = Byte;
-        Cpu->MapperWriteAddress = Address;
-    }
-}
-
-internal uint16 readCpu16(uint16 Address, cpu * Cpu)
-{
-    // NOTE: Little Endian
-    uint8 LowByte = readCpu8(Address, Cpu);
-    uint8 HighByte = readCpu8(Address+1, Cpu);
-        
-    uint16 NewAddress = (HighByte << 8) | LowByte;
-    return(NewAddress);
-}
-
-internal uint16 bugReadCpu16(uint16 Address, cpu * Cpu)
-{
-    // NOTE: This is a bug in the nes 6502 that will wrap the value instead of going to new page.
-    //       Only happens with indirect addressing.
-    
-    uint8 LowByte = readCpu8(Address, Cpu);
-    uint16 Byte2Adrs = (Address & 0xFF00) | (uint16)((uint8)(Address + 1));
-    uint8 HighByte = readCpu8(Byte2Adrs, Cpu);
-        
-    uint16 NewAddress = (HighByte << 8) | LowByte;
-    return(NewAddress);
-}
-
-internal void push(uint8 Byte, cpu *Cpu)
+static void push(uint8 Byte, cpu *Cpu)
 {
     writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
     --Cpu->StackPtr;  
 }
-internal uint8 pop(cpu *Cpu)
+static uint8 pop(cpu *Cpu)
 {
     ++Cpu->StackPtr;
     uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
     return(Value);
 }
 
-
-#define CARRY_BIT     0x01
-#define ZERO_BIT      0x02
-#define INTERRUPT_BIT 0x04
-#define DECIMAL_BIT   0x08
-#define BREAK_BIT     0x10
-#define BLANK_BIT     0x20
-#define OVERFLOW_BIT  0x40
-#define NEGATIVE_BIT  0x80
 inline void setCarry(uint8 *Flags)       { *Flags = *Flags | CARRY_BIT; }
 inline void clearCarry(uint8 *Flags)     { *Flags = *Flags & ~CARRY_BIT; }
 inline void setInterrupt(uint8 *Flags)   { *Flags = *Flags | INTERRUPT_BIT; }
@@ -277,14 +47,6 @@ inline void setNegative(uint8 Value, uint8 *Flags)
 }
 inline bool32 isBitSet(uint8 Bit, uint8 Flags) { return(Bit & Flags); }
 inline bool32 crossedPageCheck(uint16 Before, uint16 Now) { return((Before & 0xFF00) != (Now & 0xFF00));}
-
-enum addressMode
-{
-    NUL = 0, ACM, IMED,
-    ZERO, ZERX, ZERY,
-    ABS, ABSX, ABSY, IMPL, REL,
-    INDX, INDY, INDI
-};
 
 global uint8 instAddressMode[INSTRUCTION_COUNT] =
 {
@@ -415,7 +177,7 @@ uint8 (*instrOps[INSTRUCTION_COUNT])(uint16 Address, cpu *Cpu, uint8 AddressMode
 };
 
 
-internal uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
+static uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
     uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
     uint8 LowByte = (uint8)Cpu->PrgCounter; 
@@ -436,7 +198,7 @@ internal uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
         OutputDebugString(Buf);
 #endif   
 
-internal uint8 cpuTick(cpu *Cpu, input *NewInput)
+static uint8 cpuTick(cpu *Cpu, input *NewInput)
 {        
     uint8 CyclesElapsed = 0;
 
