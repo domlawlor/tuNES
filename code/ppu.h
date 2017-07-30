@@ -34,19 +34,6 @@ struct oam_sprite
     uint8 Atrb;
     uint8 X;
 };
-
-struct ppu_registers
-{
-    uint8 Control;
-    uint8 Mask;
-    uint8 Status;
-    uint8 OamAddress;
-    uint8 OamData;
-    uint8 Scroll;
-    uint8 VRamAddress;
-    uint8 VRamData;
-    uint8 OamDma;
-};
           
 struct vram_io
 {
@@ -60,8 +47,6 @@ struct ppu
 {
     uint64 MemoryBase;
     uint32 *BasePixel;
-    
-    ppu_registers Registers;
 
     // TODO: Not just for ppu. also apu. So pull out into global
     uint8 OpenBus;
@@ -90,6 +75,12 @@ struct ppu
     bool32 Sprite0Hit;
     bool32 VerticalBlank;
 
+    // Oam Address Reg
+    uint8 OamAddress;
+
+    // VRam Data Read Buffering
+    uint8 VRamDataBuffer;
+    
     //Sprites
     uint8 *OamDma; 
     uint8 Oam[OAM_SIZE];

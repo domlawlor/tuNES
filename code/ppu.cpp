@@ -33,10 +33,8 @@ void resetScrollHorz(vram_io *VRamIO)
 
 void resetScrollVert(vram_io *VRamIO)
 {
-    VRamIO->VRamAdrs &= ~(0x7BE0);
-    VRamIO->VRamAdrs |= (VRamIO->TempVRamAdrs & 0x7BE0);
+    VRamIO->VRamAdrs = VRamIO->TempVRamAdrs;
 }
-
 
 void scrollIncHorz(vram_io *Vram)
 {
@@ -152,7 +150,6 @@ static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *SecondaryOam, uint16 Sc
     }
 }
 
-
 static void spriteEvaluation(ppu *Ppu)
 {
     uint16 Sprite8x16 = Ppu->SpriteSize8x16;
@@ -201,7 +198,6 @@ static void spriteEvaluation(ppu *Ppu)
 
 void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 {    
-    ppu_registers *Registers = &Ppu->Registers;
     vram_io *VRamIO = &Ppu->VRamIO; 
 
     bool32 RenderingEnabled = Ppu->ShowBackground || Ppu->ShowSprites;
@@ -238,7 +234,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 
                 uint8 BgrdColourIndex;
                 
-                if(!(Ppu->ShowBGLeft8Pixels && PixelX < 8))
+                if( !(PixelX < 8 && !Ppu->ShowBGLeft8Pixels) )
                 {
                     uint8 XOffset = 15 - (VRamIO->FineX + ((PixelX-1) % 8));
                 
@@ -329,10 +325,10 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                             uint8 SprtPaletteIndex = readPpu8(SPRT_PALETTE_ADRS + SpriteColourIndex, Ppu);                       
                             getPaletteValue(SprtPaletteIndex, Colour);                        
                         }
-
-                        if(!BgrdTransparent && Sprite0Check && Ppu->ScanlineCycle != 256 && Ppu->Scanline != 255 && !Ppu->ShowSPRTLeft8Pixels)
+                        
+                        if(Sprite0Check && !BgrdTransparent && Ppu->ScanlineCycle < 256)
                         {
-                            Registers->Status = Registers->Status | (1 << 6);
+                            Ppu->Sprite0Hit = true;
                         }
                     }
                 }            
@@ -351,29 +347,24 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     }
     if(PostRenderLine)
     {
+        // NOTE: IDLE
         DrawScreen = true;
     }
     if(VBlankLine)
     {
         if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
         {
-            if(!PpuStatusReadLastCycle)
-                Registers->Status |= (1 << 7); // Set VBlank Status
-
-            // NOTE: if turning on NMI when in vblank. The nmi will be generated immediately.
-            if( Ppu->GenerateNMI && Ppu->VerticalBlank )
-            {
-                NmiTriggered = true;
-            }
+            Ppu->VerticalBlank = true;
+            TriggerNmi = Ppu->GenerateNMI;
         }
     }
     if(PreRenderLine)
     {
         if(Ppu->ScanlineCycle == 1)
         {
-            Registers->Status &= ~(1 << 5); // Clear Sprite Overflow
-            Registers->Status &= ~(1 << 6); // Clear Sprite Zero Hit
-            Registers->Status &= ~(1 << 7); // Clear Vblank status
+            Ppu->SpriteOverflow = false;
+            Ppu->Sprite0Hit = false;
+            Ppu->VerticalBlank = false; 
             NmiTriggered = false;
         }
 
@@ -383,8 +374,8 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 loadFutureData(Ppu);
             if(Ppu->ScanlineCycle == 257)
                 resetScrollHorz(VRamIO);
-            if(Ppu->ScanlineCycle == 279)
-                VRamIO->TempVRamAdrs |= ((uint16)Registers->Control & 3) << 10;
+            /*if(Ppu->ScanlineCycle == 279)
+              VRamIO->TempVRamAdrs |= ((uint16)Registers->Control & 3) << 10;*/
             if(280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304)
                 resetScrollVert(VRamIO);
             if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 336)
@@ -395,10 +386,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
                 Ppu->ScanlineCycle += 1;
         }
     }
-
-    Ppu->OddFrame = !Ppu->OddFrame;
-    PpuStatusReadLastCycle = false;
-        
+            
     // Incrementing to the next cycle. If reached end of
     // scanline cycles then increment scanline.
     ++Ppu->ScanlineCycle;
@@ -412,6 +400,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     if(Ppu->Scanline == 262)
     {
         Ppu->Scanline = 0;
+         Ppu->OddFrame = !Ppu->OddFrame;
     }
 }
 

@@ -237,34 +237,42 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
     {
         case 0x2000:
         {
-            Ppu->Registers.Control = Byte;
             Ppu->NametableBase = Byte & 3;
             Ppu->VRamIO.TempVRamAdrs &= ~0xC00;
             Ppu->VRamIO.TempVRamAdrs |= (Byte & 3) << 10;            
-            Ppu->VRamIncrement = ((Byte & 4) == 1) ? 32 : 1;
-            Ppu->SPRTPattenBase = ((Byte & 8) == 1) ? 0x1000 : 0;
-            Ppu->BGPatternBase = ((Byte & 16) == 1) ? 0x1000 : 0;
-            Ppu->SpriteSize8x16 = Byte & 32;
-            Ppu->PpuSlave = Byte & 64;
-            Ppu->GenerateNMI = Byte & 128;
+            Ppu->VRamIncrement = ((Byte & 4) != 0) ? 32 : 1;
+            Ppu->SPRTPattenBase = ((Byte & 8) != 0) ? 0x1000 : 0;
+            Ppu->BGPatternBase = ((Byte & 16) != 0) ? 0x1000 : 0;
+            Ppu->SpriteSize8x16 = ((Byte & 32) != 0);
+            Ppu->PpuSlave = ((Byte & 64) != 0);
+            Ppu->GenerateNMI = ((Byte & 128) != 0);
+
+            if(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 0)
+            {
+                NmiTriggered = false;
+            }
+            else if(Ppu->GenerateNMI && Ppu->VerticalBlank && !NmiTriggered)
+            {
+                TriggerNmi = true;
+            }
+            
             break;
         }
         case 0x2001:
         {
-            Ppu->Registers.Mask = Byte;
-            Ppu->GreyScale           = Byte & 1;
-            Ppu->ShowBGLeft8Pixels   = Byte & 2;
-            Ppu->ShowSPRTLeft8Pixels = Byte & 4;
-            Ppu->ShowBackground      = Byte & 8;
-            Ppu->ShowSprites         = Byte & 16;
-            Ppu->EmphasizeRed        = Byte & 32;
-            Ppu->EmphasizeGreen      = Byte & 64;
-            Ppu->EmphasizeBlue       = Byte & 128;
+            Ppu->GreyScale           = ((Byte & 1) != 0);
+            Ppu->ShowBGLeft8Pixels   = ((Byte & 2) != 0);
+            Ppu->ShowSPRTLeft8Pixels = ((Byte & 4) != 0);
+            Ppu->ShowBackground      = ((Byte & 8) != 0);
+            Ppu->ShowSprites         = ((Byte & 16) != 0);
+            Ppu->EmphasizeRed        = ((Byte & 32) != 0);
+            Ppu->EmphasizeGreen      = ((Byte & 64) != 0);
+            Ppu->EmphasizeBlue       = ((Byte & 128) != 0);
             break;
         }
         case 0x2003:
         {
-            Ppu->Registers.OamAddress = Byte;
+            Ppu->OamAddress = Byte;
             break;
         }
         case 0x2004:
@@ -272,7 +280,7 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             // If Writing OAM Data while rendering, then a glitch increments it by 4 instead
             if(Ppu->Scanline < 240 || Ppu->Scanline == 261 || Ppu->ShowBackground || Ppu->ShowSprites)
             {
-                Ppu->Registers.OamAddress += 4;
+                Ppu->OamAddress += 4;
             }
             else
             {
@@ -281,18 +289,16 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
                     b&=0xe3;
                 map.ppuwriteoam(Byte.toUnsignedInt(OAMADDR), b); TODO: Look at the example code
                 */
-                Ppu->Oam[Ppu->Registers.OamAddress] = Byte;
-                Ppu->Registers.OamAddress++;
+                Ppu->Oam[Ppu->OamAddress] = Byte;
+                Ppu->OamAddress++;
             }
             break;
         }
         case 0x2005:
         {
-            Ppu->Registers.Scroll = Byte;
-            
             if(Ppu->VRamIO.LatchWrite == 0)
             {
-                Ppu->VRamIO.FineX = Ppu->Registers.Scroll & 7; // Bit 0,1, and 2 are fine X
+                Ppu->VRamIO.FineX = Byte & 7; // Bit 0,1, and 2 are fine X
                 Ppu->VRamIO.TempVRamAdrs &= ~(0x001F); // Clear Bits
                 Ppu->VRamIO.TempVRamAdrs |= ((uint16)Byte) >> 3;
                 Ppu->VRamIO.LatchWrite = 1;
@@ -309,8 +315,6 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2006:
         {
-            Ppu->Registers.VRamAddress = Byte;
-            
             if(Ppu->VRamIO.LatchWrite == 0)
             {
                 Ppu->VRamIO.TempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
@@ -330,19 +334,19 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2007:
         {
-            writePpu8(Ppu->Registers.VRamData, Ppu->VRamIO.VRamAdrs, Ppu);
-            
-            if( !(Ppu->Scanline < 240 || Ppu->Scanline == 261 || Ppu->ShowBackground || Ppu->ShowSprites) )
+            writePpu8(Byte, Ppu->VRamIO.VRamAdrs, Ppu);
+
+            if( !(Ppu->ShowBackground || Ppu->ShowSprites) ||
+                (Ppu->Scanline > 240 && Ppu->Scanline <= 260) )
+            {            
                 Ppu->VRamIO.VRamAdrs += Ppu->VRamIncrement;
-            
+            }
             break;
         }
         case 0x4014:
         {
             // NOTE: OAM DMA Write
-            uint8 OamAddress = Ppu->Registers.OamAddress;
-       
-            for(uint16 index = OamAddress; index < OAM_SIZE; ++index)
+            for(uint16 index = Ppu->OamAddress; index < OAM_SIZE; ++index)
             {
                 uint16 NewAddress = (Byte << 8) | index; 
                 OamData[index] = read8(NewAddress, GlobalCpu->MemoryBase);
@@ -364,7 +368,7 @@ static uint8 readPpuRegister(uint16 Address)
         case 0x2002:
         {
             // NOTE: If we have not just set the Vertical Blank flag.
-            if( !(Ppu->Scanline == 240 && Ppu->ScanlineCycle) )
+            if( !(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0) )
                 Byte |= Ppu->VerticalBlank ? 0x80 : 0;
             Ppu->VerticalBlank = false;
             
@@ -372,13 +376,12 @@ static uint8 readPpuRegister(uint16 Address)
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
             Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
 
-            /* NOTE: TODO: TEST THIS. To do with timing or something
-            if(Ppu->Scanline == 240 &&
+            //NOTE: TODO: TEST THIS. To do with timing 
+            if(Ppu->Scanline == 241 &&
                (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2) )
             {
-                NmiTriggered = false;
+                TriggerNmi = false;
             }
-            */
             
             Ppu->VRamIO.LatchWrite = 0;
             NmiTriggered = false;
@@ -388,7 +391,7 @@ static uint8 readPpuRegister(uint16 Address)
         case 0x2004:
         {
             // TODO: Read OAM
-            Ppu->OpenBus = Ppu->Oam[Ppu->Registers.OamAddress];
+            Ppu->OpenBus = Ppu->Oam[Ppu->OamAddress];
             break;
         }
         case 0x2007:
@@ -397,21 +400,25 @@ static uint8 readPpuRegister(uint16 Address)
 
             if(OnPalette)
             {
-                if( !(Ppu->Scanline < 240 || Ppu->Scanline == 261 || Ppu->ShowBackground || Ppu->ShowSprites) )
-                    Ppu->VRamIO.VRamAdrs += Ppu->VRamIncrement;
-
+                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamIO.VRamAdrs-0x1000, Ppu);
                 Byte = readPpu8(Ppu->VRamIO.VRamAdrs, Ppu);
-                Ppu->Registers.VRamData = Byte;
+
+                // Pulled from nes dev forum
+                Byte &= 0x3F;
+                Byte |= Ppu->OpenBus & 0xC0;
             }
             else
             {
-                Byte = readPpu8(Ppu->VRamIO.VRamAdrs, Ppu);
-                Ppu->Registers.VRamData = Byte;
-                
-                if( !(Ppu->Scanline < 240 || Ppu->Scanline == 261 || Ppu->ShowBackground || Ppu->ShowSprites) )
-                    Ppu->VRamIO.VRamAdrs += Ppu->VRamIncrement;
+                Byte = Ppu->VRamDataBuffer;
+                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamIO.VRamAdrs, Ppu);
             }
-            
+
+            if( !(Ppu->ShowBackground || Ppu->ShowSprites) ||
+                (Ppu->Scanline > 240 && Ppu->Scanline <= 260) )
+            {            
+                Ppu->VRamIO.VRamAdrs += Ppu->VRamIncrement;
+            }
+                        
             Ppu->OpenBus = Byte;
             break;
         }

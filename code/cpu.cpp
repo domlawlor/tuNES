@@ -221,8 +221,11 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
     
-    if(NmiTriggered)
+    if(TriggerNmi)
     {
+        NmiTriggered = true;
+        TriggerNmi = false;
+                
         LogCpu.PrgCounter = NMI_VEC;
         Address = NMI_VEC;
         AddressMode = IMPL;
@@ -231,7 +234,6 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
         InstrCycles = 7;
         InstrData[0] = 0;
 
-        NmiTriggered = false;
         nmi_irq(Address, Cpu, AddressMode);
     }
     else if(IrqTriggered)

@@ -324,23 +324,17 @@ static void * LoadFile(char * Filename, uint32 *Size)
 
 global uint8 *OamData = 0;
 
+bool32 TriggerNmi = false;
 bool32 NmiTriggered = false;
 bool32 IrqTriggered = false;
 
-bool32 PpuStatusReadLastCycle = false;
-
 bool32 OamDataChange = false;
-
 
 // TODO: This will change location once other functions above get relocated.
 #include "ppu.cpp"
 #include "cpu.cpp"
 
 #include "nes.h"
-
-
-
-
 
 static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
 {
@@ -349,7 +343,6 @@ static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
     *Width = ClientRect.right - ClientRect.left;
     *Height = ClientRect.bottom - ClientRect.top;
 }
-
 
 static void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
 {
@@ -393,12 +386,11 @@ initCpu(cpu *Cpu, uint64 MemoryBase)
 }
 
 static void
-initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel, ppu_registers * PpuRegisters)
+initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel)
 {
     OamData = Ppu->Oam;
 
     Ppu->MemoryBase = MemoryBase;
-    Ppu->Registers = *PpuRegisters;
     Ppu->BasePixel = BasePixel;
 }
 
@@ -706,7 +698,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     /* NOTE : Screen back buffer creation */
     
     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
-    uint8 ResScale = 4;
+    uint8 ResScale = 2;
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
@@ -718,7 +710,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
     WindowClass.lpfnWndProc = WinInputCallback;
     WindowClass.hInstance = WindowInstance;
-    WindowClass.lpszClassName = "NesEmu";
+    WindowClass.lpszClassName = "Donkey Kong";
 
     uint16 InitialWindowPosX = 0;
     uint16 InitialWindowPosY = 0;
@@ -760,15 +752,13 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             sprintf(MemoryInfoBuffer, "Cpu Base = %X , Ppu Base = %X\n", (uint32)CpuMemoryBase, (uint32)PpuMemoryBase);
             OutputDebugString(MemoryInfoBuffer);
             
-            uint64 PpuRegisterLocation = CpuMemoryBase + PPU_REG_ADRS;
-            
             nes Nes = {};
             initCpu(&Nes.Cpu, CpuMemoryBase);
-            initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)ScreenBackBuffer.Memory, (ppu_registers *)PpuRegisterLocation);
+            initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)ScreenBackBuffer.Memory);
             GlobalCpu = &Nes.Cpu;
             GlobalPpu = &Nes.Ppu;
             
-            loadCartridge(&Nes, "Mario Bros.nes");
+            loadCartridge(&Nes, "Donkey Kong.nes");
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
