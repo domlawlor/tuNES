@@ -258,3 +258,7 @@ paket-files/
 *.cod
 *.cod
 *.pdb
+
+misc/
+misc/emacs.bat
+misc/shell.bat

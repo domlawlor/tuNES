@@ -33,6 +33,8 @@ static uint16 cpuMemoryMirror(uint16 Address)
 
 static uint16 ppuMemoryMirror(uint16 Address)
 {
+    ppu * Ppu = GlobalPpu;
+    
     if(Address >= 0x4000) // Over half of the memory map is mirrored
         Address = Address % 0x4000; 
 
@@ -49,8 +51,6 @@ static uint16 ppuMemoryMirror(uint16 Address)
             Address = 0x3F08;
         if(Address == 0x3F1C)
             Address = 0x3F0C;
-        if(Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C)
-            Address = 0x3F00; // TODO: Palette hack implementation!? 
     }
    
     // NOTE: Nametable Mirroring. Controlled by Cartridge
@@ -98,7 +98,7 @@ static uint16 ppuMemoryMirror(uint16 Address)
 static uint8 readCpu8(uint16 Address, cpu *Cpu)
 {
     Address = cpuMemoryMirror(Address);
-
+        
     if((0x2000 <= Address && Address < 0x2008) ||
        (Address == 0x4014))
     {
@@ -216,7 +216,11 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
 static uint8 readPpu8(uint16 Address, ppu *Ppu)
 {
     Address = ppuMemoryMirror(Address);
-         
+            
+    if(Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C ||
+       Address == 0x3F14 || Address == 0x3F18 || Address == 0x3F1C)
+        Address = 0x3F00;
+        
     uint8 Result = read8(Address, Ppu->MemoryBase);
     return(Result);
 }
