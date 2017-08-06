@@ -57,41 +57,6 @@ static uint16 ppuMemoryMirror(uint16 Address)
     if(0x3000 <= Address && Address < 0x3F00) // This first as it maps to the nametable range
         Address = (Address % 0x0F00) + 0x2000;
 
-    // TODO: Set ppu to have the mirror type and send into this function. Use here instead of global mirror type
-    if(Address >= 0x2000 && Address < 0x3000) 
-    {
-        switch(GlobalMirrorType)
-        {
-            case SINGLE_SCREEN_MIRROR:
-            {
-                Address = (Address % 0x0400) + 0x2000;
-                break;
-            }
-            case VERTICAL_MIRROR:
-            {
-                if(Address >= 0x2800 && Address < 0x3000)
-                    Address -= 0x0800;
-                break;
-            }
-            case HORIZONTAL_MIRROR:
-            {
-                if( (Address >= 0x2400 && Address < 0x2800) ||
-                    (Address >= 0x2C00 && Address < 0x3000) )
-                    Address -= 0x0400; 
-                break;
-            }
-            case FOUR_SCREEN_MIRROR:
-            {
-                break;
-            }
-            default:
-            {
-                Assert(0);
-                break;
-            }
-        }
-    }
-
     return Address;
 }
 
@@ -212,22 +177,121 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
     }
 }
 
+static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
+{
+    uint8 * Result = 0;
+
+    switch(Ppu->MirrorType)
+    {
+        case SINGLE_SCREEN_BANK_A:
+        {
+            Result = Ppu->NametableBankA;
+            break;
+        }
+        case SINGLE_SCREEN_BANK_B:
+        {
+            Result = Ppu->NametableBankB;
+            break;
+        }
+        case VERTICAL_MIRROR:
+        {
+            if(Address < 0x2400 || (0x2800 <= Address && Address < 0x2C00) )
+            {
+                Result = Ppu->NametableBankA;
+            }
+            else
+            {
+                Result = Ppu->NametableBankB;
+            }
+            break;
+        }
+        case HORIZONTAL_MIRROR:
+        {
+            if(Address < 0x2800)
+            {
+                Result = Ppu->NametableBankA;
+            }
+            else
+            {
+                Result = Ppu->NametableBankB;
+            } 
+            break;
+        }
+        case FOUR_SCREEN_MIRROR:
+        {
+            Assert(0);
+            if(Address < 0x2400)
+            {
+                Result = Ppu->NametableBankA;
+            }
+            else if(Address < 0x2800)
+            {
+                Result = Ppu->NametableBankB;
+            }
+            else if(Address < 0x2C00)
+            {
+                Result = Ppu->NametableBankC;
+            }
+            else
+            {
+                Result = Ppu->NametableBankD;
+            }
+            break;
+        }
+    }
+    
+    return Result;
+}
+
+static uint8 readNametable(uint16 Address, ppu *Ppu)
+{
+    uint8 Result = 0;
+    
+    uint8 *Nametable = getNametableBank(Address, Ppu);
+    Result = Nametable[Address % 0x400];
+    
+    return Result;
+}
+
+static void writeNametable(uint8 Byte, uint16 Address, ppu *Ppu)
+{
+    uint8 *Nametable = getNametableBank(Address, Ppu);
+    Nametable[Address % 0x400] = Byte;;
+}
 
 static uint8 readPpu8(uint16 Address, ppu *Ppu)
 {
+    uint8 Result;
+    
     Address = ppuMemoryMirror(Address);
             
     if(Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C ||
        Address == 0x3F14 || Address == 0x3F18 || Address == 0x3F1C)
         Address = 0x3F00;
-        
-    uint8 Result = read8(Address, Ppu->MemoryBase);
+
+    // If address in nametable range. Then map to the current mirror state and return
+    if(0x2000 <= Address && Address < 0x3000)
+    {
+        Result = readNametable(Address, Ppu);
+    }
+    else
+    {
+        Result = read8(Address, Ppu->MemoryBase);
+    }
     return(Result);
 }
 static void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
 {    
     Address = ppuMemoryMirror(Address);
-    write8(Byte, Address, Ppu->MemoryBase);
+
+    if(0x2000 <= Address && Address < 0x3000)
+    {
+        writeNametable(Byte, Address, Ppu);
+    }
+    else
+    {
+        write8(Byte, Address, Ppu->MemoryBase);
+    }
 }
 
 
@@ -371,7 +435,8 @@ static uint8 readPpuRegister(uint16 Address)
     {
         case 0x2002:
         {
-            // NOTE: If we have not just set the Vertical Blank flag.
+            // NOTE: Reading VBL one cycle before it is set, returns clear and
+            // TODO: vbl does not get set next cycle
             if( !(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0) )
                 Byte |= Ppu->VerticalBlank ? 0x80 : 0;
             Ppu->VerticalBlank = false;
@@ -380,6 +445,7 @@ static uint8 readPpuRegister(uint16 Address)
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
             Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
 
+            
             //NOTE: TODO: TEST THIS. To do with timing 
             if(Ppu->Scanline == 241 &&
                (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2) )

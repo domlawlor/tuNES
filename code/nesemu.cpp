@@ -32,11 +32,6 @@ typedef size_t mem_idx;
 #define OAM_SIZE 0x100
 #define OAM_SPRITE_TOTAL 64
 
-#define SINGLE_SCREEN_MIRROR 0
-#define VERTICAL_MIRROR 1
-#define HORIZONTAL_MIRROR 2
-#define FOUR_SCREEN_MIRROR 3   
-
 bool32 IOReadFromCpu;
 bool32 IOWriteFromCpu;
 bool32 ScrollAdrsChange;
@@ -45,7 +40,8 @@ bool32 ResetScrollIOAdrs;
 bool32 ResetVRamIOAdrs;
 
 // A, B, Select, Start, Up, Down, Left, Right
-struct input {
+struct input
+{
     enum buttons {
         B_A = 0,
         B_B,
@@ -75,10 +71,6 @@ global bool32 DrawScreen = false;
 
 global input WinInput = {};
 global bool32 GlobalRunning;
-
-// TODO: Reimplement so this isn't global. Need to get working first
-global uint8 GlobalMirrorType = 0;
-
 
 static real32 getMilliSeconds(uint64 PerfCountFrequency)
 {
@@ -449,11 +441,20 @@ void unromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
     cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
 }
 
-#define MAPPER_TOTAL 3
+void axromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+{
+    uint16 MemoryPrgBank = 0x8000;
+    uint8 *BankToCpy = Cartridge->PrgData + ((Cartridge->PrgBankCount) * Kilobytes(16)) - Kilobytes(32);
+    cpyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
+
+    Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
+}
+
+#define MAPPER_TOTAL 8
 
 void (*mapperInit[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
 {
-    nromInit, mmc1Init, unromInit
+    nromInit, mmc1Init, unromInit, 0, 0, 0, 0, axromInit 
 };
 
 void nromUpdate(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
@@ -502,13 +503,13 @@ void mmc1Update(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
                 {
                     uint8 Mirror = DataReg & 3;
                     if(Mirror == 0)
-                        GlobalMirrorType = SINGLE_SCREEN_MIRROR;
+                        Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
                     if(Mirror == 1)
-                        GlobalMirrorType = SINGLE_SCREEN_MIRROR;
+                        Ppu->MirrorType = SINGLE_SCREEN_BANK_B;
                     if(Mirror == 2)
-                        GlobalMirrorType = VERTICAL_MIRROR;
+                        Ppu->MirrorType = VERTICAL_MIRROR;
                     if(Mirror == 3)
-                        GlobalMirrorType = HORIZONTAL_MIRROR;
+                        Ppu->MirrorType = HORIZONTAL_MIRROR;
                                         
                     PrgRomMode = (DataReg & 12) >> 2;
                     ChrRomMode = (DataReg & (1 << 4)) >> 4;
@@ -576,9 +577,29 @@ void unromUpdate(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
     cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy, Kilobytes(16));
 }
 
+void axromUpdate(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+{
+    uint16 MemoryPrgBank = 0x8000;
+    
+    uint8 SelectedBank = Cpu->MapperReg & 7;
+    uint8 *BankToCpy = Cartridge->PrgData + (SelectedBank * Kilobytes(32));
+    
+    cpyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
+
+    // Nametable Single Screen bank select
+    if(Cpu->MapperReg & 0x10)
+    {
+        Ppu->MirrorType = SINGLE_SCREEN_BANK_B;   
+    }
+    else
+    {
+        Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
+    }
+}
+
 void (*mapperUpdate[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
 {
-    nromUpdate, mmc1Update, unromUpdate
+    nromUpdate, mmc1Update, unromUpdate, 0, 0, 0, 0, axromUpdate 
 };
 
 static void loadCartridge(nes *Nes, char * FileName)
@@ -614,18 +635,20 @@ static void loadCartridge(nes *Nes, char * FileName)
         uint8 Flags7            = RomData[7];
         Cartridge->PrgRamSize   = RomData[8];
         
-        Cartridge->UseVertMirror       = Flags6 & (1);
-        Cartridge->HasBatteryRam       = Flags6 & (1 << 1);
-        Cartridge->HasTrainer          = Flags6 & (1 << 2);
-        Cartridge->UseFourScreenMirror = Flags6 & (1 << 3);
+        Cartridge->UseVertMirror       = (Flags6 & (1)) != 0;
+        Cartridge->HasBatteryRam       = (Flags6 & (1 << 1)) != 0;
+        Cartridge->HasTrainer          = (Flags6 & (1 << 2)) != 0;
+        Cartridge->UseFourScreenMirror = (Flags6 & (1 << 3)) != 0;
         Cartridge->MapperNum           = (Flags7 & 0xF0) | (Flags6 >> 4);
 
+        Assert(Cartridge->UseFourScreenMirror == 0);
+        
         if(Cartridge->UseFourScreenMirror)
-            GlobalMirrorType = FOUR_SCREEN_MIRROR;
+            Nes->Ppu.MirrorType = FOUR_SCREEN_MIRROR;
         else if(Cartridge->UseVertMirror)
-            GlobalMirrorType = VERTICAL_MIRROR;
+            Nes->Ppu.MirrorType = VERTICAL_MIRROR;
         else
-            GlobalMirrorType = HORIZONTAL_MIRROR;      
+            Nes->Ppu.MirrorType = HORIZONTAL_MIRROR;      
         
         Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
 

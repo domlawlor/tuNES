@@ -38,7 +38,7 @@ void resetScrollVert(vram_io *VRamIO)
 
 void scrollIncHorz(vram_io *Vram)
 {
-//NOTE: Code take from nesdev wiki. Could be quicker??
+    //NOTE: Code take from nesdev wiki. Could be quicker??
     if ((Vram->VRamAdrs & 0x001F) == 31) // if coarse X == 31
     {
         Vram->VRamAdrs &= ~0x001F;  // coarse X = 0
@@ -52,7 +52,9 @@ void scrollIncVert(vram_io *Vram)
 {
     // NOTE: Code take from nesdev wiki. Could be quicker??
     if ((Vram->VRamAdrs & 0x7000) != 0x7000) // if fine Y < 7
+    {
         Vram->VRamAdrs += 0x1000; // increment fine Y
+    }
     else
     {
         Vram->VRamAdrs &= ~0x7000; // fine Y = 0        
@@ -64,12 +66,14 @@ void scrollIncVert(vram_io *Vram)
             Vram->VRamAdrs ^= 0x0800; // switch vertical nametable
         }
         else if (y == 31)
+        {
             y = 0; // coarse Y = 0, nametable not switched
+        }
         else
         {
             y += 1; // increment coarse Y
-            Vram->VRamAdrs = (Vram->VRamAdrs & ~0x03E0) | (y << 5); // put coarse Y back into v
         }
+        Vram->VRamAdrs = (Vram->VRamAdrs & ~0x03E0) | (y << 5); // put coarse Y back into v
     }
 }
 
@@ -120,6 +124,17 @@ static void loadFutureData(ppu *Ppu)
     }
 }
 
+// NOTE: Reverse the bits within a byte, eg. 0011 0101 becomes 1010 1100
+//       Works by diving into halves and swaping the two. 
+static uint8 byteReverse(uint8 byte)
+{
+    byte = (byte & 0xF0) >> 4 | (byte & 0x0F) << 4; // 1111 0000 and 0000 1111 swap
+    byte = (byte & 0xCC) >> 2 | (byte & 0x33) << 2; // 1100 and 0011 swap
+    byte = (byte & 0xAA) >> 1 | (byte & 0x55) << 1; // 10 and 01 swap
+    
+    return byte;
+}
+
 static void clearSecondaryOam(oam_sprite *SecondaryOam)
 {
     uint8 *Data = (uint8 *)SecondaryOam;
@@ -130,9 +145,13 @@ static void clearSecondaryOam(oam_sprite *SecondaryOam)
     }
 }
 
+bool32 SpriteZeroOnThisLine = false;
+
 /* Loops through the OAM and find the sprites one the next scanline */
 static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *SecondaryOam, uint16 Scanline)
 {
+    SpriteZeroOnThisLine = false;
+
     uint8 PreparedCount = 0;
             
     for(uint8 OamSpriteCount = 0; OamSpriteCount < OAM_SPRITE_TOTAL; ++OamSpriteCount)
@@ -143,6 +162,7 @@ static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *SecondaryOam, uint16 Sc
         {
             if(PreparedCount < SECOND_OAM_SPRITE_NUM)
             {
+                SpriteZeroOnThisLine = true;
                 SecondaryOam[PreparedCount++] = *Sprite;
             }
             if(Sprite->Y == 0xFF)
@@ -153,6 +173,7 @@ static void evaluateSecondaryOam(uint8 *Oam, oam_sprite *SecondaryOam, uint16 Sc
             break;
     }
 }
+
 
 static void spriteEvaluation(ppu *Ppu)
 {
@@ -168,7 +189,8 @@ static void spriteEvaluation(ppu *Ppu)
             break;
                 
         bool32 FlippedVert = Sprite.Atrb & (1 << 7);
-
+        bool32 FlippedHorz = Sprite.Atrb & (1 << 6);
+        
         if(Sprite8x16)
         {
             if(Sprite.Tile & 1)
@@ -193,9 +215,18 @@ static void spriteEvaluation(ppu *Ppu)
             LowAddress = (SpritePatternBase + (Sprite.Tile * 16)) + TileRelY;
             HighAddress = (SpritePatternBase + (Sprite.Tile * 16) + 8) + TileRelY;
         }
-                    
-        Ppu->SpriteTileLow[SpriteIdx] = readPpu8(LowAddress, Ppu);
-        Ppu->SpriteTileHigh[SpriteIdx] = readPpu8(HighAddress, Ppu);                
+
+        uint8 TileLow = readPpu8(LowAddress, Ppu);
+        uint8 TileHigh = readPpu8(HighAddress, Ppu);
+
+        if(FlippedHorz)
+        {
+            TileLow = byteReverse(TileLow);
+            TileHigh = byteReverse(TileHigh);
+        }
+                
+        Ppu->SpriteTileLow[SpriteIdx] = TileLow;
+        Ppu->SpriteTileHigh[SpriteIdx] = TileHigh;
     }
 }
 
@@ -206,157 +237,129 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
 
     bool32 RenderingEnabled = Ppu->ShowBackground || Ppu->ShowSprites;
     
-    // TODO: Should pre render line actually be scanline zero instead?? Might put sprites in wrong position?
     bool32 VisibleLine = (0 <= Ppu->Scanline && Ppu->Scanline <= 239);
     bool32 PostRenderLine = (Ppu->Scanline == 240);
     bool32 VBlankLine = (241 <= Ppu->Scanline && Ppu->Scanline <= 260);
     bool32 PreRenderLine = (Ppu->Scanline == 261);
-    
-    if(VisibleLine)
+
+    if(PreRenderLine || VisibleLine)
     {
-        // NOTE: Do sprite Evaluation
-        if(Ppu->ScanlineCycle == 0)
+        if(PreRenderLine)
         {
-            spriteEvaluation(Ppu);
+            if(Ppu->ScanlineCycle == 1)
+            {
+                Ppu->SpriteOverflow = false;
+                Ppu->Sprite0Hit = false;
+                Ppu->VerticalBlank = false; 
+                NmiTriggered = false;
+            }
         }
-        else {
-
+        
+        if(RenderingEnabled)
+        {   
+            if( (1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256) ||
+                (321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 336) )
+                loadFutureData(Ppu);
             if(Ppu->ScanlineCycle == 257)
-            {
-                clearSecondaryOam(Ppu->SecondaryOam);          
-                evaluateSecondaryOam(Ppu->Oam, Ppu->SecondaryOam, Ppu->Scanline);
-            }   
+                resetScrollHorz(VRamIO);
+            if(PreRenderLine && 280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304)
+                resetScrollVert(VRamIO);
+        }    
 
-            if(RenderingEnabled)
+        if(VisibleLine)
+        {
+            // NOTE: Do sprite Evaluation
+            if(Ppu->ScanlineCycle == 0)
             {
-                if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
+                spriteEvaluation(Ppu);
+            }
+            else
+            {
+                if(Ppu->ScanlineCycle == 257)
                 {
-                    uint16 PixelX = Ppu->ScanlineCycle - 1;
-                    uint16 PixelY = Ppu->Scanline;
+                    clearSecondaryOam(Ppu->SecondaryOam);          
+                    evaluateSecondaryOam(Ppu->Oam, Ppu->SecondaryOam, Ppu->Scanline);
+                }   
 
-
-                    // NOTE: Loading next background information. Also scrolling
-                    if(Ppu->ScanlineCycle != 1)
-                        loadFutureData(Ppu);
-                    
-                    /* *********************** */
-                    /* Background Calculations */
-
-                    uint8 BgrdColourIndex;
-                
-                    if( !(PixelX < 8 && !Ppu->ShowBGLeft8Pixels) )
+                if(RenderingEnabled)
+                {
+                    if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
                     {
-                        uint8 XOffset = 15 - (VRamIO->FineX + (PixelX % 8));
+                        uint16 PixelX = Ppu->ScanlineCycle - 1;
+                        uint16 PixelY = Ppu->Scanline;
+
+                        uint8 BgrdColourIndex = 0;
+                        uint8 SpriteColourIndex = 0;
                         
-                        uint8 PatternPixelValue = (((HighPatternShiftReg >> (XOffset-1) ) & 2) |
-                                                   (LowPatternShiftReg >> XOffset) & 1);
-                        uint8 AtrbPixelValue = (XOffset >= 8) ? PaletteLatchOld : PaletteLatchNew;
+                        uint8 Colour[3] = {};
 
-                        BgrdColourIndex = AtrbPixelValue | PatternPixelValue;
-                    }
-                
-                    /* ******************* */
-                    /* Sprite Calculations */
+                        /* *********************** */
+                        /* Background Calculations */
 
-                    bool32 Sprite0Check = false;
-                    bool32 SpritePriority;
-                
-#define NO_COLOUR 0xFF
-                    oam_sprite *Sprite;
-                    uint8 SpriteColourIndex = NO_COLOUR;
-                    if( !(PixelX < 8 && !Ppu->ShowSPRTLeft8Pixels) )
-                    {
-                        for(int8 SpriteIdx = SECOND_OAM_SPRITE_NUM - 1; SpriteIdx >= 0; --SpriteIdx)
+                        if(Ppu->ShowBackground && !(PixelX < 8 && !Ppu->ShowBGLeft8Pixels) )
                         {
-                            Sprite = Ppu->SecondaryOam + SpriteIdx;
-                            
-                            if(PixelX != 0xFF && PixelX >= Sprite->X && PixelX < (Sprite->X + PIXEL_PER_TILE)) 
-                            {
-                                uint8 PixColourHigh = Sprite->Atrb & 3; 
-                                uint8 PatternLow = Ppu->SpriteTileLow[SpriteIdx];
-                                uint8 PatternHigh = Ppu->SpriteTileHigh[SpriteIdx];
-                                uint8 LowPattern;
-                                uint8 HighPattern;
+                            uint8 XOffset = 15 - (VRamIO->FineX + (PixelX % 8));
+                        
+                            uint8 PatternPixelValue = (((HighPatternShiftReg >> (XOffset-1) ) & 2) |
+                                                       (LowPatternShiftReg >> XOffset) & 1);
 
-                                if(Sprite->Atrb & (1 << 6))
-                                {
-                                    uint8 RelX = ((PixelX - (Sprite->X)) % 8); 
-                                    LowPattern  = (PatternLow >> RelX) & 1;
-                                    HighPattern = (PatternHigh >> RelX) & 1;
-                                }                        
-                                else
+                            if(PatternPixelValue != 0) // NOTE: If Value is zero, then it is a background/transparent
+                            {
+                                uint8 AtrbPixelValue = (XOffset >= 8) ? PaletteLatchOld : PaletteLatchNew;
+                                BgrdColourIndex = AtrbPixelValue | PatternPixelValue;
+                            }
+                            
+                            uint8 BgrdPaletteIndex = readPpu8(BGRD_PALETTE_ADRS + BgrdColourIndex, Ppu);
+                            getPaletteValue(BgrdPaletteIndex, Colour);
+                        }
+                
+                        /* ******************* */
+                        /* Sprite Calculations */
+                        
+                        if(Ppu->ShowSprites && !(PixelX < 8 && !Ppu->ShowSPRTLeft8Pixels) )
+                        {
+                            for(int8 SpriteIdx = SECOND_OAM_SPRITE_NUM - 1; SpriteIdx >= 0; --SpriteIdx)
+                            {
+                                oam_sprite *Sprite = Ppu->SecondaryOam + SpriteIdx;
+                            
+                                if(PixelX != 0xFF && PixelX >= Sprite->X && PixelX < (Sprite->X + PIXEL_PER_TILE)) 
                                 {
                                     uint8 RelX = ((PixelX - (Sprite->X)) % 8);
-                                    LowPattern  = (PatternLow >> (7 - RelX)) & 1;
-                                    HighPattern = (PatternHigh >> (7 - RelX)) & 1;
-                                }
-                    
-                                uint8 Value = (HighPattern << 1) | LowPattern;
-                    
-                                if((((PixColourHigh << 2) | Value) % 4) != 0)
-                                    SpriteColourIndex = (PixColourHigh << 2) | Value;
+                                    uint8 PatternValue = 0;
+                                    
+                                    PatternValue = (((Ppu->SpriteTileHigh[SpriteIdx] >> (7 - RelX)) & 1) << 1) |
+                                        ((Ppu->SpriteTileLow[SpriteIdx] >> (7 - RelX)) & 1);
+                                    
+                                    if(PatternValue != 0) // If bottom two bits is 0, then is multiple of 4.
+                                    {
+                                        SpriteColourIndex = ((Sprite->Atrb & 3) << 2) | PatternValue;
 
-                                if(SpriteIdx == 0 && ((SpriteColourIndex & 3) != 0) && SpriteColourIndex != NO_COLOUR)
-                                {
-                                    Sprite0Check = true;
-                                }
+                                        if(SpriteZeroOnThisLine && !Ppu->Sprite0Hit && SpriteIdx == 0 &&
+                                           Ppu->ShowBackground && BgrdColourIndex != 0 && Ppu->ScanlineCycle < 256)
+                                        {
+                                            Ppu->Sprite0Hit = true;
+                                        }
 
-                                SpritePriority = !(Sprite->Atrb & (1 << 5));
+                                        bool32 SpritePriority = !(Sprite->Atrb & (1 << 5));
+                                        
+                                        if( SpritePriority || BgrdColourIndex ==0 )
+                                        {
+                                            uint8 SprtPaletteIndex = readPpu8(SPRT_PALETTE_ADRS + SpriteColourIndex, Ppu);                       
+                                            getPaletteValue(SprtPaletteIndex, Colour);                        
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
-
-                    /** **************/
-                    /* Drawing Pixel */
-            
-                    uint8 Colour[3] = {};
-                    bool32 BgrdTransparent = true;
-            
-                    if(Ppu->ShowBackground)
-                    {
-                        if((BgrdColourIndex & 3) != 0)
-                            BgrdTransparent = false;
-
-                        uint8 BgrdPaletteIndex = readPpu8(BGRD_PALETTE_ADRS + BgrdColourIndex, Ppu);
-                        getPaletteValue(BgrdPaletteIndex, Colour);
-                    }
-
-                    bool32 SpriteTransparent = true; 
-            
-                    if(Ppu->ShowSprites)
-                    {
-                        if((SpriteColourIndex & 3) != 0)
-                            SpriteTransparent = false;
-                    
-                        if(SpriteColourIndex != NO_COLOUR && !SpriteTransparent)
-                        {
-                            if(BgrdTransparent || SpritePriority)
-                            {
-                                uint8 SprtPaletteIndex = readPpu8(SPRT_PALETTE_ADRS + SpriteColourIndex, Ppu);                       
-                                getPaletteValue(SprtPaletteIndex, Colour);                        
-                            }
-                        
-                            if(Sprite0Check && !BgrdTransparent && Ppu->ScanlineCycle < 256)
-                            {
-                                Ppu->Sprite0Hit = true;
-                            }
-                        }
-                    }            
                 
-                    drawPixel(Ppu, PixelX, PixelY, Colour);
-
-                }            
-
-                if(Ppu->ScanlineCycle == 257)
-                    resetScrollHorz(VRamIO);
-                if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 340)
-                    loadFutureData(Ppu);
+                        drawPixel(Ppu, PixelX, PixelY, Colour);
+                    }            
+                }
             }
         }
     }
     if(PostRenderLine)
     {
-        // NOTE: IDLE
         DrawScreen = true;
     }
     if(VBlankLine)
@@ -366,36 +369,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
             Ppu->VerticalBlank = true;
             TriggerNmi = Ppu->GenerateNMI;
         }
-    }
-    if(PreRenderLine)
-    {
-        if(Ppu->ScanlineCycle == 1)
-        {
-            Ppu->SpriteOverflow = false;
-            Ppu->Sprite0Hit = false;
-            Ppu->VerticalBlank = false; 
-            NmiTriggered = false;
-        }
-
-        if(RenderingEnabled)
-        {
-            if(1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 256)
-                loadFutureData(Ppu);
-            if(Ppu->ScanlineCycle == 257)
-                resetScrollHorz(VRamIO);
-
-            if(280 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 304)
-                resetScrollVert(VRamIO);
-            
-            if(321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 336)
-                loadFutureData(Ppu);
-
-            // NOTE: Last cycle of prerender is skipped if it is an odd frame
-            if(Ppu->OddFrame && Ppu->ScanlineCycle == 339)
-                Ppu->ScanlineCycle += 1;
-        }
-    }
-            
+    }            
     // Incrementing to the next cycle. If reached end of
     // scanline cycles then increment scanline.
     ++Ppu->ScanlineCycle;
@@ -409,7 +383,7 @@ void ppuTick(screen_buffer *BackBuffer, ppu *Ppu)
     if(Ppu->Scanline == 262)
     {
         Ppu->Scanline = 0;
-         Ppu->OddFrame = !Ppu->OddFrame;
+        Ppu->OddFrame = !Ppu->OddFrame;
     }
 }
 

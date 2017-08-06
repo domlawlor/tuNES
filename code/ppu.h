@@ -10,22 +10,21 @@
 #define PIXEL_WIDTH 256
 #define PIXEL_HEIGHT 240
 
-#define TILES_COUNT_X 32
-#define TILES_COUNT_Y 30
-
 #define PIXEL_PER_TILE 8
 
 #define BGRD_PALETTE_ADRS 0x3F00
 #define SPRT_PALETTE_ADRS 0x3F10
 
-#define ATTRIBUTE_OFFSET 0x3C0
-
-#define PIXELS_PER_TILE 8
-
-#define PIXELS_PER_ATRB_BYTE 32
-#define ATRB_BYTE_PER_ROW 8
-
 #define SECOND_OAM_SPRITE_NUM 8
+
+enum NT_MIRROR
+{
+    SINGLE_SCREEN_BANK_A = 0,
+    SINGLE_SCREEN_BANK_B,
+    VERTICAL_MIRROR,
+    HORIZONTAL_MIRROR,
+    FOUR_SCREEN_MIRROR,   
+};
 
 struct oam_sprite
 {
@@ -51,6 +50,15 @@ struct ppu
     // TODO: Not just for ppu. also apu. So pull out into global
     uint8 OpenBus;
 
+    // Nametable mirror type
+    NT_MIRROR MirrorType;
+
+    // Name table banks. Mirror type selects which one is used
+    uint8 NametableBankA[0x400];
+    uint8 NametableBankB[0x400];
+    uint8 NametableBankC[0x400];
+    uint8 NametableBankD[0x400];
+    
     // Control Reg
     uint8 NametableBase;
     uint8 VRamIncrement;
