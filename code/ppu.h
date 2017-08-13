@@ -6,7 +6,6 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
-
 #define PIXEL_WIDTH 256
 #define PIXEL_HEIGHT 240
 
@@ -15,7 +14,7 @@
 #define BGRD_PALETTE_ADRS 0x3F00
 #define SPRT_PALETTE_ADRS 0x3F10
 
-#define SECOND_OAM_SPRITE_NUM 8
+#define SECONDARY_OAM_SPRITE_MAX 8
 
 enum NT_MIRROR
 {
@@ -26,6 +25,14 @@ enum NT_MIRROR
     FOUR_SCREEN_MIRROR,   
 };
 
+struct vram_io
+{
+    uint16 VRamAdrs;
+    uint16 TempVRamAdrs;
+    uint8 LatchWrite;
+    uint8 FineX;
+};
+
 struct oam_sprite
 {
     uint8 Y;
@@ -33,13 +40,17 @@ struct oam_sprite
     uint8 Atrb;
     uint8 X;
 };
-          
-struct vram_io
+
+struct sprite
 {
-    uint16 VRamAdrs;
-    uint16 TempVRamAdrs;
-    uint8 LatchWrite;
-    uint8 FineX;
+    oam_sprite OamData;
+
+    bool32 Priority;
+    bool32 Sprite0;
+    
+    uint8 PaletteValue;
+    uint8 PatternLow;
+    uint8 PatternHigh;
 };
 
 struct ppu
@@ -92,10 +103,12 @@ struct ppu
     //Sprites
     uint8 *OamDma; 
     uint8 Oam[OAM_SIZE];
-    oam_sprite SecondaryOam[SECOND_OAM_SPRITE_NUM];
-    uint8 SpriteTileLow[SECOND_OAM_SPRITE_NUM];
-    uint8 SpriteTileHigh[SECOND_OAM_SPRITE_NUM];
-    bool32 EnabledSprite[SECOND_OAM_SPRITE_NUM];
+
+    uint8 SecondarySpriteCount;
+    sprite SecondaryOam[SECONDARY_OAM_SPRITE_MAX];
+    
+    uint8 PreparedSpriteCount;
+    sprite PreparedSprites[SECONDARY_OAM_SPRITE_MAX];
     
     uint16 Scanline;
     uint16 ScanlineCycle;
@@ -103,6 +116,8 @@ struct ppu
     vram_io VRamIO;
 
     bool32 OddFrame;
+
+    screen_buffer *BackBuffer;
 };
 
 

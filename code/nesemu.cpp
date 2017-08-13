@@ -316,8 +316,15 @@ static void * LoadFile(char * Filename, uint32 *Size)
 
 global uint8 *OamData = 0;
 
-bool32 TriggerNmi = false;
-bool32 NmiTriggered = false;
+struct nmi
+{
+    bool32 Trigger;
+    bool32 AlreadyTriggered;
+    bool32 NmiSupress;
+    bool32 VblSupress;
+};
+
+
 bool32 IrqTriggered = false;
 
 bool32 OamDataChange = false;
@@ -385,8 +392,6 @@ initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel)
     Ppu->MemoryBase = MemoryBase;
     Ppu->BasePixel = BasePixel;
 }
-
-
 
 void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
 {
@@ -810,13 +815,12 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
                 }
-
+                
                 if(PowerHit)
                 {
                     PowerHit = false;
                     power(&Nes);
-                }
-                
+                }                
                 if(ResetHit)
                 {
                     ResetHit = false;
@@ -833,10 +837,14 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 if(PowerOn)
                 {
                     TickCycles = cpuTick(&Nes.Cpu, &WinInput);
+
+                    // Minus the cycles we have already executed on the ppu for catchup
+                    TickCycles -= Nes.Cpu.CatchUpCyclesRun;
+                    Nes.Cpu.CatchUpCyclesRun = 0;
                     
                     for(uint8 i = 0; i < (3*TickCycles); ++i)
                     {
-                        ppuTick(&ScreenBackBuffer, &Nes.Ppu);
+                        ppuTick(&Nes.Ppu);
                     }
 
                     CpuCyclesElapsed += TickCycles;

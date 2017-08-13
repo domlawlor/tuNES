@@ -199,9 +199,11 @@ static uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
 #endif   
 
 static uint8 cpuTick(cpu *Cpu, input *NewInput)
-{        
+{
     uint8 CyclesElapsed = 0;
 
+    Cpu->PotentialCatchUp = 0;
+    
     uint16 Address = 0;
     bool32 CrossedPage = 0;
     
@@ -221,10 +223,10 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
     
-    if(TriggerNmi)
+    if(Cpu->StartNmi)
     {
         NmiTriggered = true;
-        TriggerNmi = false;
+        Cpu->StartNmi = false;
                 
         LogCpu.PrgCounter = NMI_VEC;
         Address = NMI_VEC;
@@ -258,8 +260,7 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
         {
             InstrData[i] = readCpu8(Cpu->PrgCounter + i, Cpu); 
         }
-        
-    
+            
         switch(AddressMode)
         {
             case ACM:
@@ -271,23 +272,29 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
                 break;
             case ZERO:
                 Address = (uint16)InstrData[1];
+                Cpu->PotentialCatchUp = 2;
                 break;
             case ZERX:
                 Address = ((uint16)InstrData[1] + Cpu->X) & 0xFF;
+                Cpu->PotentialCatchUp = 3;
                 break;
             case ZERY:
                 Address = ((uint16)InstrData[1] + Cpu->Y) & 0xFF;
+                Cpu->PotentialCatchUp = 3;
                 break;
             case ABS:
                 Address = ((uint16)InstrData[2] << 8) | InstrData[1];
+                Cpu->PotentialCatchUp = 3;
                 break;
             case ABSX:
                 Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->X;
                 CrossedPage = crossedPageCheck(Address - Cpu->X, Address);
+                Cpu->PotentialCatchUp = 4;
                 break;
             case ABSY:
                 Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->Y;
                 CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
+                Cpu->PotentialCatchUp = 4;
                 break;
             case REL:
             {
@@ -297,16 +304,19 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
             }
             case INDX:
             {
+                // Always reading from zero page
                 uint8 ZeroAddress = InstrData[1];
                 uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
                 Address = bugReadCpu16(AddedAddress, Cpu);
+                Cpu->PotentialCatchUp = 5;
                 break;
             }
             case INDY:
-            {
+            {                
                 uint8 ZeroAddress = InstrData[1];
                 Address = bugReadCpu16(ZeroAddress, Cpu) + Cpu->Y;
                 CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
+                Cpu->PotentialCatchUp = 5;
                 break;
             }
             case INDI:
@@ -321,14 +331,19 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
                 break;
             }        
         }
-    
+
+        Cpu->StartNmi = TriggerNmi;
+        TriggerNmi = false;
+        
         Cpu->PrgCounter += InstrLength;
         CyclesElapsed += InstrCycles;
 
         // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
         if(CrossedPage)
+        {
             CyclesElapsed += instBoundaryCheck[Instruction];
-     
+        }
+        
         uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
         CyclesElapsed += AdditionalCycles;
 

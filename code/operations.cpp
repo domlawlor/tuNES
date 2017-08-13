@@ -5,8 +5,20 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
+#include "cpu.h"
+
+void catchUpPpu(cpu *Cpu)
+{
+    for(int tick = 0; tick < (Cpu->PotentialCatchUp*3); ++tick)
+    {
+        ppuTick(GlobalPpu);
+    }
+    Cpu->CatchUpCyclesRun = Cpu->PotentialCatchUp;
+}
+
 uint8 adc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 A = Cpu->A;
     uint8 B = readCpu8(Address, Cpu);
     uint8 C = isBitSet(CARRY_BIT, Cpu->Flags);
@@ -33,6 +45,7 @@ uint8 adc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 
 uint8 AND(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
     Cpu->A = Cpu->A & Value;
     setZero(Cpu->A, &Cpu->Flags);
@@ -54,6 +67,7 @@ uint8 asl(uint16 Address, cpu *Cpu, uint8 AddressMode)
     }
     else
     {
+        catchUpPpu(Cpu);
         Value = readCpu8(Address, Cpu);
         if(Value & (1 << 7))
             setCarry(&Cpu->Flags);
@@ -110,6 +124,7 @@ uint8 beq(uint16 Address, cpu *Cpu, uint8 AddressMode)
 
 uint8 bit(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
     if(Value & (1 << 6))
         setOverflow(&Cpu->Flags);
@@ -223,6 +238,7 @@ uint8 clv(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 cmp(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
 
     if(Cpu->A >= Value)
@@ -265,6 +281,7 @@ uint8 cpy(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 dec(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu) - 1;
     writeCpu8(Value, Address, Cpu);
     setZero(Value, &Cpu->Flags);
@@ -287,6 +304,7 @@ uint8 dey(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 eor(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
     Cpu->A = Cpu->A ^ Value;
     setZero(Cpu->A, &Cpu->Flags);
@@ -295,6 +313,7 @@ uint8 eor(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 inc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu) + 1;
     writeCpu8(Value, Address, Cpu);
     setZero(Value, &Cpu->Flags);
@@ -334,6 +353,7 @@ uint8 jsr(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 lda(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
     Cpu->A = Value;
     setZero(Value, &Cpu->Flags);
@@ -342,6 +362,7 @@ uint8 lda(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 ldx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
     Cpu->X = Value;
     setZero(Value, &Cpu->Flags);
@@ -350,6 +371,7 @@ uint8 ldx(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 ldy(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
     Cpu->Y = Value;
     setZero(Value, &Cpu->Flags);
@@ -370,6 +392,7 @@ uint8 lsr(uint16 Address, cpu *Cpu, uint8 AddressMode)
     }
     else
     {
+        catchUpPpu(Cpu);
         Value = readCpu8(Address, Cpu);
         if(Value & 1)
             setCarry(&Cpu->Flags);
@@ -388,6 +411,7 @@ uint8 nop(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 ora(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 Value = readCpu8(Address, Cpu);
     Cpu->A = Cpu->A | Value;
     setZero(Cpu->A, &Cpu->Flags);
@@ -439,6 +463,7 @@ uint8 rol(uint16 Address, cpu *Cpu, uint8 AddressMode)
     }
     else
     {
+        catchUpPpu(Cpu);
         Value = readCpu8(Address, Cpu);
         if(Value & (1 << 7))
             setCarry(&Cpu->Flags);
@@ -478,6 +503,7 @@ uint8 ror(uint16 Address, cpu *Cpu, uint8 AddressMode)
     }
     else
     {
+        catchUpPpu(Cpu);
         Value = readCpu8(Address, Cpu);
         if(Value & 1)
             setCarry(&Cpu->Flags);
@@ -516,6 +542,7 @@ uint8 rts(uint16 Address, cpu *Cpu, uint8 AddressMode)
 }
 uint8 sbc(uint16 Address, cpu *Cpu, uint8 AddressMode)
 {
+    catchUpPpu(Cpu);
     uint8 A = Cpu->A;
     uint8 B = ~readCpu8(Address, Cpu); // NOTE: Using the inverse
     uint8 C = isBitSet(CARRY_BIT, Cpu->Flags);

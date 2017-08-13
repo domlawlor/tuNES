@@ -52,6 +52,9 @@ struct cpu
 
     input InputPad2;
     uint8 Pad2CurrentButton;
+
+    uint8 CatchUpCyclesRun;
+    uint8 PotentialCatchUp;
 };
 
 #define CPU_H
