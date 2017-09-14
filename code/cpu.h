@@ -22,12 +22,19 @@
 #define OVERFLOW_BIT  0x40
 #define NEGATIVE_BIT  0x80
 
+enum addressType
+{
+    NUL = 0,
+    ACM,  IMPL, IMED, REL,
+    ZERO, ZERX, ZERY,
+    ABS,  ABSX, ABSY, 
+    INDX, INDY, INDI
+};
+
 enum addressMode
 {
-    NUL = 0, ACM, IMED,
-    ZERO, ZERX, ZERY,
-    ABS, ABSX, ABSY, IMPL, REL,
-    INDX, INDY, INDI
+    NL = 0,
+    R, RW, W
 };
 
 struct cpu
@@ -40,6 +47,9 @@ struct cpu
     uint16 PrgCounter;
     uint64 MemoryBase;
 
+    uint8 Cycle;
+    uint8 NextCycle;
+    
     uint8  MapperReg;
     uint16 MapperWriteAddress;
     bool32 MapperWrite;
@@ -49,13 +59,10 @@ struct cpu
     
     input InputPad1;
     uint8 Pad1CurrentButton;
-
     input InputPad2;
     uint8 Pad2CurrentButton;
-
-    uint8 CatchUpCyclesRun;
-    uint8 PotentialCatchUp;
 };
 
 #define CPU_H
 #endif
+
