@@ -320,9 +320,39 @@ struct nmi
 {
     bool32 Trigger;
     bool32 AlreadyTriggered;
-    bool32 NmiSupress;
+    bool32 Nmi; // TODO: Get better names for these
+    bool32 NmiInterrupt;
     bool32 VblSupress;
 };
+
+global nmi Nmi;
+
+void pollInterrupts()
+{
+    if(Nmi.Trigger && !Nmi.AlreadyTriggered)
+    {
+        Nmi.Nmi=true;
+    }
+    
+    Nmi.AlreadyTriggered = Nmi.Trigger;
+    
+    if(Nmi.Nmi)
+    {
+        Nmi.NmiInterrupt = true;
+        Nmi.Nmi = false;
+    }
+}
+
+void setNMI(boolean Set)
+{
+    Nmi.Trigger = Set;
+
+    if(Nmi.Trigger && !Nmi.AlreadyTriggered)
+        Nmi.Nmi=true;
+
+    Nmi.AlreadyTriggered = Nmi.Trigger;
+}
+
 
 
 bool32 IrqTriggered = false;

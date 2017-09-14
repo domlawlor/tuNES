@@ -296,7 +296,6 @@ static void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
     }
 }
 
-
 static void writePpuRegister(uint8 Byte, uint16 Address)
 {
     ppu * Ppu = GlobalPpu;
@@ -317,23 +316,13 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             Ppu->PpuSlave = ((Byte & 64) != 0);
             Ppu->GenerateNMI = ((Byte & 128) != 0);
 
-
-            /*
             if(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 0)
             {
-                NmiTriggered = false;
+                setNMI(false); //NmiTriggered = false;
             }
-            else if(Ppu->GenerateNMI && !Ppu->SupressNmi && Ppu->VerticalBlank && !NmiTriggered)
-            {
-                TriggerNmi = Ppu->GenerateNMI;
-            }
-            else if(!Ppu->GenerateNMI && Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 1  || Ppu->ScanlineCycle == 2))
-            {
-                TriggerNmi = false;
-                GlobalCpu->StartNmi = false;
-                }*/
+            else
+                setNMI(Ppu->GenerateNMI && Ppu->VerticalBlank);
 
-            //NmiTriggered = Ppu->GenerateNMI;
             break;
         }
         case 0x2001:
@@ -444,38 +433,33 @@ static uint8 readPpuRegister(uint16 Address)
     {
         case 0x2002:
         {
-            // One before vbl set, vbl is clear and does not get set the next cycle
-            // On vbl set or one after, clears it, and supresses nmi for that frame?
-            // Two or more cycles after, reads normally,             
-            if( Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 1) )
+            if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
             {
-                Ppu->SupressVbl = true;
-            }
-/*            else if( Ppu->Scanline == 240 && (Ppu->ScanlineCycle == 339 || Ppu->ScanlineCycle == 340) )
-            {
-                // Do nothing?
-                }*/
-            else if( Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2 || Ppu->ScanlineCycle == 3))
-            {
-                Byte |= Ppu->VerticalBlank ? 0x80 : 0;
-                Ppu->SupressNmi = true;
-                TriggerNmi = false;
-                GlobalCpu->StartNmi = false;
+                 Nmi.VblSupress = true;
             }
             else
             {
-                // Else if not anywhere near where vbl is set
-                Byte |= Ppu->VerticalBlank ? 0x80 : 0; // Read normally
+                Nmi.VblSupress = false;
+                Byte |= Ppu->VerticalBlank ? 0x80 : 0;
             }
-            
+
+
+            if(Ppu->Scanline == 241 &&
+               (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
+            {
+                Nmi.Nmi = false;
+            }            
+                      
             Ppu->VerticalBlank = false;
             
             Byte |= Ppu->Sprite0Hit ? 0x40 : 0;
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
             Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
+
+            setNMI(false);
             
             Ppu->VRamIO.LatchWrite = 0;
-            NmiTriggered = false;
+            
             Ppu->OpenBus = Byte;
             break;
         }

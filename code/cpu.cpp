@@ -223,10 +223,11 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
     
-    if(Cpu->StartNmi)
+    if(Nmi.NmiInterrupt)
     {
-        NmiTriggered = true;
-        Cpu->StartNmi = false;
+        Nmi.NmiInterrupt = false;
+        //NmiTriggered = true;
+        //Cpu->StartNmi = false;
                 
         LogCpu.PrgCounter = NMI_VEC;
         Address = NMI_VEC;
@@ -332,8 +333,7 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
             }        
         }
 
-        Cpu->StartNmi = TriggerNmi;
-        TriggerNmi = false;
+        pollInterrupts();
         
         Cpu->PrgCounter += InstrLength;
         CyclesElapsed += InstrCycles;
