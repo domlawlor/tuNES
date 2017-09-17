@@ -7,9 +7,128 @@
 
 #include "cpu.h"
 
-//////////////////////
-// Stack Operations //
-//////////////////////
+// Implied Operations
+
+uint8 clc(uint8 Value, cpu *Cpu)
+{
+    clearCarry(&Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 cld(uint8 Value, cpu *Cpu)
+{
+    clearDecimal(&Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 cli(uint8 Value, cpu *Cpu)
+{
+    clearInterrupt(&Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 clv(uint8 Value, cpu *Cpu)
+{
+    clearOverflow(&Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 dex(uint8 Value, cpu *Cpu)
+{
+    --Cpu->X;
+    setZero(Cpu->X, &Cpu->Flags);
+    setNegative(Cpu->X, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 dey(uint8 Value, cpu *Cpu)
+{
+    --Cpu->Y;
+    setZero(Cpu->Y, &Cpu->Flags);
+    setNegative(Cpu->Y, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 inx(uint8 Value, cpu *Cpu)
+{
+    ++Cpu->X;
+    setZero(Cpu->X, &Cpu->Flags);
+    setNegative(Cpu->X, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 iny(uint8 Value, cpu *Cpu)
+{
+    ++Cpu->Y;
+    setZero(Cpu->Y, &Cpu->Flags);
+    setNegative(Cpu->Y, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 sec(uint8 Value, cpu *Cpu)
+{
+    setCarry(&Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 sed(uint8 Value, cpu *Cpu)
+{
+    setDecimal(&Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 sei(uint8 Value, cpu *Cpu)
+{
+    setInterrupt(&Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 tax(uint8 Value, cpu *Cpu)
+{
+    Cpu->X = Cpu->A;
+    setZero(Cpu->X, &Cpu->Flags);
+    setNegative(Cpu->X, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 tay(uint8 Value, cpu *Cpu)
+{    
+    Cpu->Y = Cpu->A;
+    setZero(Cpu->Y, &Cpu->Flags);
+    setNegative(Cpu->Y, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 tsx(uint8 Value, cpu *Cpu)
+{
+    Cpu->X = Cpu->StackPtr;
+    setZero(Cpu->X, &Cpu->Flags);
+    setNegative(Cpu->X, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 txa(uint8 Value, cpu *Cpu)
+{
+    Cpu->A = Cpu->X;
+    setZero(Cpu->A, &Cpu->Flags);
+    setNegative(Cpu->A, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 tya(uint8 Value, cpu *Cpu)
+{   
+    Cpu->A = Cpu->Y;
+    setZero(Cpu->A, &Cpu->Flags);
+    setNegative(Cpu->A, &Cpu->Flags);
+    Cpu->NextCycle = 1;
+    return(0);
+}
+uint8 txs(uint8 Value, cpu *Cpu)
+{
+    Cpu->StackPtr = Cpu->X;
+    Cpu->NextCycle = 1;
+    return(0);
+}
 
 uint8 brk(uint8 Value, cpu *Cpu)
 {
@@ -50,11 +169,7 @@ uint8 brk(uint8 Value, cpu *Cpu)
 
 uint8 rti(uint8 Value, cpu *Cpu)
 {
-    if(Cpu->Cycle == 2)
-    {
-        // Nothing
-    }
-    else if(Cpu->Cycle == 3)
+    if(Cpu->Cycle == 3)
     {
         incrementStack(Cpu);
     }
@@ -65,12 +180,12 @@ uint8 rti(uint8 Value, cpu *Cpu)
     }
     else if(Cpu->Cycle == 5)
     {
-        Cpu->PrgCounter = Cpu->PrgCounter & 0xFF00 | readStack(Cpu);
+        Cpu->PrgCounter = (Cpu->PrgCounter & 0xFF00) | readStack(Cpu);
         incrementStack(Cpu);
     }
     else if(Cpu->Cycle == 6)
     {
-        Cpu->PrgCounter = Cpu->PrgCounter & 0x00FF | readStack(Cpu) << 8;
+        Cpu->PrgCounter = (readStack(Cpu) << 8) | (Cpu->PrgCounter & 0x00FF);
         Cpu->NextCycle = 1;
     }
     return(0);
@@ -78,11 +193,7 @@ uint8 rti(uint8 Value, cpu *Cpu)
 
 uint8 rts(uint8 Value, cpu *Cpu)
 {
-    if(Cpu->Cycle == 2)
-    {
-        // Nothing
-    }
-    else if(Cpu->Cycle == 3)
+    if(Cpu->Cycle == 3)
     {
         incrementStack(Cpu);
     }
@@ -93,7 +204,7 @@ uint8 rts(uint8 Value, cpu *Cpu)
     }
     else if(Cpu->Cycle == 5)
     {
-        Cpu->PrgCounter = Cpu->PrgCounter & 0x00FF | readStack(Cpu) << 8;
+        Cpu->PrgCounter =  (readStack(Cpu) << 8) | (Cpu->PrgCounter & 0x00FF);
     }
     else if(Cpu->Cycle == 6)
     {
@@ -106,11 +217,7 @@ uint8 rts(uint8 Value, cpu *Cpu)
 
 uint8 pha(uint8 Value, cpu *Cpu)
 {
-    if(Cpu->Cycle == 2)
-    {
-// Nothing
-    }
-    else if(Cpu->Cycle == 3)
+    if(Cpu->Cycle == 3)
     {
         writeStack(Cpu->A, Cpu);
         decrementStack(Cpu);
@@ -121,11 +228,7 @@ uint8 pha(uint8 Value, cpu *Cpu)
 
 uint8 php(uint8 Value, cpu *Cpu)
 {
-    if(Cpu->Cycle == 2)
-    {
-        // NOTHING
-    }
-    else if(Cpu->Cycle == 3)
+    if(Cpu->Cycle == 3)
     {
         writeStack(Cpu->Flags, Cpu);
         decrementStack(Cpu);
@@ -138,11 +241,7 @@ uint8 php(uint8 Value, cpu *Cpu)
 
 uint8 pla(uint8 Value, cpu *Cpu)
 {
-    if(Cpu->Cycle == 2)
-    {
-        // Nothing
-    }
-    else if(Cpu->Cycle == 3)
+    if(Cpu->Cycle == 3)
     {
         incrementStack(Cpu);
     }
@@ -158,11 +257,7 @@ uint8 pla(uint8 Value, cpu *Cpu)
 
 uint8 plp(uint8 Value, cpu *Cpu)
 {
-    if(Cpu->Cycle == 2)
-    {
-        // Nothing
-    }
-    else if(Cpu->Cycle == 3)
+    if(Cpu->Cycle == 3)
     {
         incrementStack(Cpu);
     }
@@ -179,12 +274,9 @@ uint8 jsr(uint8 Value, cpu *Cpu)
 {
     if(Cpu->Cycle == 2)
     {
-        uint8 LowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
     }
-    else if(Cpu->Cycle == 3)
-    {
-        // NOTHING??
-    }
+    // Nothing on cycle 3
     else if(Cpu->Cycle == 4)
     {
         writeStack((Cpu->PrgCounter >> 8), Cpu);
@@ -197,25 +289,9 @@ uint8 jsr(uint8 Value, cpu *Cpu)
     }
     else if(Cpu->Cycle == 6)
     {
-        Cpu->PrgCounter = (Cpu->PrgCounter & 0xFF00) | LowByte;
-        Cpu->PrgCounter = readCpu8(Cpu->PrgCounter, Cpu) << 8 | (Cpu->PrgCounter & 0x00FF);
+        Cpu->PrgCounter = (readCpu8(Cpu->PrgCounter, Cpu) << 8) | Cpu->OpLowByte;
         Cpu->NextCycle = 1;
     }
-
-    return(0);
-}
-
-/////////////////////////
-// Absolute Operations //
-/////////////////////////
-
-uint8 jmp(uint8 Value, cpu *Cpu)
-{
-// Cycle 2
-    uint8 LowByte = readCpu8(Cpu->PrgCounter++, Cpu);
-// Cycle 3
-    Cpu->PrgCounter = (Cpu->PrgCounter & 0xFF00) | LowByte;
-    Cpu->PrgCounter = readCpu8(Cpu->PrgCounter, Cpu) << 8 | (Cpu->PrgCounter & 0x00FF);
 
     return(0);
 }
@@ -537,6 +613,13 @@ uint8 bvs(uint8 Value, cpu *Cpu)
 }
 /////////////////////
 
+
+uint8 jmp(uint8 Value, cpu *Cpu)
+{
+    Cpu->PrgCounter = (Cpu->OpHighByte << 8) | Cpu->OpLowByte;
+    return(0);
+}
+
 uint8 asl_acm(uint8 Value, cpu *Cpu)
 {
     uint8 Byte = 0;
@@ -550,6 +633,8 @@ uint8 asl_acm(uint8 Value, cpu *Cpu)
 
     setZero(Byte, &Cpu->Flags);
     setNegative(Byte, &Cpu->Flags);
+
+    return(0);
 }
 
 uint8 lsr_acm(uint8 Value, cpu *Cpu)
@@ -561,6 +646,8 @@ uint8 lsr_acm(uint8 Value, cpu *Cpu)
     Cpu->A = Cpu->A >> 1;
     setZero(Cpu->A, &Cpu->Flags);
     setNegative(Cpu->A, &Cpu->Flags);
+
+    return(0);
 }
 
 uint8 rol_acm(uint8 Value, cpu *Cpu)
@@ -581,6 +668,8 @@ uint8 rol_acm(uint8 Value, cpu *Cpu)
 
     setZero(Byte, &Cpu->Flags);
     setNegative(Byte, &Cpu->Flags);
+
+    return(0);
 }
 
 uint8 ror_acm(uint8 Value, cpu *Cpu)
@@ -601,7 +690,11 @@ uint8 ror_acm(uint8 Value, cpu *Cpu)
 
     setZero(Byte, &Cpu->Flags);
     setNegative(Byte, &Cpu->Flags);
+
+    return(0);
 }
+
+// Compares
 
 uint8 cpx(uint8 Value, cpu *Cpu)
 {
@@ -628,114 +721,6 @@ uint8 cpy(uint8 Value, cpu *Cpu)
     return(0);
 }
 
-
-// Implied
-
-uint8 clc(uint8 Value, cpu *Cpu)
-{
-    clearCarry(&Cpu->Flags);
-    return(0);
-}
-uint8 cld(uint8 Value, cpu *Cpu)
-{
-    clearDecimal(&Cpu->Flags);
-    return(0);
-}
-uint8 cli(uint8 Value, cpu *Cpu)
-{
-    clearInterrupt(&Cpu->Flags);
-    return(0);
-}
-uint8 clv(uint8 Value, cpu *Cpu)
-{
-    clearOverflow(&Cpu->Flags);
-    return(0);
-}
-uint8 dex(uint8 Value, cpu *Cpu)
-{
-    --Cpu->X;
-    setZero(Cpu->X, &Cpu->Flags);
-    setNegative(Cpu->X, &Cpu->Flags);
-    return(0);
-}
-uint8 dey(uint8 Value, cpu *Cpu)
-{
-    --Cpu->Y;
-    setZero(Cpu->Y, &Cpu->Flags);
-    setNegative(Cpu->Y, &Cpu->Flags);
-    return(0);
-}
-uint8 inx(uint8 Value, cpu *Cpu)
-{
-    ++Cpu->X;
-    setZero(Cpu->X, &Cpu->Flags);
-    setNegative(Cpu->X, &Cpu->Flags);
-    return(0);
-}
-uint8 iny(uint8 Value, cpu *Cpu)
-{
-    ++Cpu->Y;
-    setZero(Cpu->Y, &Cpu->Flags);
-    setNegative(Cpu->Y, &Cpu->Flags);
-    return(0);
-}
-uint8 sec(uint8 Value, cpu *Cpu)
-{
-    setCarry(&Cpu->Flags);
-    return(0);
-}
-uint8 sed(uint8 Value, cpu *Cpu)
-{
-    setDecimal(&Cpu->Flags);
-    return(0);
-}
-uint8 sei(uint8 Value, cpu *Cpu)
-{
-    setInterrupt(&Cpu->Flags);
-    return(0);
-}
-uint8 tax(uint8 Value, cpu *Cpu)
-{
-    Cpu->X = Cpu->A;
-    setZero(Cpu->X, &Cpu->Flags);
-    setNegative(Cpu->X, &Cpu->Flags);
-    return(0);
-}
-uint8 tay(uint8 Value, cpu *Cpu)
-{    
-    Cpu->Y = Cpu->A;
-    setZero(Cpu->Y, &Cpu->Flags);
-    setNegative(Cpu->Y, &Cpu->Flags);
-    return(0);
-}
-uint8 tsx(uint8 Value, cpu *Cpu)
-{
-    Cpu->X = Cpu->StackPtr;
-    setZero(Cpu->X, &Cpu->Flags);
-    setNegative(Cpu->X, &Cpu->Flags);
-    return(0);
-}
-uint8 txa(uint8 Value, cpu *Cpu)
-{
-    Cpu->A = Cpu->X;
-    setZero(Cpu->A, &Cpu->Flags);
-    setNegative(Cpu->A, &Cpu->Flags);
-    return(0);
-}
-uint8 tya(uint8 Value, cpu *Cpu)
-{   
-    Cpu->A = Cpu->Y;
-    setZero(Cpu->A, &Cpu->Flags);
-    setNegative(Cpu->A, &Cpu->Flags);
-    return(0);
-}
-uint8 txs(uint8 Value, cpu *Cpu)
-{
-    Cpu->StackPtr = Cpu->X;
-    return(0);
-}
-
-/////////
 
 
 
@@ -811,43 +796,13 @@ uint8 las(uint8 Value, cpu *Cpu)
 }
 uint8 shx(uint8 Value, cpu *Cpu)
 {
-
     return(0);
 }
 
-/*
-// 9E: // shx $1234,y 
-Array 
-( 
-[1005] => addr = PB(); 
-[1020] => d = Y; 
-[1050] => addr = u8(addr) + 256 * PB(); 
-[1080] => RB(wrap(addr, addr+d)); 
-[1262] => WB(wrap(addr, addr+d), X & ((addr+d) >> 8)); 
-) 
-
-// 9C: // shy $1234,x 
-Array 
-( 
-[1005] => addr = PB(); 
-[1010] => d = X; 
-[1050] => addr = u8(addr) + 256 * PB(); 
-[1080] => RB(wrap(addr, addr+d)); 
-[1263] => WB(wrap(addr, addr+d), Y & ((addr+d) >> 8)); 
-) 
-
-Where PB() is equal to RB(PC++), 
-RB(addr) reads a byte from given address, 
-and WB(addr, value) writes a byte into the given address; 
-and wrap(addr, addr2) is equal to (addr & 0xFF00) + (addr2 & 0xFF). 
-
-This passes Blargg's test. Note that changing "X & ((addr+d) >> 8)" into "X & (((addr+d) >> 8) + 1)" or "X & ((addr) >> 8)" or into a combination thereof made no difference to the fact. 
-*/
-
 uint8 shy(uint8 Value, cpu *Cpu)
 {
-    if((Cpu->X + Value) <= 0xFF)
-        //writeCpu8(Byte, Address, Cpu); // TODO: This shouldn't happen
+//    if((Cpu->X + Value) <= 0xFF)
+        //writeCpu8(Byte, Address, Cpu); // TODO: This shouldn't happen, need refactoring
     return(0);
 }
 uint8 tas(uint8 Value, cpu *Cpu)
@@ -860,4 +815,732 @@ uint8 xaa(uint8 Value, cpu *Cpu)
 {
 //    Assert(0);
     return(0);
+}
+
+
+uint8 (*instrOps[INSTRUCTION_COUNT])(uint8 InByte, cpu *Cpu) =
+{
+    /*         0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F        */
+    /*0*/    brk,ora,kil,slo,nop,ora,asl,slo,php,ora,asl,anc,nop,ora,asl,slo,
+    /*1*/    bpl,ora,kil,slo,nop,ora,asl,slo,clc,ora,nop,slo,nop,ora,asl,slo,
+    /*2*/    jsr,AND,kil,rla,bit,AND,rol,rla,plp,AND,rol,anc,bit,AND,rol,rla,
+    /*3*/    bmi,AND,kil,rla,nop,AND,rol,rla,sec,AND,nop,rla,nop,AND,rol,rla,
+    /*4*/    rti,eor,kil,sre,nop,eor,lsr,sre,pha,eor,lsr,alr,jmp,eor,lsr,sre,
+    /*5*/    bvc,eor,kil,sre,nop,eor,lsr,sre,cli,eor,nop,sre,nop,eor,lsr,sre,
+    /*6*/    rts,adc,kil,rra,nop,adc,ror,rra,pla,adc,ror,arr,jmp,adc,ror,rra,
+    /*7*/    bvs,adc,kil,rra,nop,adc,ror,rra,sei,adc,nop,rra,nop,adc,ror,rra,
+    /*8*/    nop,sta,nop,sax,sty,sta,stx,sax,dey,nop,txa,xaa,sty,sta,stx,sax,
+    /*9*/    bcc,sta,kil,ahx,sty,sta,stx,sax,tya,sta,txs,tas,shy,sta,shx,ahx,
+    /*A*/    ldy,lda,ldx,lax,ldy,lda,ldx,lax,tay,lda,tax,lax,ldy,lda,ldx,lax,
+    /*B*/    bcs,lda,kil,lax,ldy,lda,ldx,lax,clv,lda,tsx,las,ldy,lda,ldx,lax,
+    /*C*/    cpy,cmp,nop,dcp,cpy,cmp,dec,dcp,iny,cmp,dex,axs,cpy,cmp,dec,dcp,
+    /*D*/    bne,cmp,kil,dcp,nop,cmp,dec,dcp,cld,cmp,nop,dcp,nop,cmp,dec,dcp,
+    /*E*/    cpx,sbc,nop,isc,cpx,sbc,inc,isc,inx,sbc,nop,sbc,cpx,sbc,inc,isc,
+    /*F*/    beq,sbc,kil,isc,nop,sbc,inc,isc,sed,sbc,nop,isc,nop,sbc,inc,isc
+};
+
+
+void implied(cpu *Cpu)
+{
+    // NOTE: Implied instructions handle how many cycles they take
+    instrOps[Cpu->OpInstruction](0, Cpu);
+}
+
+//////////////////////////////////////
+//// ACCUMULATOR AND IMPLIED MODE ////
+//////////////////////////////////////
+
+void accumulator(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        instrOps[Cpu->OpInstruction](0, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+////////////////////////
+//// IMMEDIATE MODE ////
+////////////////////////
+
+void immediate(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        uint8 Value = readCpu8(Cpu->PrgCounter++, Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+
+///////////////////////
+//// RELATIVE MODE ////
+///////////////////////
+
+void relative(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpValue = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        uint8 NextOp = readCpu8(Cpu->PrgCounter, Cpu);
+
+        uint8 Branch = instrOps[Cpu->OpInstruction](0, Cpu);
+        if(Branch)
+        {
+            Cpu->OpLowByte = Cpu->OpTemp = (Cpu->PrgCounter & 0x00FF);
+            Cpu->OpHighByte = (Cpu->PrgCounter & 0xFF00) >> 8;
+            Cpu->OpLowByte += Cpu->OpValue;
+        }
+        else
+        {
+            Cpu->OpInstruction = NextOp;
+            ++Cpu->PrgCounter;
+            Cpu->NextCycle = 2;
+        }
+    }
+    else if(Cpu->Cycle == 4)
+    {
+        uint8 NextOp = readCpu8(Cpu->PrgCounter, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+        else
+        {
+            Cpu->OpInstruction = NextOp;
+            ++Cpu->PrgCounter;
+            Cpu->NextCycle = 2;
+        }
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        Cpu->OpInstruction = readCpu8(Cpu->PrgCounter++, Cpu);
+        Cpu->NextCycle = 2;
+    }
+}
+
+////////////////////////
+//// ZERO PAGE MODE ////
+////////////////////////
+
+void zeroCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+}
+
+void zeroRead(cpu *Cpu)
+{
+    zeroCommon(Cpu);
+    
+    if(Cpu->Cycle == 3)
+    {
+        uint8 Value = readCpu8(Cpu->OpLowByte, Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void zeroReadWrite(cpu *Cpu)
+{
+    zeroCommon(Cpu);
+    
+    if(Cpu->Cycle == 3)
+    {
+        Cpu->OpValue = readCpu8(Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        writeCpu8(Cpu->OpValue, Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }    
+}
+
+void zeroWrite(cpu *Cpu)
+{
+    zeroCommon(Cpu);
+    
+    if(Cpu->Cycle == 3)
+    {
+        uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Value, Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+//////////////////////////
+//// ZERO PAGE X MODE ////
+//////////////////////////
+
+void zeroXCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpLowByte += Cpu->X;        
+    }
+}
+
+void zeroXIndexRead(cpu *Cpu)
+{
+    zeroXCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Value = readCpu8(Cpu->OpLowByte, Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);// Do Op pass in value
+        Cpu->NextCycle = 1;
+    }   
+}
+
+void zeroXIndexReadWrite(cpu *Cpu)
+{
+    zeroXCommon(Cpu);
+
+    if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8(Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);// Do op on value and return
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        writeCpu8(Cpu->OpValue, Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void zeroXIndexWrite(cpu *Cpu)
+{
+    zeroXCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Value, Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+//////////////////////////
+//// ZERO PAGE Y MODE ////
+//////////////////////////
+
+void zeroYCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpLowByte += Cpu->Y;        
+    }
+}
+
+void zeroYIndexRead(cpu *Cpu)
+{
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Value = readCpu8(Cpu->OpLowByte, Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);
+        Cpu->NextCycle = 1;
+    }   
+}
+
+void zeroYIndexReadWrite(cpu *Cpu)
+{
+    zeroYCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8(Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        writeCpu8(Cpu->OpValue, Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void zeroYIndexWrite(cpu *Cpu)
+{
+    zeroYCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Value, Cpu->OpLowByte, Cpu);
+    }
+}
+
+///////////////////////
+//// ABSOLUTE MODE ////
+///////////////////////
+
+void absCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpHighByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+}
+    
+void absJmp(cpu *Cpu)
+{
+    absCommon(Cpu);
+
+    if(Cpu->Cycle == 3)
+    {
+        instrOps[Cpu->OpInstruction](0, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void absRead(cpu *Cpu)
+{
+    absCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Value = readCpu8(((Cpu->OpHighByte << 8) | Cpu->OpLowByte), Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void absReadWrite(cpu *Cpu)
+{
+    absCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void absWrite(cpu *Cpu)
+{
+    absCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Byte = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Byte, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+///////////////////////////////
+//// ABSOLUTE X INDEX MODE ////
+///////////////////////////////
+
+void absXIndexCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpHighByte = readCpu8(Cpu->PrgCounter++, Cpu);
+        Cpu->OpTemp = Cpu->OpLowByte;
+        Cpu->OpLowByte += Cpu->X;
+    }
+}
+
+void absXIndexRead(cpu *Cpu)
+{
+    absXIndexCommon(Cpu);
+
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+        else // else read was fine, execute instruction, end op
+        {
+            instrOps[Cpu->OpInstruction](Value, Cpu);
+            Cpu->NextCycle = 1;
+        }
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        // NOTE: Only reaches here if the page was crossed
+        uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void absXIndexReadWrite(cpu *Cpu)
+{
+    absXIndexCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 7)
+    {
+        writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void absXIndexWrite(cpu *Cpu)
+{
+    absXIndexCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+///////////////////////////////
+//// ABSOLUTE Y INDEX MODE ////
+///////////////////////////////
+
+void absYIndexCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpHighByte = readCpu8(Cpu->PrgCounter++, Cpu);
+        Cpu->OpTemp = Cpu->OpLowByte;
+        Cpu->OpLowByte += Cpu->Y;
+    }
+}
+
+void absYIndexRead(cpu *Cpu)
+{
+    absYIndexCommon(Cpu);
+
+    if(Cpu->Cycle == 4)
+    {
+        uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+        else // else read was fine, execute instruction, end op
+        {
+            instrOps[Cpu->OpInstruction](Value, Cpu);
+            Cpu->NextCycle = 1;
+        }
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        // NOTE: Only reaches here if the page was crossed
+        uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void absYIndexReadWrite(cpu *Cpu)
+{
+    //Assert(0); // NOTE: Not ment to get here??
+    absYIndexCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 7)
+    {
+        writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void absYIndexWrite(cpu *Cpu)
+{
+    absXIndexCommon(Cpu);
+    
+    if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+///////////////////////////////
+//// INDEXED INDIRECT MODE ////
+///////////////////////////////
+
+void idxXCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpValue = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpValue += Cpu->X;
+    }
+    else if(Cpu->Cycle == 4)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        Cpu->OpHighByte = readCpu8(Cpu->OpValue+1, Cpu);
+    }
+}
+
+void idxXRead(cpu *Cpu)
+{
+    idxXCommon(Cpu);
+    
+    if(Cpu->Cycle == 6)
+    {
+        uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        instrOps[Cpu->OpInstruction](Value, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void idxXReadWrite(cpu *Cpu)
+{
+    idxXCommon(Cpu);
+    
+    if(Cpu->Cycle == 6)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 7)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 8)
+    {
+        writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+
+void idxXWrite(cpu *Cpu)
+{
+    idxXCommon(Cpu);
+
+    if(Cpu->Cycle == 6)
+    {
+        uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+///////////////////////////////
+//// INDIRECT INDEXED MODE ////
+///////////////////////////////
+
+void idxYCommon(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpValue = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 4)
+    {
+        Cpu->OpHighByte = readCpu8(Cpu->OpValue+1, Cpu);
+        Cpu->OpTemp = Cpu->OpLowByte;
+        Cpu->OpLowByte += Cpu->Y;
+    }
+}
+
+void idxYRead(cpu *Cpu)
+{
+    idxYCommon(Cpu);
+    
+    if(Cpu->Cycle == 5)
+    {
+        uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+        else
+        {
+            instrOps[Cpu->OpInstruction](Value, Cpu);
+            Cpu->NextCycle = 1;
+        }
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        // Will not enter if boundary not crossed
+        uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void idxYReadWrite(cpu *Cpu)
+{
+    idxYCommon(Cpu);
+
+    if(Cpu->Cycle == 5)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 7)
+    {
+        Cpu->OpValue = instrOps[Cpu->OpInstruction](Cpu->OpValue, Cpu);
+    }
+    else if(Cpu->Cycle == 8)
+    {
+        writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+void idxYWrite(cpu *Cpu)
+{
+    idxYCommon(Cpu);
+
+    if(Cpu->Cycle == 5)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+
+        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        {
+            ++Cpu->OpHighByte; 
+        }
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
+        writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+        Cpu->NextCycle = 1;
+    }
+}
+
+///////////////////////////
+//// ABSOLUTE INDIRECT ////
+///////////////////////////
+
+void absIndJmp(cpu *Cpu)
+{
+    if(Cpu->Cycle == 2)
+    {
+        Cpu->OpLowByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 3)
+    {
+        Cpu->OpHighByte = readCpu8(Cpu->PrgCounter++, Cpu);
+    }
+    else if(Cpu->Cycle == 4)
+    {
+        Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        uint8 TempHighByte = readCpu8((Cpu->OpHighByte << 8) | (Cpu->OpLowByte+1), Cpu);
+        Cpu->OpLowByte = Cpu->OpValue;
+        Cpu->OpHighByte = TempHighByte;
+        Cpu->NextCycle = 1;
+    }   
 }

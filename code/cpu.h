@@ -27,7 +27,7 @@ enum addressType
     NUL = 0,
     ACM,  IMPL, IMED, REL,
     ZERO, ZERX, ZERY,
-    ABS,  ABSX, ABSY, 
+    ABS,  ABSX, ABSY, ABSJ, 
     INDX, INDY, INDI
 };
 
@@ -61,6 +61,12 @@ struct cpu
     uint8 Pad1CurrentButton;
     input InputPad2;
     uint8 Pad2CurrentButton;
+
+    uint8 OpInstruction;
+    uint8 OpLowByte;
+    uint8 OpHighByte;
+    uint8 OpValue;
+    uint8 OpTemp;
 };
 
 #define CPU_H

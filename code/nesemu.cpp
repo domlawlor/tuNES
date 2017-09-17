@@ -412,6 +412,7 @@ static void
 initCpu(cpu *Cpu, uint64 MemoryBase)
 {
     Cpu->MemoryBase = MemoryBase;
+    Cpu->Cycle = 1;
 }
 
 static void
@@ -816,7 +817,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             GlobalCpu = &Nes.Cpu;
             GlobalPpu = &Nes.Ppu;
             
-            loadCartridge(&Nes, "Mario Bros.nes");
+            loadCartridge(&Nes, "Donkey Kong.nes");
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
@@ -866,16 +867,11 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 
                 if(PowerOn)
                 {
-                    TickCycles = cpuTick(&Nes.Cpu, &WinInput);
+                    cpuTick(&Nes.Cpu, &WinInput);
 
-                    // Minus the cycles we have already executed on the ppu for catchup
-                    TickCycles -= Nes.Cpu.CatchUpCyclesRun;
-                    Nes.Cpu.CatchUpCyclesRun = 0;
-                    
-                    for(uint8 i = 0; i < (3*TickCycles); ++i)
-                    {
-                        ppuTick(&Nes.Ppu);
-                    }
+                    ppuTick(&Nes.Ppu);
+                    ppuTick(&Nes.Ppu);
+                    ppuTick(&Nes.Ppu);
 
                     CpuCyclesElapsed += TickCycles;
                 }
