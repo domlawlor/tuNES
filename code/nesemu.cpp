@@ -323,6 +323,7 @@ struct nmi
     bool32 Nmi; // TODO: Get better names for these
     bool32 NmiInterrupt;
     bool32 VblSupress;
+    bool32 ExecutingNmi;
 };
 
 global nmi Nmi;
@@ -352,8 +353,6 @@ void setNMI(boolean Set)
 
     Nmi.AlreadyTriggered = Nmi.Trigger;
 }
-
-
 
 bool32 IrqTriggered = false;
 
@@ -826,14 +825,15 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             /* NOTE : Timing */
             
             real32 CpuClockRateHz = 1789772.727272728;
-            real32 CpuCyclesPerMS = CpuClockRateHz / 1000.0;
+            real32 SingleCpuClockMs = 1000.0 / CpuClockRateHz;
+            
             
             uint32 CpuCyclesElapsed = 0;
-            uint32 TickCycles = 0;
+            uint32 LastCpuCyclesElapsed = 0;
             
             real32 ElapsedSecs = 0;
             real32 CurrentSecs, PrevSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
-
+            
             /********************/
             /* NOTE : Main Loop */
             
@@ -868,12 +868,11 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 if(PowerOn)
                 {
                     cpuTick(&Nes.Cpu, &WinInput);
-
+                    ++CpuCyclesElapsed;
+                    
                     ppuTick(&Nes.Ppu);
                     ppuTick(&Nes.Ppu);
                     ppuTick(&Nes.Ppu);
-
-                    CpuCyclesElapsed += TickCycles;
                 }
                 
                 if(DrawScreen) // NOTE: Gets called everytime the vblank happens in Ppu TODO: Should it be the end of vblank?
@@ -887,10 +886,24 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                                      WindowWidth, WindowHeight);
                     ReleaseDC(Window, DeviceContext);
                 }
-           
+
+//                Sleep(1);
+                
                 CurrentSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
-                ElapsedSecs = CurrentSecs - PrevSecs;
+                ElapsedSecs += CurrentSecs - PrevSecs;
                 PrevSecs = CurrentSecs;
+
+#if 0
+                if(ElapsedSecs > 1)
+                {
+                    ElapsedSecs = 0;
+                    uint32 CyclesInSec = CpuCyclesElapsed - LastCpuCyclesElapsed;
+                    LastCpuCyclesElapsed = CpuCyclesElapsed;
+                    char TextBuffer[256];
+                    _snprintf(TextBuffer, 256, "Cpu Cycles per Second: %d , vs expected %f\n", CyclesInSec, CpuClockRateHz);
+                    OutputDebugString(TextBuffer);
+                }
+#endif
             }
 
         }

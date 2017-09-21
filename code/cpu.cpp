@@ -62,44 +62,23 @@ inline bool32 crossedPageCheck(uint16 Before, uint16 Now) { return((Before & 0xF
 
 global uint8 instAddressType[INSTRUCTION_COUNT] =
 {
-    /*         0     1     2     3     4     5     6     7     8     9     A     B     C     D     E     F  */
-    /*0*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,        
-    /*1*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*2*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*3*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*4*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED, ABSJ,  ABS,  ABS,  ABS,
-    /*5*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*6*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED, INDI,  ABS,  ABS,  ABS,
-    /*7*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*8*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*9*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERY, ZERY, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSY, ABSY,
-    /*A*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*B*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERY, ZERY, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSY, ABSY,
-    /*C*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*D*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*E*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*F*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-};
-
-global uint8 instAddressMode[INSTRUCTION_COUNT] =
-{
-    /*        0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F  */
-    /*0*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R, RW, NL,  R,  R, RW, RW,
-    /*1*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R,  R, RW,  R,  R, RW, RW,
-    /*2*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R, RW, NL,  R,  R, RW, RW,
-    /*3*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R,  R, RW,  R,  R, RW, RW,
-    /*4*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R, RW, NL, NL,  R, RW, RW,
-    /*5*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R,  R, RW,  R,  R, RW, RW,
-    /*6*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R, RW, NL, NL,  R, RW, RW,
-    /*7*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R,  R, RW,  R,  R, RW, RW,
-    /*8*/     R,  W,  R,  W,  W,  W,  W,  W, NL,  R, NL, NL,  W,  W,  W,  W,
-    /*9*/    NL,  W, NL, NL,  W,  W,  W,  W, NL,  W, NL, NL, NL,  W, NL, NL,
-    /*A*/     R,  R,  R,  R,  R,  R,  R,  R, NL,  R, NL,  R,  R,  R,  R,  R,
-    /*B*/    NL,  R, NL,  R,  R,  R,  R,  R, NL,  R, NL, NL,  R,  R,  R,  R,
-    /*C*/    NL,  R,  R, RW, NL,  R, RW, RW, NL,  R, NL, NL, NL,  R, RW, RW,
-    /*D*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R,  R, RW,  R,  R, RW, RW,
-    /*E*/    NL,  R,  R, RW, NL,  R, RW, RW, NL,  R,  R,  R, NL,  R, RW, RW,
-    /*F*/    NL,  R, NL, RW,  R,  R, RW, RW, NL,  R,  R, RW,  R,  R, RW, RW,
+    /*         0        1      2        3       4       5        6        7     8       9     A        B       C     D     E     F  */
+    /*0*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,        
+    /*1*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
+    /*2*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,
+    /*3*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
+    /*4*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,   ABSJ,  ABS_R,  ABS_RW,  ABS_RW,
+    /*5*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
+    /*6*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,   INDI,  ABS_R,  ABS_RW,  ABS_RW,
+    /*7*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
+    /*8*/   IMED,  INDX_W,  IMED,  INDX_W, ZERO_W, ZERO_W,  ZERO_W,  ZERO_W, IMPL,   IMED, IMPL,    IMED,  ABS_W,  ABS_W,   ABS_W,   ABS_W,
+    /*9*/    REL,  INDY_W,  IMPL,  INDY_W, ZERX_W, ZERX_W,  ZERY_W,  ZERY_W, IMPL, ABSY_W, IMPL,  ABSY_W, ABSX_W, ABSX_W,  ABSY_W,  ABSY_W,
+    /*A*/   IMED,  INDX_R,  IMED,  INDX_R, ZERO_R, ZERO_R,  ZERO_R,  ZERO_R, IMPL,   IMED, IMPL,    IMED,  ABS_R,  ABS_R,   ABS_R,   ABS_R,
+    /*B*/    REL,  INDY_R,  IMPL,  INDY_R, ZERX_R, ZERX_R,  ZERY_R,  ZERY_R, IMPL, ABSY_R, IMPL,  ABSY_R, ABSX_R, ABSX_R,  ABSY_R,  ABSY_R,
+    /*C*/   IMED,  INDX_R,  IMED, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED, IMPL,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,
+    /*D*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
+    /*E*/   IMED,  INDX_R,  IMED, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED, IMPL,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,
+    /*F*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
 };
 
 global char * instName[INSTRUCTION_COUNT] =
@@ -156,6 +135,7 @@ static void nmi(cpu *Cpu)
         Cpu->PrgCounter = (read8(NMI_VEC+1, Cpu->MemoryBase) << 8) | (Cpu->PrgCounter & 0xFF);
         setInterrupt(&Cpu->Flags);
         Cpu->NextCycle = 1;
+        Nmi.ExecutingNmi = false;
     }
 }
 
@@ -166,12 +146,8 @@ static void nmi(cpu *Cpu)
 #endif   
 
 static uint8 cpuTick(cpu *Cpu, input *NewInput)
-{
-    uint8 CyclesElapsed = 0;
-
-    uint8 AddressType;
-    uint8 AddressMode;
-    char *InstrName;
+{    
+    Cpu->NextCycle = Cpu->Cycle + 1;
 
     // Input read
     if(Cpu->PadStrobe)
@@ -179,154 +155,50 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
-  
-    if(Nmi.NmiInterrupt)
-    {
-        OutputDebugString("!!!!NMI");
-        Nmi.NmiInterrupt = false;
 
-        AddressMode = IMPL;
-        InstrName = "NMI";
-        nmi(Cpu);
-    }
-    else if(IrqTriggered)
+    // If first cycle, then get instruction opcode. The operation handles incrementing PrgCounter
+    if(Cpu->Cycle == 1)
     {
-        //IRQ_BRK_VEC;
-        AddressMode = IMPL;
-        InstrName = "IRQ";
+        Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
+    }
+
+    if(Nmi.ExecutingNmi)
+    {
+        nmi(Cpu);        
     }
     else
     {
-        // TODO: NMI WORK!! INTERUPT HAS CYCLES TOO> SO NEED TO PUT IN MAIN LOOP.
-        
-        // The next cycle, set to 1 if operation is ended and new opcode should be read
-        // else is just the next cycle
-        Cpu->NextCycle = Cpu->Cycle + 1;
-        
-        if(Cpu->Cycle == 1)
-        {
-            pollInterrupts();
-            Cpu->OpInstruction = readCpu8(Cpu->PrgCounter++, Cpu);
-        }    
-        else
-        {
-            // NOTE: Read the Instruction information here.
-            //    Will allow for branching to load the next code for us and still have the info.
-            if(Cpu->Cycle == 2)
-            {
-                AddressType = instAddressType[Cpu->OpInstruction];
-                AddressMode = instAddressMode[Cpu->OpInstruction];
-                InstrName = instName[Cpu->OpInstruction];
-
-                // NOTE: CPU Log options
-                char LogBuffer[1024];
-                sprintf(LogBuffer, "%4X %d %s\n", Cpu->PrgCounter, Cpu->OpInstruction, InstrName);
-                OutputDebugString(LogBuffer);
-            }
-
-            if(AddressType == IMPL)
-            {
-                implied(Cpu);
-            }
-            else if(AddressType == ACM)
-            {
-                accumulator(Cpu);
-            }
-            else if(AddressType == IMED)
-            {
-                immediate(Cpu);
-            }
-            else if(AddressType == REL)
-            {
-                relative(Cpu);
-            }
-            else if(AddressType == ZERO)
-            {
-                if(AddressMode == R)
-                    zeroRead(Cpu);
-                else if(AddressMode == RW)
-                    zeroReadWrite(Cpu);
-                else if(AddressMode == W)
-                    zeroWrite(Cpu);
-            }
-            else if(AddressType == ZERX)
-            {
-                if(AddressMode == R)
-                    zeroXIndexRead(Cpu);
-                else if(AddressMode == RW)
-                    zeroXIndexReadWrite(Cpu);
-                else if(AddressMode == W)
-                    zeroXIndexWrite(Cpu);
-            }
-            else if(AddressType == ZERY)
-            {
-                if(AddressMode == R)
-                    zeroYIndexRead(Cpu);
-                else if(AddressMode == RW)
-                    zeroYIndexReadWrite(Cpu);
-                else if(AddressMode == W)
-                    zeroYIndexWrite(Cpu);
-            }
-            else if(AddressType == ABS)
-            {
-                if(AddressMode == R)
-                    absRead(Cpu);
-                else if(AddressMode == RW)
-                    absReadWrite(Cpu);
-                else if(AddressMode == W)
-                    absWrite(Cpu);
-            }
-            else if(AddressType == ABSJ)
-            {
-                absJmp(Cpu);
-            }
-            else if(AddressType == ABSX)
-            {
-                if(AddressMode == R)
-                    absXIndexRead(Cpu);
-                else if(AddressMode == RW)
-                    absXIndexReadWrite(Cpu);
-                else if(AddressMode == W)
-                    absXIndexWrite(Cpu);
-            }
-            else if(AddressType == ABSY)
-            {
-                if(AddressMode == R)
-                    absYIndexRead(Cpu);
-                else if(AddressMode == RW)
-                    absYIndexReadWrite(Cpu);
-                else if(AddressMode == W)
-                    absYIndexWrite(Cpu);
-            }
-            else if(AddressType == INDX)
-            {
-                if(AddressMode == R)
-                    idxXRead(Cpu);
-                else if(AddressMode == RW)
-                    idxXReadWrite(Cpu);
-                else if(AddressMode == W)
-                    idxXWrite(Cpu);
-            }
-            else if(AddressType == INDY)
-            {
-                if(AddressMode == R)
-                    idxYRead(Cpu);
-                else if(AddressMode == RW)
-                    idxYReadWrite(Cpu);
-                else if(AddressMode == W)
-                    idxYWrite(Cpu);
-            }
-            else if(AddressType == INDI)
-            {
-                absIndJmp(Cpu);
-            }
-        }
-        
-        Cpu->Cycle = Cpu->NextCycle;
+        Cpu->AddressType = instAddressType[Cpu->OpInstruction];
+        Cpu->InstrName = instName[Cpu->OpInstruction];
+        operationAddressModes[Cpu->AddressType](Cpu);
     }
-    
+
+    // NOTE: If Next cycle is the same or less than the current, then new op about to be run
+    //       Check for interrupts
+    if(Cpu->NextCycle <= Cpu->Cycle)
+    {
+        if(Nmi.NmiInterrupt)
+        {
+            Nmi.NmiInterrupt = false;
+            Nmi.ExecutingNmi = true;
+            Cpu->AddressType = IMPL;
+            Cpu->InstrName = "Nmi";
+
+            OutputDebugString("NMI!!!\n");
+        }
+    }
+
+    Cpu->Cycle = Cpu->NextCycle;    
     return(1);
 }
+
+
+#if 0
+            // NOTE: CPU Log options
+            char LogBuffer[1024];
+            sprintf(LogBuffer, "%4X %2X %s, SP=%2X\n", Cpu->PrgCounter, Cpu->OpInstruction, Cpu->InstrName, Cpu->StackPtr);
+            OutputDebugString(LogBuffer);
+#endif
 
 #if 0
     char LogInstrData[16];

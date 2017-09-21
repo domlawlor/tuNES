@@ -365,7 +365,10 @@ static void ppuTick( ppu *Ppu)
             else
             {
                 Ppu->VerticalBlank = true;
-                Nmi.Trigger = Ppu->GenerateNMI;            
+                Nmi.Trigger = Ppu->GenerateNMI;
+
+                // TODO: TEMP
+                //Nmi.NmiInterrupt = true;
             }
 
             DrawScreen = true; // NOTE: Always draw screen here. Nmi is exclusive to this

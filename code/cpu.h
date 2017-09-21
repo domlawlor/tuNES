@@ -24,17 +24,16 @@
 
 enum addressType
 {
-    NUL = 0,
-    ACM,  IMPL, IMED, REL,
-    ZERO, ZERX, ZERY,
-    ABS,  ABSX, ABSY, ABSJ, 
-    INDX, INDY, INDI
-};
-
-enum addressMode
-{
-    NL = 0,
-    R, RW, W
+    ACM = 0, IMPL, IMED, REL,
+    ZERO_R, ZERO_RW, ZERO_W,
+    ZERX_R, ZERX_RW, ZERX_W,
+    ZERY_R, ZERY_RW, ZERY_W,
+    ABS_R, ABS_RW, ABS_W,
+    ABSX_R, ABSX_RW, ABSX_W,
+    ABSY_R, ABSY_RW, ABSY_W,
+    INDX_R, INDX_RW, INDX_W,
+    INDY_R, INDY_RW, INDY_W,
+    ABSJ, INDI
 };
 
 struct cpu
@@ -63,10 +62,13 @@ struct cpu
     uint8 Pad2CurrentButton;
 
     uint8 OpInstruction;
+    uint8 AddressType;
     uint8 OpLowByte;
     uint8 OpHighByte;
     uint8 OpValue;
     uint8 OpTemp;
+
+    char *InstrName;
 };
 
 #define CPU_H
