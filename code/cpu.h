@@ -69,6 +69,11 @@ struct cpu
     uint8 OpTemp;
 
     char *InstrName;
+
+    // TODO: Make platform independant. Hold the pointer?
+    uint16 LogPC;
+    uint8 LogOp;
+    HANDLE LogHandle;
 };
 
 #define CPU_H

@@ -57,8 +57,10 @@ inline void setNegative(uint8 Value, uint8 *Flags)
         *Flags = *Flags | NEGATIVE_BIT; // set negative flag
 }
 
-inline bool32 isBitSet(uint8 Bit, uint8 Flags) { return(Bit & Flags); }
-inline bool32 crossedPageCheck(uint16 Before, uint16 Now) { return((Before & 0xFF00) != (Now & 0xFF00));}
+inline bool32 isBitSet(uint8 Bit, uint8 Flags)
+{
+    return((Bit & Flags) != 0);
+}
 
 global uint8 instAddressType[INSTRUCTION_COUNT] =
 {
@@ -101,6 +103,35 @@ global char * instName[INSTRUCTION_COUNT] =
     /*E*/  "CPX","SBC","NOP","ISC","CPX","SBC","INC","ISC","INX","SBC","NOP","SBC","CPX","SBC","INC","ISC",
     /*F*/  "BEQ","SBC","KIL","ISC","NOP","SBC","INC","ISC","SED","SBC","NOP","ISC","NOP","SBC","INC","ISC"
 };
+
+
+static void logCpu(cpu* Cpu)
+{
+    if(Cpu->LogHandle != INVALID_HANDLE_VALUE)
+    {
+        char logString[512];
+        uint32 byteCount = sprintf(logString,
+                                   "A:%2X X:%2X Y:%2X S:%2X P:%2X      $%4X:%2X %2X %2X %s\n",
+                                   Cpu->A, Cpu->X, Cpu->Y,
+                                   Cpu->StackPtr, Cpu->Flags, 
+                                   Cpu->LogPC, Cpu->LogOp,
+                                   Cpu->OpLowByte, Cpu->OpHighByte,
+                                   instName[Cpu->LogOp]
+                                   );        
+        uint32 bytesWritten;
+        
+        if(!writeLog(logString, byteCount, &bytesWritten, Cpu->LogHandle))
+        {
+            // Failed
+        }
+    }
+
+    Cpu->OpLowByte = 0;
+    Cpu->OpHighByte = 0;
+    Cpu->OpValue = 0;
+    Cpu->OpTemp = 0;
+}
+
 
 #include "operations.cpp"
 
@@ -158,8 +189,10 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
 
     // If first cycle, then get instruction opcode. The operation handles incrementing PrgCounter
     if(Cpu->Cycle == 1)
-    {
+    {        
         Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
+        Cpu->LogOp = Cpu->OpInstruction;
+        Cpu->LogPC = Cpu->PrgCounter;
     }
 
     if(Nmi.ExecutingNmi)
@@ -177,14 +210,16 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
     //       Check for interrupts
     if(Cpu->NextCycle <= Cpu->Cycle)
     {
+#if CPU_LOG
+        logCpu(Cpu);
+#endif
+        
         if(Nmi.NmiInterrupt)
         {
             Nmi.NmiInterrupt = false;
             Nmi.ExecutingNmi = true;
             Cpu->AddressType = IMPL;
             Cpu->InstrName = "Nmi";
-
-            OutputDebugString("NMI!!!\n");
         }
     }
 

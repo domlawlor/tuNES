@@ -7,6 +7,7 @@
 
 #include "cpu.h"
 
+
 // Implied Operations
 
 uint8 clc(uint8 Value, cpu *Cpu)
@@ -767,8 +768,9 @@ uint8 bcs(uint8 Value, cpu *Cpu)
     return(isBitSet(CARRY_BIT, Cpu->Flags));    
 }
 uint8 beq(uint8 Value, cpu *Cpu)
-{   
-    return(isBitSet(ZERO_BIT, Cpu->Flags));
+{
+    uint8 temp = ZERO_BIT;
+    return(isBitSet(temp, Cpu->Flags));
 }
 uint8 bmi(uint8 Value, cpu *Cpu)
 {
@@ -796,80 +798,6 @@ uint8 bvs(uint8 Value, cpu *Cpu)
 uint8 jmp(uint8 Value, cpu *Cpu)
 {
     Cpu->PrgCounter = (Cpu->OpHighByte << 8) | Cpu->OpLowByte;
-    return(0);
-}
-
-uint8 asl_acm(uint8 Value, cpu *Cpu)
-{
-    uint8 Byte = 0;
-
-    if(Cpu->A & (1 << 7))
-        setCarry(&Cpu->Flags);
-    else
-        clearCarry(&Cpu->Flags);
-    Byte = Cpu->A << 1;
-    Cpu->A = Byte;
-
-    setZero(Byte, &Cpu->Flags);
-    setNegative(Byte, &Cpu->Flags);
-
-    return(0);
-}
-
-uint8 lsr_acm(uint8 Value, cpu *Cpu)
-{
-    if(Cpu->A & 1)
-        setCarry(&Cpu->Flags);
-    else
-        clearCarry(&Cpu->Flags);
-    Cpu->A = Cpu->A >> 1;
-    setZero(Cpu->A, &Cpu->Flags);
-    setNegative(Cpu->A, &Cpu->Flags);
-
-    return(0);
-}
-
-uint8 rol_acm(uint8 Value, cpu *Cpu)
-{
-    uint8 CarrySet = isBitSet(CARRY_BIT, Cpu->Flags);
-
-    if(Cpu->A & (1 << 7))
-        setCarry(&Cpu->Flags);
-    else
-        clearCarry(&Cpu->Flags);
-        
-    uint8 Byte = Cpu->A << 1;
-        
-    if(CarrySet)
-        Byte = Byte | 1;
-        
-    Cpu->A = Byte;
-
-    setZero(Byte, &Cpu->Flags);
-    setNegative(Byte, &Cpu->Flags);
-
-    return(0);
-}
-
-uint8 ror_acm(uint8 Value, cpu *Cpu)
-{
-    uint8 CarrySet = isBitSet(CARRY_BIT, Cpu->Flags);
-    
-    if(Cpu->A & 1)
-        setCarry(&Cpu->Flags);
-    else
-        clearCarry(&Cpu->Flags);
-        
-    uint8 Byte = Cpu->A >> 1;
-        
-    if(CarrySet)
-        Byte = Byte | (1 << 7);
-        
-    Cpu->A = Byte;
-
-    setZero(Byte, &Cpu->Flags);
-    setNegative(Byte, &Cpu->Flags);
-
     return(0);
 }
 
@@ -1038,7 +966,7 @@ void accumulator(cpu *Cpu)
     }
     else if(Cpu->Cycle == 2)
     {
-        instrOps[Cpu->OpInstruction](0, Cpu);
+        Cpu->A = instrOps[Cpu->OpInstruction](Cpu->A, Cpu);
         Cpu->NextCycle = 1;
     }
 }
@@ -1076,22 +1004,46 @@ void relative(cpu *Cpu)
     }
     if(Cpu->Cycle == 2)
     {
-        Cpu->OpValue = readCpu8(Cpu->PrgCounter++, Cpu);
+        Cpu->OpValue = readCpu8(Cpu->PrgCounter, Cpu);
+        ++Cpu->PrgCounter;
     }
     else if(Cpu->Cycle == 3)
     {
+        uint8 Branch = instrOps[Cpu->OpInstruction](0, Cpu);
+
         uint8 NextOp = readCpu8(Cpu->PrgCounter, Cpu);
 
-        uint8 Branch = instrOps[Cpu->OpInstruction](0, Cpu);
         if(Branch)
         {
-            Cpu->OpLowByte = Cpu->OpTemp = (Cpu->PrgCounter & 0x00FF);
-            Cpu->OpHighByte = (Cpu->PrgCounter & 0xFF00) >> 8;
-            Cpu->OpLowByte += Cpu->OpValue;
+            // The Correct Program Counter. Will be saved into OpHigh and Low Bytes
+            uint16 TempPC = Cpu->PrgCounter + (int8)Cpu->OpValue;
+            Cpu->OpHighByte = (TempPC & 0xFF00) >> 8;
+            Cpu->OpLowByte = TempPC & 0x00FF;
+
+            // The potentiall wrong high byte after branch
+            uint8 UnFixedHighByte = (Cpu->PrgCounter & 0xFF00) >> 8;
+            
+            // Update prgcounter, could have unfixed page
+            Cpu->PrgCounter = (Cpu->PrgCounter & 0xFF00) | Cpu->OpLowByte;
+
+            // If OpHighByte isn't the same as the unfixed version, then we crossed page
+            if(Cpu->OpHighByte != UnFixedHighByte)
+            {
+                // Page crossed
+                Cpu->OpTemp = 1; //Boolean if we page crossed
+            }
+            else
+            {
+                Cpu->OpTemp = 0; //Boolean if we page crossed
+            }
         }
         else
         {
             Cpu->OpInstruction = NextOp;
+            
+            Cpu->LogOp = Cpu->OpInstruction;
+            Cpu->LogPC = Cpu->PrgCounter;
+            
             ++Cpu->PrgCounter;
             Cpu->NextCycle = 2;
         }
@@ -1099,22 +1051,32 @@ void relative(cpu *Cpu)
     else if(Cpu->Cycle == 4)
     {
         uint8 NextOp = readCpu8(Cpu->PrgCounter, Cpu);
-
-        if(Cpu->OpLowByte < Cpu->OpTemp) // If the page was crossed then fix.
+        
+        if(Cpu->OpTemp) // If the page was crossed then fix.
         {
-            ++Cpu->OpHighByte;
+            Cpu->PrgCounter = (Cpu->OpHighByte << 8) | (Cpu->PrgCounter & 0xFF);
             pollInterrupts();
         }
         else
         {
             Cpu->OpInstruction = NextOp;
+            
+            Cpu->LogOp = Cpu->OpInstruction;
+            Cpu->LogPC = Cpu->PrgCounter;
+            
             ++Cpu->PrgCounter;
             Cpu->NextCycle = 2;
         }
     }
     else if(Cpu->Cycle == 5)
     {
-        Cpu->OpInstruction = readCpu8(Cpu->PrgCounter++, Cpu);
+        Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
+
+        Cpu->LogOp = Cpu->OpInstruction;
+        Cpu->LogPC = Cpu->PrgCounter;
+
+        ++Cpu->PrgCounter;
+        
         Cpu->NextCycle = 2;
     }
 }

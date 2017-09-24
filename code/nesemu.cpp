@@ -1,6 +1,8 @@
 #include <windows.h>
 #include <stdio.h>
 
+#define CPU_LOG 0
+
 #define global static
 
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
@@ -274,46 +276,6 @@ WinInputCallback(HWND WindowHandle, UINT Message,
     return Result;
 }
 
-static void * LoadFile(char * Filename, uint32 *Size)
-{
-    void *FileData = 0;
-    
-    HANDLE FileHandle = CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
-    if(FileHandle != INVALID_HANDLE_VALUE)
-    {
-        LARGE_INTEGER Filesize;
-        if(GetFileSizeEx(FileHandle, &Filesize))
-        {
-            FileData = VirtualAlloc(0, Filesize.LowPart, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
-            if(FileData)
-            {
-                DWORD BytesRead;
-                if(ReadFile(FileHandle, FileData, Filesize.LowPart, &BytesRead, 0) &&
-                   (Filesize.LowPart == BytesRead))
-                {
-                    *Size = (uint32)BytesRead;
-                    // It worked!
-                }
-                else
-                {
-                    Assert(0);
-                }
-            }
-            else
-            {
-            }   
-        }
-        else
-        {
-        }
-    }
-    else
-    {
-//        Assert(0);
-    }
-    return(FileData);
-}
-
 global uint8 *OamData = 0;
 
 struct nmi
@@ -357,6 +319,9 @@ void setNMI(boolean Set)
 bool32 IrqTriggered = false;
 
 bool32 OamDataChange = false;
+
+#include "file.cpp"
+#include "log.cpp"
 
 // TODO: This will change location once other functions above get relocated.
 #include "ppu.cpp"
@@ -412,6 +377,15 @@ initCpu(cpu *Cpu, uint64 MemoryBase)
 {
     Cpu->MemoryBase = MemoryBase;
     Cpu->Cycle = 1;
+    Cpu->StackPtr = 0xFD;
+    Cpu->Flags = 0x04;
+
+    Cpu->InstrName = "NUL";
+
+    
+#if CPU_LOG
+    Cpu->LogHandle = createLog("cpu.log");
+#endif
 }
 
 static void
@@ -421,6 +395,9 @@ initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel)
 
     Ppu->MemoryBase = MemoryBase;
     Ppu->BasePixel = BasePixel;
+
+    Ppu->VerticalBlank = true;
+    Ppu->SpriteOverflow = true;
 }
 
 void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
@@ -646,7 +623,7 @@ static void loadCartridge(nes *Nes, char * FileName)
     // Reading rom file
     Cartridge->FileName = FileName;
     Cartridge->FileSize;
-    Cartridge->Data = (uint8 *)LoadFile(FileName, &Cartridge->FileSize);
+    Cartridge->Data = (uint8 *)readFileData(FileName, &Cartridge->FileSize);
 
     if(Cartridge->FileSize == 0)
     {
@@ -756,7 +733,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     /* NOTE : Screen back buffer creation */
     
     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
-    uint8 ResScale = 4;
+    uint8 ResScale = 2;
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
     screen_buffer ScreenBackBuffer = {};
     createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
@@ -790,7 +767,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             AppendMenu(WindowMenu, MF_STRING | MF_POPUP, (uint64)SubMenu, "&File");
 
             SetMenu(Window, WindowMenu);
-
+            
             /**************************************************************************/
             /* NOTE : creation and initialization of Emulators Cpu, Ppu, and Cartridge structures */
 
@@ -906,6 +883,11 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 #endif
             }
 
+            
+#if CPU_LOG
+            closeLog(Nes.Cpu.LogHandle);
+#endif
+            
         }
         else
         {
@@ -920,6 +902,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
         // TODO: Handle this in a better way
         Assert(0);
     }
+
     return(0);
 } 
 
