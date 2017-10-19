@@ -70,11 +70,26 @@ struct cpu
 
     char *InstrName;
 
+    bool32 Branched;
+    
     // TODO: Make platform independant. Hold the pointer?
+    uint8 LogA;
+    uint8 LogX;
+    uint8 LogY;
+    uint8 LogSP;
+    uint8 LogFlags;
     uint16 LogPC;
     uint8 LogOp;
+    char LogData1[8];
+    char LogData2[8];
+    char LogExtraInfo[32];
     HANDLE LogHandle;
 };
+
+/*
+  A:00 X:00 Y:00 S:FD P:nvubdIZc  $C008:AD 02 20  LDA $2002 = #$00
+  A:E3 X:20 Y:00 S:F7 P:nvUbdIZc  $D4F2:B1 1F     LDA ($1F),Y @ $D998 = #$E5
+*/
 
 #define CPU_H
 #endif

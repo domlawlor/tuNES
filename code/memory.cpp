@@ -67,8 +67,6 @@ static uint8 readCpu8(uint16 Address, cpu *Cpu)
     if((0x2000 <= Address && Address < 0x2008) ||
        (Address == 0x4014))
     {
-        // TODO: Catch up the ppu before we read. Depending on how many cycles has elapsed.
-        
         return readPpuRegister(Address);
     }
    
@@ -258,7 +256,7 @@ static uint8 readNametable(uint16 Address, ppu *Ppu)
 static void writeNametable(uint8 Byte, uint16 Address, ppu *Ppu)
 {
     uint8 *Nametable = getNametableBank(Address, Ppu);
-    Nametable[Address % 0x400] = Byte;;
+    Nametable[Address % 0x400] = Byte;
 }
 
 static uint8 readPpu8(uint16 Address, ppu *Ppu)
@@ -318,10 +316,12 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
 
             if(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 0)
             {
-                setNMI(false); //NmiTriggered = false;
+                NmiTriggered = false;
             }
-            else
-                setNMI(Ppu->GenerateNMI && Ppu->VerticalBlank);
+            else if(Ppu->GenerateNMI && Ppu->VerticalBlank && !NmiTriggered)
+            {
+                TriggerNmi = true;
+            }
 
             break;
         }
@@ -433,33 +433,25 @@ static uint8 readPpuRegister(uint16 Address)
     {
         case 0x2002:
         {
-            if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
-            {
-                 Nmi.VblSupress = true;
-            }
-            else
-            {
-                Nmi.VblSupress = false;
+            // NOTE: Reading VBL one cycle before it is set, returns clear and
+            // TODO: vbl does not get set next cycle
+            if( !(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0) )
                 Byte |= Ppu->VerticalBlank ? 0x80 : 0;
-            }
-
-
-            if(Ppu->Scanline == 241 &&
-               (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
-            {
-                Nmi.Nmi = false;
-            }            
-                      
             Ppu->VerticalBlank = false;
             
             Byte |= Ppu->Sprite0Hit ? 0x40 : 0;
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
             Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
 
-            setNMI(false);
             
+            if(Ppu->Scanline == 241 &&
+               (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
+            {
+                TriggerNmi = false;
+            }            
+                      
             Ppu->VRamIO.LatchWrite = 0;
-            
+            NmiTriggered = false;
             Ppu->OpenBus = Byte;
             break;
         }

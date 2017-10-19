@@ -110,14 +110,27 @@ static void logCpu(cpu* Cpu)
     if(Cpu->LogHandle != INVALID_HANDLE_VALUE)
     {
         char logString[512];
+
+        // NOTE: Go through each of the Cpu flags, and capitalise the coresponding letter
+        //       in the string.     eg flags - 1000 0000, then string becomes Nvubdizc
+        char flagString[9] = "nvubdizc";
+        for(int i = 0; i < 8; ++i)
+        {
+            if(Cpu->LogFlags & (1 << (7 - i)))
+            {
+                flagString[i] -= 0x20;
+            }
+        }
+        
         uint32 byteCount = sprintf(logString,
-                                   "A:%2X X:%2X Y:%2X S:%2X P:%2X      $%4X:%2X %2X %2X %s\n",
-                                   Cpu->A, Cpu->X, Cpu->Y,
-                                   Cpu->StackPtr, Cpu->Flags, 
+                                   "A:%02X X:%02X Y:%02X S:%02X P:%s  $%04X:%02X %2s %2s  %s%s\n",
+                                   Cpu->LogA, Cpu->LogX, Cpu->LogY,
+                                   Cpu->LogSP, flagString, 
                                    Cpu->LogPC, Cpu->LogOp,
-                                   Cpu->OpLowByte, Cpu->OpHighByte,
-                                   instName[Cpu->LogOp]
-                                   );        
+                                   Cpu->LogData1, Cpu->LogData2,
+                                   instName[Cpu->LogOp],
+                                   Cpu->LogExtraInfo);
+
         uint32 bytesWritten;
         
         if(!writeLog(logString, byteCount, &bytesWritten, Cpu->LogHandle))
@@ -125,11 +138,10 @@ static void logCpu(cpu* Cpu)
             // Failed
         }
     }
-
-    Cpu->OpLowByte = 0;
-    Cpu->OpHighByte = 0;
-    Cpu->OpValue = 0;
-    Cpu->OpTemp = 0;
+    
+    Cpu->LogData1[0] = '\0';
+    Cpu->LogData2[0] = '\0';
+    Cpu->LogExtraInfo[0] = '\0';
 }
 
 
@@ -164,62 +176,103 @@ static void nmi(cpu *Cpu)
     else if(Cpu->Cycle == 7)
     {
         Cpu->PrgCounter = (read8(NMI_VEC+1, Cpu->MemoryBase) << 8) | (Cpu->PrgCounter & 0xFF);
+        clearBreak(&Cpu->Flags);
         setInterrupt(&Cpu->Flags);
         Cpu->NextCycle = 1;
-        Nmi.ExecutingNmi = false;
+        ExecutingNmi = false;
     }
 }
 
-#if 0
-        char Buf[1024];
-        sprintf(Buf, "%X\n", WriteValue);
-        OutputDebugString(Buf);
-#endif   
+static void fetchOpcode(cpu *Cpu)
+{
+    Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
+    Cpu->AddressType = instAddressType[Cpu->OpInstruction];
+    Cpu->InstrName = instName[Cpu->OpInstruction];
+
+#if CPU_LOG
+    Cpu->LogA = Cpu->A;
+    Cpu->LogX = Cpu->X;
+    Cpu->LogY = Cpu->Y;
+    Cpu->LogSP = Cpu->StackPtr;
+    Cpu->LogFlags = Cpu->Flags;
+    Cpu->LogPC = Cpu->PrgCounter;
+    Cpu->LogOp = Cpu->OpInstruction;
+#endif
+}
 
 static uint8 cpuTick(cpu *Cpu, input *NewInput)
 {    
-    Cpu->NextCycle = Cpu->Cycle + 1;
+    // NOTE: Cycle Zero checks for Interrupts. And logs?
+    if(Cpu->Cycle == 0)
+    {
+#if CPU_LOG
+        logCpu(Cpu); // Log last Op
+#endif
+        
+        if(TriggerNmi)
+        {
+            TriggerNmi = false;
+            ExecutingNmi = true;
+            Cpu->AddressType = IMPL;
+            Cpu->InstrName = "Nmi";
+        }
+        
+        Cpu->Cycle = 1; // NOTE: Cycle zero isn't a real cycle, move to next one.
+    }
 
+    Cpu->NextCycle = Cpu->Cycle + 1;
+    
     // Input read
     if(Cpu->PadStrobe)
     {
         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
-
-    // If first cycle, then get instruction opcode. The operation handles incrementing PrgCounter
-    if(Cpu->Cycle == 1)
-    {        
-        Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
-        Cpu->LogOp = Cpu->OpInstruction;
-        Cpu->LogPC = Cpu->PrgCounter;
-    }
-
-    if(Nmi.ExecutingNmi)
+    
+    if(ExecutingNmi)
     {
         nmi(Cpu);        
     }
     else
     {
-        Cpu->AddressType = instAddressType[Cpu->OpInstruction];
-        Cpu->InstrName = instName[Cpu->OpInstruction];
+        // If first cycle, then get instruction opcode. The operation handles incrementing PrgCounter
+        if(Cpu->Cycle == 1)
+        {            
+            fetchOpcode(Cpu);
+        }
+        
         operationAddressModes[Cpu->AddressType](Cpu);
     }
 
-    // NOTE: If Next cycle is the same or less than the current, then new op about to be run
-    //       Check for interrupts
-    if(Cpu->NextCycle <= Cpu->Cycle)
+    if(Cpu->Branched) // NOTE: If branched, then cycle one of next instruction is done on last relative cycle.
     {
+        Cpu->Branched = false;
+        
 #if CPU_LOG
         logCpu(Cpu);
 #endif
-        
-        if(Nmi.NmiInterrupt)
+
+        // Check if interrupt happened before getting next instruction
+        if(TriggerNmi)
         {
-            Nmi.NmiInterrupt = false;
-            Nmi.ExecutingNmi = true;
+            TriggerNmi = false;
+            ExecutingNmi = true;
             Cpu->AddressType = IMPL;
             Cpu->InstrName = "Nmi";
+        }
+
+        Cpu->Cycle = 1;
+        Cpu->NextCycle = Cpu->Cycle + 1;
+        
+        if(ExecutingNmi)
+        {
+            nmi(Cpu);        
+        }
+        else
+        {
+            // NOTE: Branch happend so next code is fetched and first cycle executed. Is always cycle 1
+            fetchOpcode(Cpu);            
+            operationAddressModes[Cpu->AddressType](Cpu);
         }
     }
 

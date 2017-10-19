@@ -278,45 +278,12 @@ WinInputCallback(HWND WindowHandle, UINT Message,
 
 global uint8 *OamData = 0;
 
-struct nmi
-{
-    bool32 Trigger;
-    bool32 AlreadyTriggered;
-    bool32 Nmi; // TODO: Get better names for these
-    bool32 NmiInterrupt;
-    bool32 VblSupress;
-    bool32 ExecutingNmi;
-};
-
-global nmi Nmi;
-
-void pollInterrupts()
-{
-    if(Nmi.Trigger && !Nmi.AlreadyTriggered)
-    {
-        Nmi.Nmi=true;
-    }
-    
-    Nmi.AlreadyTriggered = Nmi.Trigger;
-    
-    if(Nmi.Nmi)
-    {
-        Nmi.NmiInterrupt = true;
-        Nmi.Nmi = false;
-    }
-}
-
-void setNMI(boolean Set)
-{
-    Nmi.Trigger = Set;
-
-    if(Nmi.Trigger && !Nmi.AlreadyTriggered)
-        Nmi.Nmi=true;
-
-    Nmi.AlreadyTriggered = Nmi.Trigger;
-}
-
+bool32 TriggerNmi = false;
+bool32 NmiTriggered = false;
+bool32 ExecutingNmi = false;
 bool32 IrqTriggered = false;
+
+void pollInterrupts() {}
 
 bool32 OamDataChange = false;
 
@@ -328,6 +295,8 @@ bool32 OamDataChange = false;
 #include "cpu.cpp"
 
 #include "nes.h"
+
+screen_buffer GlobalScreenBackBuffer = {};
 
 static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
 {
@@ -375,8 +344,29 @@ static void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
 static void
 initCpu(cpu *Cpu, uint64 MemoryBase)
 {
+    ZeroMemory((uint8 *)MemoryBase, Kilobytes(64));
+
+    // DEBUG at moment. Matching FCEUX initial cpu memory state
+    for(uint16 index = 0; index < 0x2000; ++index)
+    {
+        if(index % 8 >= 4)
+        {
+            uint8 *NewAddress = (uint8 *)(index + MemoryBase);
+            *NewAddress = 0xFF;
+        }
+    }
+
+    for(uint16 index = 0x4008; index < 0x5000; ++index)
+    {
+        uint8 *NewAddress = (uint8 *)(index + MemoryBase);
+        *NewAddress = 0xFF;
+    }
+
+    
+    *Cpu = {};
+    
     Cpu->MemoryBase = MemoryBase;
-    Cpu->Cycle = 1;
+    Cpu->Cycle = 0;
     Cpu->StackPtr = 0xFD;
     Cpu->Flags = 0x04;
 
@@ -391,13 +381,17 @@ initCpu(cpu *Cpu, uint64 MemoryBase)
 static void
 initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel)
 {
+    ZeroMemory((uint8 *)MemoryBase, Kilobytes(64));
+    
+    *Ppu = {};
+    
     OamData = Ppu->Oam;
 
     Ppu->MemoryBase = MemoryBase;
     Ppu->BasePixel = BasePixel;
 
     Ppu->VerticalBlank = true;
-    Ppu->SpriteOverflow = true;
+//    Ppu->SpriteOverflow = true;
 }
 
 void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
@@ -471,7 +465,7 @@ void (*mapperInit[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
 
 void nromUpdate(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
 {
-    Assert(0);
+//    Assert(0);
 }
 
 void mmc1Update(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
@@ -682,6 +676,10 @@ power(nes *Nes)
 
     if(PowerOn)
     {
+        initCpu(&Nes->Cpu, GlobalCpuMemoryBase);
+        initPpu(&Nes->Ppu, GlobalPpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
+    
+        
         loadCartridge(Nes, RomFileName);
         Nes->Cpu.PrgCounter = (read8(RESET_VEC+1, Nes->Cpu.MemoryBase) << 8) | read8(RESET_VEC, Nes->Cpu.MemoryBase);
     }
@@ -702,24 +700,17 @@ power(nes *Nes)
 static void
 reset(nes *Nes)
 {
+    initCpu(&Nes->Cpu, GlobalCpuMemoryBase);
+    initPpu(&Nes->Ppu, GlobalPpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
+
+    loadCartridge(Nes, RomFileName);
+    
     Nes->Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes->Cpu);
 
     // NOTE: The status after reset was taken from nesdev
     Nes->Cpu.StackPtr -= 3;
     setInterrupt(&Nes->Cpu.Flags);
-
-    /*
-    PpuReg->Ctrl1 = 0;
-    PpuReg->Ctrl2 = 0;
-    PpuReg->ScrollAddress = 0;
-    PpuReg->VRamAddress = 0;
-
-    vram_io *PpuIO = &Nes->Ppu.VRamIO;
-    PpuIO->TempVRamAdrs = 0;
-    PpuIO->LatchWrite = 0;
-    PpuIO->FineX = 0;
-    */
-    }
+}
 
 int CALLBACK
 WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
@@ -735,8 +726,8 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
     uint8 ResScale = 2;
     uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
-    screen_buffer ScreenBackBuffer = {};
-    createBackBuffer(&ScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
+    GlobalScreenBackBuffer = {};
+    createBackBuffer(&GlobalScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
 
     /**************************/
     /* NOTE : Window creation */
@@ -789,11 +780,11 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             
             nes Nes = {};
             initCpu(&Nes.Cpu, CpuMemoryBase);
-            initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)ScreenBackBuffer.Memory);
+            initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
             GlobalCpu = &Nes.Cpu;
             GlobalPpu = &Nes.Ppu;
             
-            loadCartridge(&Nes, "Donkey Kong.nes");
+            loadCartridge(&Nes, "Balloon Fight.nes");
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
@@ -802,8 +793,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             /* NOTE : Timing */
             
             real32 CpuClockRateHz = 1789772.727272728;
-            real32 SingleCpuClockMs = 1000.0 / CpuClockRateHz;
-            
+            real32 SingleCpuClockMs = 1000.0 / CpuClockRateHz;            
             
             uint32 CpuCyclesElapsed = 0;
             uint32 LastCpuCyclesElapsed = 0;
@@ -828,12 +818,13 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 {
                     PowerHit = false;
                     power(&Nes);
+                    Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
                 }                
                 if(ResetHit)
                 {
                     ResetHit = false;
-                    loadCartridge(&Nes, RomFileName);
                     reset(&Nes);
+                    Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
                 }
 
                 if(Nes.Cpu.MapperWrite)
@@ -859,7 +850,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 
                     // NOTE: Drawing the backbuffer to the window 
                     HDC DeviceContext = GetDC(Window);
-                    drawScreenBuffer(&ScreenBackBuffer, DeviceContext,
+                    drawScreenBuffer(&GlobalScreenBackBuffer, DeviceContext,
                                      WindowWidth, WindowHeight);
                     ReleaseDC(Window, DeviceContext);
                 }

@@ -253,10 +253,9 @@ static void ppuTick( ppu *Ppu)
                 Ppu->SpriteOverflow = false;
                 Ppu->Sprite0Hit = false;
 
-                // TODO: Clear NMI flags here
-                Ppu->VerticalBlank = false; 
-                // Set nmi to false?
-                
+                Ppu->VerticalBlank = false;
+                NmiTriggered = false;
+                ExecutingNmi = false;
             }
             if(Ppu->ScanlineCycle == 339 && Ppu->ShowBackground && Ppu->OddFrame)
             {
@@ -358,17 +357,10 @@ static void ppuTick( ppu *Ppu)
     {
         if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
         {
-            if(Nmi.VblSupress)
-            {
-                Nmi.VblSupress = false;
-            }
-            else
+            if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
             {
                 Ppu->VerticalBlank = true;
-                Nmi.Trigger = Ppu->GenerateNMI;
-
-                // TODO: TEMP
-                //Nmi.NmiInterrupt = true;
+                TriggerNmi = Ppu->GenerateNMI;
             }
 
             DrawScreen = true; // NOTE: Always draw screen here. Nmi is exclusive to this
