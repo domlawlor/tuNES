@@ -86,7 +86,7 @@ global uint8 instAddressType[INSTRUCTION_COUNT] =
 global char * instName[INSTRUCTION_COUNT] =
 {
     /*         0     1     2     3     4     5     6     7     8     9     A     B     C     D     E     F        */
-    /*0*/  "BRK","ORA","KIL","SLO","NOP","ORA","ASL","SLO","PHP","ORA","ASL","ANC","NOP","ORA","ASL","SLO",
+    /*0*/  "BRK","ORA","NMI","SLO","NOP","ORA","ASL","SLO","PHP","ORA","ASL","ANC","NOP","ORA","ASL","SLO",
     /*1*/  "BPL","ORA","KIL","SLO","NOP","ORA","ASL","SLO","CLC","ORA","NOP","SLO","NOP","ORA","ASL","SLO",
     /*2*/  "JSR","AND","KIL","RLA","BIT","AND","ROL","RLA","PLP","AND","ROL","ANC","BIT","AND","ROL","RLA", 
     /*3*/  "BMI","AND","KIL","RLA","NOP","AND","ROL","RLA","SEC","AND","NOP","RLA","NOP","AND","ROL","RLA",
@@ -148,47 +148,23 @@ static void logCpu(cpu* Cpu)
 #include "operations.cpp"
 
 
-static void nmi(cpu *Cpu)
-{
-    // Cycle 1 and 2 fetch next opcode and dicard it. The prgcounter is not incremented
-    if(Cpu->Cycle == 3)
-    {
-        writeStack((Cpu->PrgCounter >> 8), Cpu);
-        decrementStack(Cpu);
-    }
-    else if(Cpu->Cycle == 4)
-    {
-        writeStack((Cpu->PrgCounter & 0xFF), Cpu);
-        decrementStack(Cpu);
-    }
-    else if(Cpu->Cycle == 5)
-    {
-        // At this point, which interrupt is detrmined. Can be hijacked
-        // Current implementation is just seperating the nmi irq brk functions, may change
-        clearBreak(&Cpu->Flags);
-        writeStack(Cpu->Flags, Cpu);
-        decrementStack(Cpu);
-    }
-    else if(Cpu->Cycle == 6)
-    {
-        Cpu->PrgCounter = (Cpu->PrgCounter & 0xFF00) | read8(NMI_VEC, Cpu->MemoryBase);        
-    }
-    else if(Cpu->Cycle == 7)
-    {
-        Cpu->PrgCounter = (read8(NMI_VEC+1, Cpu->MemoryBase) << 8) | (Cpu->PrgCounter & 0xFF);
-        clearBreak(&Cpu->Flags);
-        setInterrupt(&Cpu->Flags);
-        Cpu->NextCycle = 1;
-        ExecutingNmi = false;
-    }
-}
-
 static void fetchOpcode(cpu *Cpu)
 {
-    Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
-    Cpu->AddressType = instAddressType[Cpu->OpInstruction];
-    Cpu->InstrName = instName[Cpu->OpInstruction];
-
+    if(NmiInterruptSet)
+    {
+        NmiInterruptSet = false;
+         
+        Cpu->OpInstruction = 0x02;
+        Cpu->AddressType = instAddressType[Cpu->OpInstruction];
+        Cpu->InstrName = instName[Cpu->OpInstruction];
+    }
+    else
+    {
+        Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
+        Cpu->AddressType = instAddressType[Cpu->OpInstruction];
+        Cpu->InstrName = instName[Cpu->OpInstruction];
+    }
+    
 #if CPU_LOG
     Cpu->LogA = Cpu->A;
     Cpu->LogX = Cpu->X;
@@ -200,26 +176,9 @@ static void fetchOpcode(cpu *Cpu)
 #endif
 }
 
+
 static uint8 cpuTick(cpu *Cpu, input *NewInput)
 {    
-    // NOTE: Cycle Zero checks for Interrupts. And logs?
-    if(Cpu->Cycle == 0)
-    {
-#if CPU_LOG
-        logCpu(Cpu); // Log last Op
-#endif
-        
-        if(TriggerNmi)
-        {
-            TriggerNmi = false;
-            ExecutingNmi = true;
-            Cpu->AddressType = IMPL;
-            Cpu->InstrName = "Nmi";
-        }
-        
-        Cpu->Cycle = 1; // NOTE: Cycle zero isn't a real cycle, move to next one.
-    }
-
     Cpu->NextCycle = Cpu->Cycle + 1;
     
     // Input read
@@ -228,58 +187,32 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
-    
-    if(ExecutingNmi)
-    {
-        nmi(Cpu);        
-    }
-    else
-    {
-        // If first cycle, then get instruction opcode. The operation handles incrementing PrgCounter
-        if(Cpu->Cycle == 1)
-        {            
-            fetchOpcode(Cpu);
-        }
-        
-        operationAddressModes[Cpu->AddressType](Cpu);
-    }
 
+    // If first cycle, then get instruction opcode. The operation handles incrementing PrgCounter
+    if(Cpu->Cycle == 1)
+    {            
+#if CPU_LOG
+        logCpu(Cpu); // Log last Op
+#endif
+
+        fetchOpcode(Cpu);
+    }
+    
+    operationAddressModes[Cpu->AddressType](Cpu);
+
+    
     if(Cpu->Branched) // NOTE: If branched, then cycle one of next instruction is done on last relative cycle.
     {
         Cpu->Branched = false;
-        
-#if CPU_LOG
-        logCpu(Cpu);
-#endif
-
-        // Check if interrupt happened before getting next instruction
-        if(TriggerNmi)
-        {
-            TriggerNmi = false;
-            ExecutingNmi = true;
-            Cpu->AddressType = IMPL;
-            Cpu->InstrName = "Nmi";
-        }
-
         Cpu->Cycle = 1;
-        Cpu->NextCycle = Cpu->Cycle + 1;
-        
-        if(ExecutingNmi)
-        {
-            nmi(Cpu);        
-        }
-        else
-        {
-            // NOTE: Branch happend so next code is fetched and first cycle executed. Is always cycle 1
-            fetchOpcode(Cpu);            
-            operationAddressModes[Cpu->AddressType](Cpu);
-        }
+
+        // If branched, then run the next cycle now. It was pipelined and executed the last cycle of branching
+        cpuTick(Cpu, NewInput); // NOTE: Recursion to run the tick. PadStrobe run again aswell?         
     }
 
     Cpu->Cycle = Cpu->NextCycle;    
     return(1);
 }
-
 
 #if 0
             // NOTE: CPU Log options

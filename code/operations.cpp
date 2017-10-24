@@ -7,7 +7,6 @@
 
 #include "cpu.h"
 
-
 // Implied Operations
 
 uint8 clc(uint8 Value, cpu *Cpu)
@@ -20,7 +19,7 @@ uint8 clc(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         clearCarry(&Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -34,7 +33,7 @@ uint8 cld(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         clearDecimal(&Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -48,7 +47,7 @@ uint8 cli(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         clearInterrupt(&Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -62,7 +61,7 @@ uint8 clv(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         clearOverflow(&Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -78,7 +77,7 @@ uint8 dex(uint8 Value, cpu *Cpu)
         --Cpu->X;
         setZero(Cpu->X, &Cpu->Flags);
         setNegative(Cpu->X, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -94,7 +93,7 @@ uint8 dey(uint8 Value, cpu *Cpu)
         --Cpu->Y;
         setZero(Cpu->Y, &Cpu->Flags);
         setNegative(Cpu->Y, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -110,7 +109,7 @@ uint8 inx(uint8 Value, cpu *Cpu)
         ++Cpu->X;
         setZero(Cpu->X, &Cpu->Flags);
         setNegative(Cpu->X, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -126,7 +125,7 @@ uint8 iny(uint8 Value, cpu *Cpu)
         ++Cpu->Y;
         setZero(Cpu->Y, &Cpu->Flags);
         setNegative(Cpu->Y, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -140,7 +139,7 @@ uint8 sec(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         setCarry(&Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -154,7 +153,7 @@ uint8 sed(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         setDecimal(&Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -168,7 +167,7 @@ uint8 sei(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         setInterrupt(&Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -184,7 +183,7 @@ uint8 tax(uint8 Value, cpu *Cpu)
         Cpu->X = Cpu->A;
         setZero(Cpu->X, &Cpu->Flags);
         setNegative(Cpu->X, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     
     return(0);
@@ -201,7 +200,7 @@ uint8 tay(uint8 Value, cpu *Cpu)
         Cpu->Y = Cpu->A;
         setZero(Cpu->Y, &Cpu->Flags);
         setNegative(Cpu->Y, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -217,7 +216,7 @@ uint8 tsx(uint8 Value, cpu *Cpu)
         Cpu->X = Cpu->StackPtr;
         setZero(Cpu->X, &Cpu->Flags);
         setNegative(Cpu->X, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -233,7 +232,7 @@ uint8 txa(uint8 Value, cpu *Cpu)
         Cpu->A = Cpu->X;
         setZero(Cpu->A, &Cpu->Flags);
         setNegative(Cpu->A, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -249,7 +248,7 @@ uint8 tya(uint8 Value, cpu *Cpu)
         Cpu->A = Cpu->Y;
         setZero(Cpu->A, &Cpu->Flags);
         setNegative(Cpu->A, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -263,7 +262,43 @@ uint8 txs(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         Cpu->StackPtr = Cpu->X;
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
+    }
+    return(0);
+}
+
+
+uint8 nmi(uint8 Value, cpu *Cpu)
+{
+    // Cycle 1 and 2 fetch next opcode and dicard it. The prgcounter is not incremented
+    if(Cpu->Cycle == 3)
+    {
+        writeStack((Cpu->PrgCounter >> 8), Cpu);
+        decrementStack(Cpu);
+    }
+    else if(Cpu->Cycle == 4)
+    {
+        writeStack((Cpu->PrgCounter & 0xFF), Cpu);
+        decrementStack(Cpu);
+    }
+    else if(Cpu->Cycle == 5)
+    {
+        // At this point, which interrupt is detrmined. Can be hijacked
+        // Current implementation is just seperating the nmi irq brk functions, may change
+        clearBreak(&Cpu->Flags);
+        writeStack(Cpu->Flags, Cpu);
+        decrementStack(Cpu);
+    }
+    else if(Cpu->Cycle == 6)
+    {
+        Cpu->PrgCounter = (Cpu->PrgCounter & 0xFF00) | read8(NMI_VEC, Cpu->MemoryBase);        
+    }
+    else if(Cpu->Cycle == 7)
+    {
+        Cpu->PrgCounter = (read8(NMI_VEC+1, Cpu->MemoryBase) << 8) | (Cpu->PrgCounter & 0xFF);
+        clearBreak(&Cpu->Flags);
+        setInterrupt(&Cpu->Flags);
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -303,7 +338,7 @@ uint8 brk(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 7)
     {
         Cpu->PrgCounter = (read8(IRQ_BRK_VEC + 1, Cpu->MemoryBase) << 8) | (Cpu->PrgCounter & 0x00FF);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -332,7 +367,7 @@ uint8 rti(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 6)
     {
         Cpu->PrgCounter = (readStack(Cpu) << 8) | (Cpu->PrgCounter & 0x00FF);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -360,7 +395,7 @@ uint8 rts(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 6)
     {
         ++Cpu->PrgCounter;
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     
     return(0);
@@ -380,7 +415,7 @@ uint8 pha(uint8 Value, cpu *Cpu)
     {
         writeStack(Cpu->A, Cpu);
         decrementStack(Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -401,7 +436,7 @@ uint8 php(uint8 Value, cpu *Cpu)
         setBlank(&Cpu->Flags);
         writeStack(Cpu->Flags, Cpu);
         decrementStack(Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -422,7 +457,7 @@ uint8 pla(uint8 Value, cpu *Cpu)
         Cpu->A = readStack(Cpu);
         setZero(Cpu->A, &Cpu->Flags);
         setNegative(Cpu->A, &Cpu->Flags);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     return(0);
 }
@@ -441,7 +476,7 @@ uint8 plp(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 4)
     {
         Cpu->Flags = readStack(Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     
     return(0);
@@ -476,7 +511,7 @@ uint8 jsr(uint8 Value, cpu *Cpu)
     else if(Cpu->Cycle == 6)
     {
         Cpu->PrgCounter = (readCpu8(Cpu->PrgCounter, Cpu) << 8) | Cpu->OpLowByte;
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
 
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%04X", Cpu->PrgCounter);
@@ -623,7 +658,7 @@ uint8 nop(uint8 Value, cpu *Cpu)
     }
     else if(Cpu->Cycle == 2)
     {
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
     
     return(0);
@@ -945,7 +980,7 @@ uint8 xaa(uint8 Value, cpu *Cpu)
 uint8 (*instrOps[INSTRUCTION_COUNT])(uint8 InByte, cpu *Cpu) =
 {
     /*         0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F        */
-    /*0*/    brk,ora,kil,slo,nop,ora,asl,slo,php,ora,asl,anc,nop,ora,asl,slo,
+    /*0*/    brk,ora,nmi,slo,nop,ora,asl,slo,php,ora,asl,anc,nop,ora,asl,slo,
     /*1*/    bpl,ora,kil,slo,nop,ora,asl,slo,clc,ora,nop,slo,nop,ora,asl,slo,
     /*2*/    jsr,AND,kil,rla,bit,AND,rol,rla,plp,AND,rol,anc,bit,AND,rol,rla,
     /*3*/    bmi,AND,kil,rla,nop,AND,rol,rla,sec,AND,nop,rla,nop,AND,rol,rla,
@@ -984,7 +1019,7 @@ void accumulator(cpu *Cpu)
     else if(Cpu->Cycle == 2)
     {
         Cpu->A = instrOps[Cpu->OpInstruction](Cpu->A, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1003,7 +1038,7 @@ void immediate(cpu *Cpu)
     {
         uint8 Value = readCpu8(Cpu->PrgCounter++, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
         
 #if CPU_LOG
         sprintf(Cpu->LogData1, "%02X", Value);
@@ -1022,13 +1057,13 @@ void relative(cpu *Cpu)
     if(Cpu->Cycle == 1)
     {
         ++Cpu->PrgCounter;
-        pollInterrupts();
+        //pollInterrupts();
     }
     if(Cpu->Cycle == 2)
     {
         Cpu->OpValue = readCpu8(Cpu->PrgCounter, Cpu);
         ++Cpu->PrgCounter;
-
+        pollInterrupts();
 #if CPU_LOG
         sprintf(Cpu->LogData1, "%02X", Cpu->OpValue);
 #endif
@@ -1064,6 +1099,8 @@ void relative(cpu *Cpu)
             {
                 Cpu->OpTemp = 0; //Boolean if we page crossed
             }
+
+            pollInterrupts();
         }
         else
         {
@@ -1120,7 +1157,7 @@ void zeroRead(cpu *Cpu)
     {
         uint8 Value = readCpu8(Cpu->OpLowByte, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
        
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%04X = #$%02X", Cpu->OpLowByte, Value);
@@ -1144,7 +1181,7 @@ void zeroReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 5)
     {
         writeCpu8(Cpu->OpValue, Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
   
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%04X = #$%02X", Cpu->OpLowByte, Cpu->OpValue);
@@ -1168,7 +1205,7 @@ void zeroWrite(cpu *Cpu)
         
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1209,7 +1246,7 @@ void zeroXIndexRead(cpu *Cpu)
     {
         uint8 Value = readCpu8(Cpu->OpLowByte, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
         
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%02X,X @ $%04X = #$%02X", Cpu->OpLowByte - Cpu->X, Cpu->OpLowByte, Value);
@@ -1237,7 +1274,7 @@ void zeroXIndexReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 6)
     {
         writeCpu8(Cpu->OpValue, Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1257,7 +1294,7 @@ void zeroXIndexWrite(cpu *Cpu)
 
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;      
+        Cpu->NextCycle = 1;      
     }
 }
 
@@ -1297,7 +1334,7 @@ void zeroYIndexRead(cpu *Cpu)
     {
         uint8 Value = readCpu8(Cpu->OpLowByte, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
             
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%02X,Y @ $%04X = #$%02X", Cpu->OpLowByte - Cpu->X, Cpu->OpLowByte, Value);
@@ -1325,7 +1362,7 @@ void zeroYIndexReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 6)
     {
         writeCpu8(Cpu->OpValue, Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1345,7 +1382,7 @@ void zeroYIndexWrite(cpu *Cpu)
 
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1392,7 +1429,7 @@ void absJmp(cpu *Cpu)
 #endif
         
         instrOps[Cpu->OpInstruction](0, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1408,7 +1445,7 @@ void absRead(cpu *Cpu)
     {
         uint8 Value = readCpu8(((Cpu->OpHighByte << 8) | Cpu->OpLowByte), Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
                
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%04X = #$%02X", (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Value);
@@ -1436,7 +1473,7 @@ void absReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 6)
     {
         writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1456,7 +1493,7 @@ void absWrite(cpu *Cpu)
 
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1510,7 +1547,7 @@ void absXIndexRead(cpu *Cpu)
         else // else read was fine, execute instruction, end op
         {
             instrOps[Cpu->OpInstruction](Value, Cpu);
-            Cpu->NextCycle = 0;
+            Cpu->NextCycle = 1;
 
 #if CPU_LOG
             sprintf(Cpu->LogExtraInfo, " $%04X,X @ $%04X = #$%02X",
@@ -1524,7 +1561,7 @@ void absXIndexRead(cpu *Cpu)
 // NOTE: Only reaches here if the page was crossed
         uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
 
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%04X,X @ $%04X = #$%02X",
@@ -1563,7 +1600,7 @@ void absXIndexReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 7)
     {
         writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1592,7 +1629,7 @@ void absXIndexWrite(cpu *Cpu)
     {        
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;      
+        Cpu->NextCycle = 1;      
     }
 }
 
@@ -1647,7 +1684,7 @@ void absYIndexRead(cpu *Cpu)
         else // else read was fine, execute instruction, end op
         {
             instrOps[Cpu->OpInstruction](Value, Cpu);
-            Cpu->NextCycle = 0;
+            Cpu->NextCycle = 1;
 
 #if CPU_LOG
             sprintf(Cpu->LogExtraInfo, " $%04X,Y @ $%04X = #$%02X",
@@ -1660,7 +1697,7 @@ void absYIndexRead(cpu *Cpu)
         // NOTE: Only reaches here if the page was crossed
         uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
 
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " $%04X,Y @ $%04X = #$%02X",
@@ -1701,7 +1738,7 @@ void absYIndexReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 7)
     {
         writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1729,7 +1766,7 @@ void absYIndexWrite(cpu *Cpu)
     {
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1779,7 +1816,7 @@ void idxXRead(cpu *Cpu)
     {
         uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1799,7 +1836,7 @@ void idxXReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 8)
     {
         writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1816,7 +1853,7 @@ void idxXWrite(cpu *Cpu)
     {
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1876,14 +1913,14 @@ void idxYRead(cpu *Cpu)
                     Cpu->LogData1, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Value);
 #endif
             instrOps[Cpu->OpInstruction](Value, Cpu);
-            Cpu->NextCycle = 0;
+            Cpu->NextCycle = 1;
         }
     }
     else if(Cpu->Cycle == 6)
     {
         uint8 Value = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
         instrOps[Cpu->OpInstruction](Value, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
 
 #if CPU_LOG
         sprintf(Cpu->LogExtraInfo, " ($%s),Y @ $%04X = #$%02X",
@@ -1922,7 +1959,7 @@ void idxYReadWrite(cpu *Cpu)
     else if(Cpu->Cycle == 8)
     {
         writeCpu8(Cpu->OpValue, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1950,7 +1987,7 @@ void idxYWrite(cpu *Cpu)
     {
         uint8 Value = instrOps[Cpu->OpInstruction](0, Cpu);
         writeCpu8(Value, (Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }
 }
 
@@ -1985,7 +2022,7 @@ void absIndJmp(cpu *Cpu)
     else if(Cpu->Cycle == 4)
     {
         Cpu->OpValue = readCpu8((Cpu->OpHighByte << 8) | Cpu->OpLowByte, Cpu);
-        // TODO: POLL INTERRUPT???
+        pollInterrupts();
     }
     else if(Cpu->Cycle == 5)
     {        
@@ -1996,7 +2033,7 @@ void absIndJmp(cpu *Cpu)
         Cpu->OpLowByte = Cpu->OpValue;
 
         instrOps[Cpu->OpInstruction](0, Cpu);
-        Cpu->NextCycle = 0;
+        Cpu->NextCycle = 1;
     }   
 }
 

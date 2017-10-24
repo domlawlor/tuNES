@@ -94,6 +94,9 @@ struct ppu
     bool32 Sprite0Hit;
     bool32 VerticalBlank;
 
+    bool32 SupressVbl;
+    bool32 SupressNmiSet;
+    
     // Oam Address Reg
     uint8 OamAddress;
 

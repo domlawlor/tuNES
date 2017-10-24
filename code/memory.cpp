@@ -314,13 +314,25 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             Ppu->PpuSlave = ((Byte & 64) != 0);
             Ppu->GenerateNMI = ((Byte & 128) != 0);
 
+
+            
+            
             if(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 0)
             {
-                NmiTriggered = false;
+                ;
             }
-            else if(Ppu->GenerateNMI && Ppu->VerticalBlank && !NmiTriggered)
+            else
             {
-                TriggerNmi = true;
+                if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0)
+                {
+                    //setNmi(Ppu->GenerateNMI); // TODO: Trying to pass nmi off test.
+                    /*Tests NMI occurrence when disabled near time
+                      VBL flag is set.
+                      Disables NMI one PPU clock later on each line.
+                      Prints whether NMI occurred. */
+                }
+                else
+                    setNmi(Ppu->GenerateNMI && Ppu->VerticalBlank);
             }
 
             break;
@@ -351,11 +363,6 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             }
             else
             {
-                /*
-                if( ( OAMADDR & 0x03 ) == 0x02 )
-                    b&=0xe3;
-                map.ppuwriteoam(Byte.toUnsignedInt(OAMADDR), b); TODO: Look at the example code
-                */
                 Ppu->Oam[Ppu->OamAddress] = Byte;
                 Ppu->OamAddress++;
             }
@@ -434,24 +441,37 @@ static uint8 readPpuRegister(uint16 Address)
         case 0x2002:
         {
             // NOTE: Reading VBL one cycle before it is set, returns clear and
-            // TODO: vbl does not get set next cycle
             if( !(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0) )
                 Byte |= Ppu->VerticalBlank ? 0x80 : 0;
+
+            if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0)
+            {
+                Ppu->SupressVbl = true;
+            }
+            else
+            {
+                Ppu->SupressVbl = false;
+            }
+            
+            if(Ppu->Scanline == 241 &&
+               (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
+            {
+                setNmi(false);
+                TriggerNmi = false;
+
+                if(Ppu->ScanlineCycle == 0)
+                    Ppu->SupressNmiSet = true;
+            }
+            
             Ppu->VerticalBlank = false;
+
+            //setNmi(false);
             
             Byte |= Ppu->Sprite0Hit ? 0x40 : 0;
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
             Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
 
-            
-            if(Ppu->Scanline == 241 &&
-               (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
-            {
-                TriggerNmi = false;
-            }            
-                      
             Ppu->VRamIO.LatchWrite = 0;
-            NmiTriggered = false;
             Ppu->OpenBus = Byte;
             break;
         }

@@ -228,6 +228,23 @@ static void ppuTick( ppu *Ppu)
     vram_io *VRamIO = &Ppu->VRamIO; 
 
     bool32 RenderingEnabled = Ppu->ShowBackground || Ppu->ShowSprites;
+
+    
+    // Incrementing to the next cycle. If reached end of
+    // scanline cycles then increment scanline.
+    ++Ppu->ScanlineCycle;
+    
+    if(Ppu->ScanlineCycle == 341)
+    {
+        Ppu->Scanline += 1;
+        Ppu->ScanlineCycle = 0;
+    }
+
+    if(Ppu->Scanline == 262)
+    {
+        Ppu->Scanline = 0;
+        Ppu->OddFrame = !Ppu->OddFrame;
+    }
     
     bool32 VisibleLine = (0 <= Ppu->Scanline && Ppu->Scanline <= 239);
     bool32 VBlankLine = (241 <= Ppu->Scanline && Ppu->Scanline <= 260);
@@ -254,8 +271,7 @@ static void ppuTick( ppu *Ppu)
                 Ppu->Sprite0Hit = false;
 
                 Ppu->VerticalBlank = false;
-                NmiTriggered = false;
-                ExecutingNmi = false;
+                setNmi(false);
             }
             if(Ppu->ScanlineCycle == 339 && Ppu->ShowBackground && Ppu->OddFrame)
             {
@@ -357,36 +373,18 @@ static void ppuTick( ppu *Ppu)
     {
         if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
         {
-            if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 1)
+            if(!Ppu->SupressVbl)
             {
                 Ppu->VerticalBlank = true;
-                TriggerNmi = Ppu->GenerateNMI;
             }
 
+            NmiFlag = Ppu->GenerateNMI && Ppu->VerticalBlank && !Ppu->SupressNmiSet;
+
+            if(Ppu->SupressNmiSet)
+                Ppu->SupressNmiSet = false;
+            
             DrawScreen = true; // NOTE: Always draw screen here. Nmi is exclusive to this
         }
-
-        /*
-        if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 2)
-        {
-            
-        }*/
-    }
-    
-    // Incrementing to the next cycle. If reached end of
-    // scanline cycles then increment scanline.
-    ++Ppu->ScanlineCycle;
-    
-    if(Ppu->ScanlineCycle == 341)
-    {
-        Ppu->Scanline += 1;
-        Ppu->ScanlineCycle = 0;
-    }
-
-    if(Ppu->Scanline == 262)
-    {
-        Ppu->Scanline = 0;
-        Ppu->OddFrame = !Ppu->OddFrame;
     }
 }
 

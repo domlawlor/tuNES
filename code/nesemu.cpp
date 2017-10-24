@@ -278,12 +278,41 @@ WinInputCallback(HWND WindowHandle, UINT Message,
 
 global uint8 *OamData = 0;
 
+bool32 NmiFlag = false;
+bool32 LastNmiFlag = false;
 bool32 TriggerNmi = false;
-bool32 NmiTriggered = false;
-bool32 ExecutingNmi = false;
+bool32 NmiInterruptSet = false;
+
 bool32 IrqTriggered = false;
 
-void pollInterrupts() {}
+static void setNmi(bool32 newNmiFlag)
+{
+    NmiFlag = newNmiFlag;
+
+    if(NmiFlag && !LastNmiFlag)
+        TriggerNmi = true;
+
+    LastNmiFlag = NmiFlag;
+}
+
+static void pollInterrupts()
+{
+    if(NmiFlag && !LastNmiFlag)
+    {
+        TriggerNmi = true;
+    }
+    LastNmiFlag = NmiFlag;
+        
+    if(TriggerNmi)
+    {
+        TriggerNmi = false;
+        NmiInterruptSet = true;
+    }
+    else
+    {
+        // TODO: IRQ
+    }
+}
 
 bool32 OamDataChange = false;
 
@@ -738,8 +767,8 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     WindowClass.hInstance = WindowInstance;
     WindowClass.lpszClassName = "Nes Emulator";
 
-    uint16 InitialWindowPosX = 0;
-    uint16 InitialWindowPosY = 0;
+    uint16 InitialWindowPosX = 700;
+    uint16 InitialWindowPosY = 400;
     
     if(RegisterClassA(&WindowClass))
     {        
@@ -784,7 +813,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             GlobalCpu = &Nes.Cpu;
             GlobalPpu = &Nes.Ppu;
             
-            loadCartridge(&Nes, "Balloon Fight.nes");
+            loadCartridge(&Nes, "04-nmi_control.nes");
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
@@ -835,11 +864,13 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 
                 if(PowerOn)
                 {
-                    cpuTick(&Nes.Cpu, &WinInput);
-                    ++CpuCyclesElapsed;
                     
                     ppuTick(&Nes.Ppu);
                     ppuTick(&Nes.Ppu);
+
+                    cpuTick(&Nes.Cpu, &WinInput);
+                    ++CpuCyclesElapsed;
+                    
                     ppuTick(&Nes.Ppu);
                 }
                 
