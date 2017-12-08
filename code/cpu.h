@@ -84,6 +84,8 @@ struct cpu
     char LogData2[8];
     char LogExtraInfo[32];
     HANDLE LogHandle;
+
+    uint64 CycleCount;
 };
 
 /*

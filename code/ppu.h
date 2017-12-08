@@ -46,7 +46,7 @@ struct sprite
     oam_sprite OamData;
 
     bool32 Priority;
-    bool32 Sprite0;
+    bool32 SpriteZero;
     
     uint8 PaletteValue;
     uint8 PatternLow;
@@ -91,7 +91,7 @@ struct ppu
 
     // Status Reg
     bool32 SpriteOverflow;
-    bool32 Sprite0Hit;
+    bool32 SpriteZeroHit;
     bool32 VerticalBlank;
 
     bool32 SupressVbl;
@@ -120,7 +120,12 @@ struct ppu
 
     bool32 OddFrame;
 
+    bool32 SpriteZeroDelaySet;
+    
     screen_buffer *BackBuffer;
+
+    uint64 CycleCount;
+    uint64 StartupClocks;
 };
 
 

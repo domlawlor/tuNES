@@ -8,7 +8,7 @@
 
 #include "cpu.h"
 #include "ppu.h"
-
+#include "apu.h"
 
 struct cartridge
 {
@@ -40,7 +40,7 @@ struct nes
 {
     cpu Cpu;
     ppu Ppu;
-    //Apu
+    apu Apu;
     cartridge Cartridge;
 };
 
@@ -49,7 +49,7 @@ global uint64 GlobalCpuMemoryBase = 0;
 global uint64 GlobalPpuMemoryBase = 0;
 global cpu *GlobalCpu;
 global ppu *GlobalPpu;
-
+global apu *GlobalApu;
 
 #define NES_H
 #endif

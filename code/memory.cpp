@@ -2,6 +2,7 @@
 #include "nes.h"
 #include "cpu.h"
 #include "ppu.h"
+#include "apu.h"
 
 static uint8 readPpuRegister(uint16 Address);
 static void writePpuRegister(uint8 Byte, uint16 Address);
@@ -304,6 +305,9 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
     {
         case 0x2000:
         {
+            if(Ppu->StartupClocks > 0)
+                return;
+            
             Ppu->NametableBase = Byte & 3;
             Ppu->VRamIO.TempVRamAdrs &= ~0xC00;
             Ppu->VRamIO.TempVRamAdrs |= (Byte & 3) << 10;            
@@ -314,31 +318,38 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             Ppu->PpuSlave = ((Byte & 64) != 0);
             Ppu->GenerateNMI = ((Byte & 128) != 0);
 
-
-            
             
             if(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 0)
             {
                 ;
             }
             else
+                setNmi(Ppu->GenerateNMI && Ppu->VerticalBlank);
+
+            if(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 0))
             {
-                if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0)
-                {
-                    //setNmi(Ppu->GenerateNMI); // TODO: Trying to pass nmi off test.
-                    /*Tests NMI occurrence when disabled near time
-                      VBL flag is set.
-                      Disables NMI one PPU clock later on each line.
-                      Prints whether NMI occurred. */
-                }
-                else
-                    setNmi(Ppu->GenerateNMI && Ppu->VerticalBlank);
+                setNmi(Ppu->GenerateNMI);
+                TriggerNmi = Ppu->GenerateNMI;
+                NmiFlag = Ppu->GenerateNMI;
             }
+            
+            //if(Ppu->Scanline ==
+/*
+            else if(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
+            {
+                //setNmi(Ppu->GenerateNMI); // TODO: Trying to pass nmi off test.
+                TriggerNmi = Ppu->GenerateNMI;
+            }
+            else*/
+                
 
             break;
         }
         case 0x2001:
         {
+            if(Ppu->StartupClocks > 0)
+                return;
+            
             Ppu->GreyScale           = ((Byte & 1) != 0);
             Ppu->ShowBGLeft8Pixels   = ((Byte & 2) != 0);
             Ppu->ShowSPRTLeft8Pixels = ((Byte & 4) != 0);
@@ -370,6 +381,9 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2005:
         {
+            if(Ppu->StartupClocks > 0)
+                return;
+            
             if(Ppu->VRamIO.LatchWrite == 0)
             {
                 Ppu->VRamIO.FineX = Byte & 7; // Bit 0,1, and 2 are fine X
@@ -389,6 +403,9 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2006:
         {
+            if(Ppu->StartupClocks > 0)
+                return;
+            
             if(Ppu->VRamIO.LatchWrite == 0)
             {
                 Ppu->VRamIO.TempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
@@ -441,7 +458,7 @@ static uint8 readPpuRegister(uint16 Address)
         case 0x2002:
         {
             // NOTE: Reading VBL one cycle before it is set, returns clear and
-            if( !(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0) )
+            if( !((Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0)/* || (Ppu->Scanline == 240 && Ppu->ScanlineCycle ==*/ ) )
                 Byte |= Ppu->VerticalBlank ? 0x80 : 0;
 
             if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0)
@@ -467,7 +484,7 @@ static uint8 readPpuRegister(uint16 Address)
 
             //setNmi(false);
             
-            Byte |= Ppu->Sprite0Hit ? 0x40 : 0;
+            Byte |= Ppu->SpriteZeroHit ? 0x40 : 0;
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
             Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
 
@@ -516,4 +533,220 @@ static uint8 readPpuRegister(uint16 Address)
 
     return Ppu->OpenBus;
 }
+
+
+uint8 LengthCounterTable[] = {0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06,
+                              0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E,
+                              0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16,
+                              0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E };
+
+static void writeApuRegister(uint8 Byte, uint16 Address)
+{
+    apu * Apu = GlobalApu;
+    
+    //TODO Ppu->OpenBus = Byte;
+    
+    switch(Address)
+    {
+        case 0x4000:
+        case 0x4004:
+        {
+            square *Square = (0x4000 <= Address && Address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+
+            Square->DutyCycle         = ((Byte & 0xC0) >> 6);
+            Square->LengthCounterHalt = ((Byte & 0x20) != 0);
+            Square->EnvelopeDisable   = ((Byte & 0x10) != 0);
+            Square->VolumePeriod      = (Byte & 0xF);
+            break;
+        }
+        case 0x4001:
+        case 0x4005:
+        {
+            square *Square = (0x4000 <= Address && Address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+
+            Square->EnableSweep = ((Byte & 0x80) != 0);
+            Square->SweepPeriod = ((Byte & 0x70) >> 4);
+            Square->Negative    = ((Byte & 0x8) != 0);
+            Square->ShiftCount  = (Byte & 0x7);
+
+            Square.SweepReset = true;
+            break;
+        }
+        case 0x4002:
+        case 0x4006:
+        {
+            square *Square = (0x4000 <= Address && Address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+            Square->PeriodLow = Byte;
+            break;
+        }
+        case 0x4003:
+        {
+            if(Apu->Square1Enabled)
+                Apu->Square1.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
+            Apu->Square1.PeriodHigh = (Byte & 0x7);
+
+            Apu->Square1.RestartEnv = true;
+            break;
+        }
+        case 0x4007:
+        {
+            if(Apu->Square2Enabled)
+                Apu->Square2.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
+            Apu->Square2.PeriodHigh = (Byte & 0x7);
+
+            Apu->Square2.RestartEnv = true;
+            break;
+        }
+        case 0x4008:
+        {
+            Apu->Triangle.LinearCtrl    = ((Byte & 0x80) != 0);
+            Apu->Triangle.LinearCounter = (Byte & 0x7F);
+            break;
+        }
+        case 0x400A:
+        {
+            Apu->Triangle.PeriodLow = Byte;
+            break;
+        }
+        case 0x400B:
+        {
+            if(Apu->TriangleEnabled)
+                Apu->Triangle.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
+            Apu->Triangle.PeriodHigh    = (Byte & 0x7);
+            break;
+        }
+        case 0x400C:
+        {
+            Apu->Noise.LengthCounterHalt = ((Byte & 0x20) != 0);
+            Apu->Noise.EnvelopeDisable   = ((Byte & 0x10) != 0);
+            Apu->Noise.VolumePeriod      = (Byte & 0xF);
+            break;
+        }
+        case 0x400E:
+        {
+            Apu->Noise.LoopNoise  = ((Byte & 0x80) != 0);
+            Apu->Noise.LoopPeriod = (Byte & 0xF);
+            break;
+        }
+        case 0x400F:
+        {
+            if(!Apu->NoiseEnabled)
+                Apu->Noise.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
+            Apu->Noise.RestartEnv = true; // TODO: Unsure if noise envelope is reset
+            break;
+        }
+        case 0x4010:
+        {
+            Apu->Dmc.IRQEnable = ((Byte & 0x80) != 0);
+            Apu->Dmc.Loop      = ((Byte & 0x40) != 0);
+            Apu->Dmc.FreqIndex = (Byte & 0xF);
+            break;
+        }
+        case 0x4011:
+        {
+            Apu->Dmc.LoadCounter = (Byte & 0x7F);
+            break;
+        }
+        case 0x4012:
+        {
+            Apu->Dmc.SampleAddress = Byte;
+            break;
+        }
+        case 0x4013:
+        {
+            Apu->Dmc.SampleLength = Byte;
+            break;
+        }
+        case 0x4015:
+        {
+            Apu->Square1Enabled = ((Byte & 0x1) != 0);
+            Apu->Square2Enabled = ((Byte & 0x2) != 0);
+            Apu->TriangleEnabled = ((Byte & 0x4) != 0);            
+            Apu->NoiseEnabled = ((Byte & 0x8) != 0);
+            Apu->DmcEnabled = ((Byte & 0x10) != 0);
+                        
+            if(!Apu->DmcEnabled)
+            {
+                Apu->Dmc.SampleLength = 0;
+            }
+            if(!Apu->Square1Enabled)
+            {
+                Apu->Square1.LengthCounter = 0;
+            }
+            if(!Apu->Square2Enabled)
+            {
+                Apu->Square2.LengthCounter = 0;
+            }
+            if(!Apu->TriangleEnabled)
+            {
+                Apu->Triangle.LengthCounter = 0;
+            }
+            if(!Apu->NoiseEnabled)
+            {
+                Apu->Noise.LengthCounter = 0;
+            }
+
+            Apu->DmcInterrupt = false;
+            
+            // TODO: If DMC Bit is set, sample will only be restarted it bytes is 0. Else
+            //       the remaining bytes will finish before the next sample is fetched
+            
+            break;
+        }
+        case 0x4017:
+        {
+            Apu->Mode       = ((Byte & 0x80) != 0);
+            Apu->IRQInhibit = ((Byte & 0x40) != 0);
+
+            Apu->FrameCounter = 0;
+
+            // NOTE/TODO Writing to $4017 resets the frame counter and the quarter/half frame
+            // triggers happen simultaneously, but only on "odd" cycles (and only after the
+            // first "even" cycle after the write occurs) - thus, it happens either 2 or 3 cycles
+            // after the write (i.e. on the 2nd or 3rd cycle of the next instruction).
+            // After 2 or 3 clock cycles (depending on when the write is performed), the timer is reset.
+            // Writing to $4017 with bit 7 set ($80) will immediately clock all of its controlled units at
+            //the beginning of the 5-step sequence; with bit 7 clear, only the sequence is reset without
+            // clocking any of its units.
+            break;
+        }        
+    }
+}
+
+static uint8 readApuRegister(uint16 Address)
+{
+    apu * Apu = GlobalApu;
+    
+    uint8 Byte = 0;
+    
+    switch(Address)
+    {
+        case 0x4015:
+        {
+            Byte |= (Apu->DmcInterrupt != 0) ? 0x80 : 0;
+            Byte |= (Apu->FrameInterrupt != 0) ? 0x40 : 0;
+
+            Byte |= (Apu->Dmc.SampleLength > 0) ? 0x10 : 0;
+            Byte |= (Apu->Noise.LengthCounter > 0) ? 0x08 : 0;
+            Byte |= (Apu->Triangle.LengthCounter > 0) ? 0x4 : 0;
+            Byte |= (Apu->Square2.LengthCounter > 0) ? 0x2 : 0;
+            Byte |= (Apu->Square1.LengthCounter > 0) ? 0x1 : 0;
+
+            Apu->FrameInterrupt = false;
+            
+            // TODO: If interrupt Flag was set the same moment as read,
+            // it will be read as set and not be cleared
+            if(0)
+                ;
+
+            
+//            Ppu->OpenBus = Byte;
+            break;
+        }
+    }
+
+    return(0);
+    //return Ppu->OpenBus;
+}
+
 

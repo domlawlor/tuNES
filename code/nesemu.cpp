@@ -320,6 +320,7 @@ bool32 OamDataChange = false;
 #include "log.cpp"
 
 // TODO: This will change location once other functions above get relocated.
+#include "apu.cpp"
 #include "ppu.cpp"
 #include "cpu.cpp"
 
@@ -400,7 +401,6 @@ initCpu(cpu *Cpu, uint64 MemoryBase)
     Cpu->Flags = 0x04;
 
     Cpu->InstrName = "NUL";
-
     
 #if CPU_LOG
     Cpu->LogHandle = createLog("cpu.log");
@@ -419,8 +419,17 @@ initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel)
     Ppu->MemoryBase = MemoryBase;
     Ppu->BasePixel = BasePixel;
 
-    Ppu->VerticalBlank = true;
+    //Ppu->VerticalBlank = true;
+
+    Ppu->StartupClocks = 0;//29658;
 //    Ppu->SpriteOverflow = true;
+}
+
+static void
+initApu(apu *Apu)
+{
+    *Apu = {};
+    // All registers are clear
 }
 
 void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
@@ -741,10 +750,150 @@ reset(nes *Nes)
     setInterrupt(&Nes->Cpu.Flags);
 }
 
+
+#include "DSound.h"
+
+// NOTE: Taken from handmade hero and adjusted
+static LPDIRECTSOUNDBUFFER
+CreateSoundBuffer(HWND WindowHandle, uint16 SamplesPerSec, uint8 Channels, uint8 BitsPerSample)
+{
+    IDirectSound8 *DSoundInterface;
+    HRESULT result = DirectSoundCreate8(0, &DSoundInterface, 0);
+    Assert(result == DS_OK);
+
+    uint16 BytesPerSample = sizeof(int16) * Channels;
+    uint16 SoundBufferSize = SamplesPerSec * BytesPerSample;
+    
+    WAVEFORMATEX SoundFormat = {};
+    SoundFormat.wFormatTag = WAVE_FORMAT_PCM;
+    SoundFormat.nChannels = Channels;
+    SoundFormat.nSamplesPerSec = SamplesPerSec;
+    SoundFormat.wBitsPerSample = BitsPerSample;
+    SoundFormat.nBlockAlign = (SoundFormat.nChannels * SoundFormat.wBitsPerSample) / 8;
+    SoundFormat.nAvgBytesPerSec = SoundFormat.nSamplesPerSec * SoundFormat.nBlockAlign;
+
+    // Must create a primary buffer so we can set the wave format. We can then throw it away
+    if(SUCCEEDED(DSoundInterface->SetCooperativeLevel(WindowHandle, DSSCL_PRIORITY)))
+    {
+        DSBUFFERDESC BufferDesc = {};
+        BufferDesc.dwSize = sizeof(DSBUFFERDESC);
+        BufferDesc.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+        LPDIRECTSOUNDBUFFER SoundPrimaryBuffer;
+        if(SUCCEEDED(DSoundInterface->CreateSoundBuffer(&BufferDesc, &SoundPrimaryBuffer, 0)))
+        {
+            result = SoundPrimaryBuffer->SetFormat(&SoundFormat);
+            Assert(result == DS_OK);
+        }        
+    }
+
+    // Secondary buffer is the buffer we use. We create it here and return it
+    DSBUFFERDESC SoundBufferDesc = {};
+    SoundBufferDesc.dwSize = sizeof(DSBUFFERDESC);
+    SoundBufferDesc.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
+    SoundBufferDesc.dwBufferBytes = SoundBufferSize;
+    SoundBufferDesc.lpwfxFormat = &SoundFormat;
+
+    LPDIRECTSOUNDBUFFER SoundBuffer; 
+    result = DSoundInterface->CreateSoundBuffer(&SoundBufferDesc, &SoundBuffer, 0);
+    Assert(result == DS_OK);
+
+    return(SoundBuffer);
+}
+
+// NOTE: Taken from Handmade hero
+static void
+ClearSoundBuffer(LPDIRECTSOUNDBUFFER SoundBuffer, uint32 SoundBufferSize)
+{
+    VOID *Region1;
+    DWORD Region1Size;
+    VOID *Region2;
+    DWORD Region2Size;
+    if(SUCCEEDED(SoundBuffer->Lock(0, SoundBufferSize,
+                                   &Region1, &Region1Size,
+                                   &Region2, &Region2Size,
+                                   0)))
+    {
+        // TODO(casey): assert that Region1Size/Region2Size is valid
+        uint8 *DestSample = (uint8 *)Region1;
+        for(DWORD ByteIndex = 0;
+            ByteIndex < Region1Size;
+            ++ByteIndex)
+        {
+            *DestSample++ = 0;
+        }
+
+        DestSample = (uint8 *)Region2;
+        for(DWORD ByteIndex = 0;
+            ByteIndex < Region2Size;
+            ++ByteIndex)
+        {
+            *DestSample++ = 0;
+        }
+
+        SoundBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+    }
+}
+
+// NOTE: Taken from Handmade hero and adjusted
+static void
+FillSoundBuffer(LPDIRECTSOUNDBUFFER SoundBuffer, uint16 BytesPerSample, DWORD ByteToLock, DWORD BytesToWrite,
+                int16 *SourceSample, uint32 *SourceRunningIndex)
+{
+    // TODO(casey): More strenuous test!
+    VOID *Region1;
+    DWORD Region1Size;
+    VOID *Region2;
+    DWORD Region2Size;
+    if(SUCCEEDED(SoundBuffer->Lock(ByteToLock, BytesToWrite,
+                                             &Region1, &Region1Size,
+                                             &Region2, &Region2Size,
+                                             0)))
+    {
+        // TODO(casey): assert that Region1Size/Region2Size is valid
+
+        // TODO(casey): Collapse these two loops
+        DWORD Region1SampleCount = Region1Size/BytesPerSample;
+        int16 *DestSample = (int16 *)Region1;
+//        int16 *SourceSample = SourceSamples;
+        for(DWORD SampleIndex = 0;
+            SampleIndex < Region1SampleCount;
+            ++SampleIndex)
+        {
+            *DestSample++ = *SourceSample++;
+            *DestSample++ = *SourceSample++;
+            ++(*SourceRunningIndex);
+        }
+
+        DWORD Region2SampleCount = Region2Size/BytesPerSample;
+        DestSample = (int16 *)Region2;
+        for(DWORD SampleIndex = 0;
+            SampleIndex < Region2SampleCount;
+            ++SampleIndex)
+        {
+            *DestSample++ = *SourceSample++;
+            *DestSample++ = *SourceSample++;
+            ++(*SourceRunningIndex);
+        }
+
+        SoundBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+    }
+}
+
+// TAKEN FROM HANDMADE HERO
+inline real32
+Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End, LARGE_INTEGER PerfCountFreq)
+{
+    real32 Result = ((real32)(End.QuadPart - Start.QuadPart) /
+                     (real32)PerfCountFreq.QuadPart);
+    return(Result);
+}
+
+
 int CALLBACK
 WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
         LPSTR CommandLine, int CommandShow)
-{
+{    
     LARGE_INTEGER WinPerfCountFrequency;
     QueryPerformanceFrequency(&WinPerfCountFrequency); 
     uint64 PerfCountFrequency = WinPerfCountFrequency.QuadPart;            
@@ -777,7 +926,21 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                                       0, 0, WindowInstance, 0);
 
         if(Window) // If window was created successfully
-        {
+        {            
+            // Create DirectSound Buffer for us to fill and play from
+            uint16 SamplesPerSec = 48000;
+            uint8 SoundChannels = 2; // Sterio
+            uint8 BitsPerSample = 16; // Bit depth        
+            LPDIRECTSOUNDBUFFER SoundBuffer = CreateSoundBuffer(Window, SamplesPerSec, SoundChannels, BitsPerSample);
+
+            uint16 BytesPerSample = sizeof(int16) * SoundChannels;
+            uint16 SoundBufferSize = SamplesPerSec * BytesPerSample;
+   
+            ClearSoundBuffer(SoundBuffer, SoundBufferSize);
+            SoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+            
+            // Create Menu for Open, close and restarting the Roms for the emulator
+            
             HMENU WindowMenu = CreateMenu();
             HMENU SubMenu = CreatePopupMenu();
             
@@ -790,7 +953,6 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             
             /**************************************************************************/
             /* NOTE : creation and initialization of Emulators Cpu, Ppu, and Cartridge structures */
-
 
             // Memory allocation for the Cpu and Ppu.
             uint32 CpuMemorySize = Kilobytes(64);
@@ -810,10 +972,13 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             nes Nes = {};
             initCpu(&Nes.Cpu, CpuMemoryBase);
             initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
+            initApu(&Nes.Apu);
             GlobalCpu = &Nes.Cpu;
             GlobalPpu = &Nes.Ppu;
+            GlobalApu = &Nes.Apu;
+
             
-            loadCartridge(&Nes, "04-nmi_control.nes");
+            loadCartridge(&Nes, "07.screen_bottom.nes");
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
@@ -863,16 +1028,141 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 }
                 
                 if(PowerOn)
-                {
-                    
+                {                    
                     ppuTick(&Nes.Ppu);
+                    ppuTick(&Nes.Ppu);                    
                     ppuTick(&Nes.Ppu);
 
                     cpuTick(&Nes.Cpu, &WinInput);
                     ++CpuCyclesElapsed;
+                    Nes.Cpu.CycleCount += 1;
+
+                    if(Nes.Ppu.StartupClocks > 0)
+                        --Nes.Ppu.StartupClocks;
                     
-                    ppuTick(&Nes.Ppu);
+                    apuTick(&Nes.Apu);
                 }
+
+                /*
+                // NOTE TODO: TAKEN FROM HANDMADE HERO. CHANGE TO SUITE ME
+                LARGE_INTEGER AudioWallClock;
+                QueryPerformanceCounter(&AudioWallClock);
+                real32 FromBeginToAudioSeconds = Win32GetSecondsElapsed(FlipWallClock, AudioWallClock, WinPerfCountFrequency);
+
+                DWORD PlayCursor;
+                DWORD WriteCursor;
+                if(SoundBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
+                {
+                */
+                    /* NOTE(casey):
+                       Here is how sound output computation works.
+                       We define a safety value that is the number
+                       of samples we think our game update loop
+                       may vary by (let's say up to 2ms)
+                       When we wake up to write audio, we will look
+                       and see what the play cursor position is and we
+                       will forecast ahead where we think the play
+                       cursor will be on the next frame boundary.
+                       We will then look to see if the write cursor is
+                       before that by at least our safety value.  If
+                       it is, the target fill position is that frame
+                       boundary plus one frame.  This gives us perfect
+                       audio sync in the case of a card that has low
+                       enough latency.
+                       If the write cursor is _after_ that safety
+                       margin, then we assume we can never sync the
+                       audio perfectly, so we will write one frame's
+                       worth of audio plus the safety margin's worth
+                       of guard samples.
+                    */
+                    /*
+                    if(!SoundIsValid)
+                    {
+                        SoundOutput.RunningSampleIndex = WriteCursor / SoundOutput.BytesPerSample;
+                        SoundIsValid = true;
+                    }
+
+                    DWORD ByteToLock = ((SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) %
+                                        SoundOutput.SecondaryBufferSize);
+
+                    DWORD ExpectedSoundBytesPerFrame =
+                        (int)((real32)(SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample) /
+                              GameUpdateHz);
+                    real32 SecondsLeftUntilFlip = (TargetSecondsPerFrame - FromBeginToAudioSeconds);
+                    DWORD ExpectedBytesUntilFlip = (DWORD)((SecondsLeftUntilFlip/TargetSecondsPerFrame)*(real32)ExpectedSoundBytesPerFrame);
+
+                    DWORD ExpectedFrameBoundaryByte = PlayCursor + ExpectedBytesUntilFlip;
+
+                    DWORD SafeWriteCursor = WriteCursor;
+                    if(SafeWriteCursor < PlayCursor)
+                    {
+                        SafeWriteCursor += SoundOutput.SecondaryBufferSize;
+                    }
+                    Assert(SafeWriteCursor >= PlayCursor);
+                    SafeWriteCursor += SoundOutput.SafetyBytes;
+
+                    bool32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
+
+                    DWORD TargetCursor = 0;
+                    if(AudioCardIsLowLatency)
+                    {
+                        TargetCursor = (ExpectedFrameBoundaryByte + ExpectedSoundBytesPerFrame);
+                    }
+                    else
+                    {
+                        TargetCursor = (WriteCursor + ExpectedSoundBytesPerFrame +
+                                        SoundOutput.SafetyBytes);
+                    }
+                    TargetCursor = (TargetCursor % SoundOutput.SecondaryBufferSize);
+
+                    DWORD BytesToWrite = 0;
+                    if(ByteToLock > TargetCursor)
+                    {
+                        BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
+                        BytesToWrite += TargetCursor;
+                    }
+                    else
+                    {
+                        BytesToWrite = TargetCursor - ByteToLock;
+                    }
+
+                    game_sound_output_buffer SoundBuffer = {};
+                    SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+                    SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
+                    BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
+                    SoundBuffer.Samples = Samples;
+                    if(Game.GetSoundSamples)
+                    {
+                        Game.GetSoundSamples(&GameMemory, &SoundBuffer);
+                    }
+
+#if HANDMADE_INTERNAL
+                    win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
+                    Marker->OutputPlayCursor = PlayCursor;
+                    Marker->OutputWriteCursor = WriteCursor;
+                    Marker->OutputLocation = ByteToLock;
+                    Marker->OutputByteCount = BytesToWrite;
+                    Marker->ExpectedFlipPlayCursor = ExpectedFrameBoundaryByte;
+
+                    DWORD UnwrappedWriteCursor = WriteCursor;
+                    if(UnwrappedWriteCursor < PlayCursor)
+                    {
+                        UnwrappedWriteCursor += SoundOutput.SecondaryBufferSize;
+                    }
+                    AudioLatencyBytes = UnwrappedWriteCursor - PlayCursor;
+                    AudioLatencySeconds =
+                        (((real32)AudioLatencyBytes / (real32)SoundOutput.BytesPerSample) /
+                         (real32)SoundOutput.SamplesPerSecond);
+
+#endif
+                    Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
+                }
+                else
+                {
+                    SoundIsValid = false;
+                }
+                */
+
                 
                 if(DrawScreen) // NOTE: Gets called everytime the vblank happens in Ppu TODO: Should it be the end of vblank?
                 {

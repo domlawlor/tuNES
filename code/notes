@@ -28,3 +28,6 @@ The VBlank flag of the PPU is set at tick 1 (the second tick) of scanline 241, w
 
 
 
+////////////////////////
+ 
+THINGS STILL TO DO
