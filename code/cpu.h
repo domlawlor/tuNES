@@ -22,6 +22,10 @@
 #define OVERFLOW_BIT  0x40
 #define NEGATIVE_BIT  0x80
 
+#define NMI_OP 0x02
+#define IRQ_OP 0x12
+
+
 enum addressType
 {
     ACM = 0, IMPL, IMED, REL,
@@ -61,16 +65,16 @@ struct cpu
     input InputPad2;
     uint8 Pad2CurrentButton;
 
-    uint8 OpInstruction;
+    uint8 OpCode;
     uint8 AddressType;
     uint8 OpLowByte;
     uint8 OpHighByte;
     uint8 OpValue;
     uint8 OpTemp;
 
-    char *InstrName;
+    char *OpName;
 
-    bool32 Branched;
+    bool32 OpBranched;
     
     // TODO: Make platform independant. Hold the pointer?
     uint8 LogA;

@@ -6,6 +6,9 @@
 
 static uint8 readPpuRegister(uint16 Address);
 static void writePpuRegister(uint8 Byte, uint16 Address);
+static uint8 readApuRegister(uint16 Address);
+static void writeApuRegister(uint8 Byte, uint16 Address);
+
 
 static void write8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
 {   
@@ -32,35 +35,6 @@ static uint16 cpuMemoryMirror(uint16 Address)
     return(Address);
 }
 
-static uint16 ppuMemoryMirror(uint16 Address)
-{
-    ppu * Ppu = GlobalPpu;
-    
-    if(Address >= 0x4000) // Over half of the memory map is mirrored
-        Address = Address % 0x4000; 
-
-    if(0x3F20 <= Address && Address < 0x4000)
-        Address = (Address % 0x20) + 0x3F00;
-        
-    if(0x3F00 <= Address && Address < 0x3F20) // Palette
-    {
-        if(Address == 0x3F10)
-            Address = 0x3F00;
-        if(Address == 0x3F14)
-            Address = 0x3F04;
-        if(Address == 0x3F18)
-            Address = 0x3F08;
-        if(Address == 0x3F1C)
-            Address = 0x3F0C;
-    }
-   
-    // NOTE: Nametable Mirroring. Controlled by Cartridge
-    if(0x3000 <= Address && Address < 0x3F00) // This first as it maps to the nametable range
-        Address = (Address % 0x0F00) + 0x2000;
-
-    return Address;
-}
-
 static uint8 readCpu8(uint16 Address, cpu *Cpu)
 {
     Address = cpuMemoryMirror(Address);
@@ -69,6 +43,11 @@ static uint8 readCpu8(uint16 Address, cpu *Cpu)
        (Address == 0x4014))
     {
         return readPpuRegister(Address);
+    }
+    else if((0x4000 <= Address && Address <= 0x4013) ||
+            Address == 0x4015 || Address == 0x4017)
+    {
+        return readApuRegister(Address);
     }
    
     uint8 Value = read8(Address, Cpu->MemoryBase);
@@ -138,6 +117,12 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
     {
         writePpuRegister(Byte, Address);
     }
+    else if((0x4000 <= Address && Address <= 0x4013) ||
+            Address == 0x4015 || Address == 0x4017)
+    {
+        writeApuRegister(Byte, Address);
+    }
+    
     
     write8(Byte, Address, Cpu->MemoryBase);
     
@@ -260,16 +245,47 @@ static void writeNametable(uint8 Byte, uint16 Address, ppu *Ppu)
     Nametable[Address % 0x400] = Byte;
 }
 
+static uint16 ppuMemoryMirror(uint16 Address)
+{
+    ppu * Ppu = GlobalPpu;
+    
+    if(Address >= 0x4000) // Over half of the memory map is mirrored
+        Address = Address % 0x4000; 
+
+    if(0x3F20 <= Address && Address < 0x4000)
+        Address = (Address % 0x20) + 0x3F00;
+        
+    if(0x3F00 <= Address && Address < 0x3F20) // Palette
+    {
+        if(Address == 0x3F10)
+            Address = 0x3F00;
+        if(Address == 0x3F14)
+            Address = 0x3F04;
+        if(Address == 0x3F18)
+            Address = 0x3F08;
+        if(Address == 0x3F1C)
+            Address = 0x3F0C;
+    }
+   
+    // NOTE: Nametable Mirroring. Controlled by Cartridge
+    if(0x3000 <= Address && Address < 0x3F00) // This first as it maps to the nametable range
+        Address -= 0x1000;
+
+    return Address;
+}
+
 static uint8 readPpu8(uint16 Address, ppu *Ppu)
 {
     uint8 Result;
     
     Address = ppuMemoryMirror(Address);
             
-    if(Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C ||
-       Address == 0x3F14 || Address == 0x3F18 || Address == 0x3F1C)
+    if((Ppu->ShowBackground || Ppu->ShowSprites) &&
+       (Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C))
+    {
         Address = 0x3F00;
-
+    }
+    
     // If address in nametable range. Then map to the current mirror state and return
     if(0x2000 <= Address && Address < 0x3000)
     {
@@ -284,7 +300,7 @@ static uint8 readPpu8(uint16 Address, ppu *Ppu)
 static void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
 {    
     Address = ppuMemoryMirror(Address);
-
+    
     if(0x2000 <= Address && Address < 0x3000)
     {
         writeNametable(Byte, Address, Ppu);
@@ -318,30 +334,17 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             Ppu->PpuSlave = ((Byte & 64) != 0);
             Ppu->GenerateNMI = ((Byte & 128) != 0);
 
-            
-            if(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 0)
+            // Nmi On Timing
+            if( !(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 1) )
             {
-                ;
-            }
-            else
                 setNmi(Ppu->GenerateNMI && Ppu->VerticalBlank);
+            }
 
-            if(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 0))
+            // Nmi off timing test
+            if(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 4))
             {
-                setNmi(Ppu->GenerateNMI);
-                TriggerNmi = Ppu->GenerateNMI;
-                NmiFlag = Ppu->GenerateNMI;
+                setNmi(true);
             }
-            
-            //if(Ppu->Scanline ==
-/*
-            else if(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
-            {
-                //setNmi(Ppu->GenerateNMI); // TODO: Trying to pass nmi off test.
-                TriggerNmi = Ppu->GenerateNMI;
-            }
-            else*/
-                
 
             break;
         }
@@ -437,10 +440,12 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         case 0x4014:
         {
             // NOTE: OAM DMA Write
-            for(uint16 index = Ppu->OamAddress; index < OAM_SIZE; ++index)
+            for(uint16 ByteCount = 0; ByteCount < 256; ++ByteCount)
             {
-                uint16 NewAddress = (Byte << 8) | index; 
-                OamData[index] = read8(NewAddress, GlobalCpu->MemoryBase);
+                uint16 NewAddress = (Byte << 8) | ByteCount;
+
+                uint8 Index = (Ppu->OamAddress + ByteCount);
+                OamData[Index] = read8(NewAddress, GlobalCpu->MemoryBase);
             }            
             break;
         }
@@ -457,33 +462,31 @@ static uint8 readPpuRegister(uint16 Address)
     {
         case 0x2002:
         {
-            // NOTE: Reading VBL one cycle before it is set, returns clear and
-            if( !((Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0)/* || (Ppu->Scanline == 240 && Ppu->ScanlineCycle ==*/ ) )
-                Byte |= Ppu->VerticalBlank ? 0x80 : 0;
-
-            if(Ppu->Scanline == 241 && Ppu->ScanlineCycle == 0)
+            // NOTE: Reading VBL one cycle before it is set, returns clear and supresses vbl
+            if( !(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 1) ) )
+                   
             {
-                Ppu->SupressVbl = true;
+                Byte |= Ppu->VerticalBlank ? 0x80 : 0;
+                Ppu->SupressVbl = false;
             }
             else
             {
-                Ppu->SupressVbl = false;
+                Ppu->SupressVbl = true;
             }
-            
+
+            // NMI Supression
             if(Ppu->Scanline == 241 &&
-               (Ppu->ScanlineCycle == 0 || Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2))
+               (Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2 || Ppu->ScanlineCycle == 3))
             {
                 setNmi(false);
                 TriggerNmi = false;
 
-                if(Ppu->ScanlineCycle == 0)
+                if(Ppu->ScanlineCycle == 1)
                     Ppu->SupressNmiSet = true;
             }
             
             Ppu->VerticalBlank = false;
 
-            //setNmi(false);
-            
             Byte |= Ppu->SpriteZeroHit ? 0x40 : 0;
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
             Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
@@ -569,7 +572,7 @@ static void writeApuRegister(uint8 Byte, uint16 Address)
             Square->Negative    = ((Byte & 0x8) != 0);
             Square->ShiftCount  = (Byte & 0x7);
 
-            Square.SweepReset = true;
+            Square->SweepReset = true;
             break;
         }
         case 0x4002:
@@ -659,11 +662,11 @@ static void writeApuRegister(uint8 Byte, uint16 Address)
         }
         case 0x4015:
         {
-            Apu->Square1Enabled = ((Byte & 0x1) != 0);
-            Apu->Square2Enabled = ((Byte & 0x2) != 0);
-            Apu->TriangleEnabled = ((Byte & 0x4) != 0);            
-            Apu->NoiseEnabled = ((Byte & 0x8) != 0);
             Apu->DmcEnabled = ((Byte & 0x10) != 0);
+            Apu->NoiseEnabled = ((Byte & 0x8) != 0);
+            Apu->TriangleEnabled = ((Byte & 0x4) != 0);            
+            Apu->Square2Enabled = ((Byte & 0x2) != 0);
+            Apu->Square1Enabled = ((Byte & 0x1) != 0);
                         
             if(!Apu->DmcEnabled)
             {
@@ -734,7 +737,7 @@ static uint8 readApuRegister(uint16 Address)
 
             Apu->FrameInterrupt = false;
             
-            // TODO: If interrupt Flag was set the same moment as read,
+            // TODO: If an interrupt Flag was set the same moment as read,
             // it will be read as set and not be cleared
             if(0)
                 ;

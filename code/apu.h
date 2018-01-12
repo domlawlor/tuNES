@@ -27,8 +27,9 @@ struct square
     uint8 EnvDivider;
     uint8 EnvCounter;
     bool32 RestartEnv;
-
     
+    uint8 SequenceValue;
+    uint8 SequenceStep;
 };
 
 struct triangle
@@ -84,6 +85,9 @@ struct apu
     bool32 IRQInhibit;
 
     uint8 FrameCounter;
+
+
+    real32 FinalOutput;
 };
 
 #define APU_H

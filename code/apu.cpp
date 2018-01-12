@@ -7,6 +7,8 @@
 
 #include "apu.h"
 
+#include "interrupts.cpp"
+
 static void
 clockLengthCounters(apu *Apu)
 {
@@ -53,7 +55,7 @@ clockSweep(apu *Apu)
         {
             // Channel DAC receives 0 and sweep unit doesn't change channel period.
         }
-        else if(Apu->Square1.Shift > 0)
+        else if(Apu->Square1.ShiftCount > 0)
         {
             Apu->Square1.PeriodHigh = (ResultPeriod >> 8) & 0x7;
             Apu->Square1.PeriodLow = (uint8)ResultPeriod; 
@@ -62,11 +64,38 @@ clockSweep(apu *Apu)
         
     }
 
-    if(SweepReset || Apu->Square1.SweepDivider == 0)
+    if(Apu->Square1.SweepReset || Apu->Square1.SweepDivider == 0)
     {
         Apu->Square1.SweepReset = false;
         Apu->Square1.SweepDivider = Apu->Square1.SweepPeriod + 1;
     }    
+}
+
+static void
+clockSequencer(apu *Apu)
+{
+    /*
+    d = 0
+    _ - _ _ _ _ _ _
+    d = 1
+    _ - - _ _ _ _ _
+    d = 2
+    _ - - - - _ _ _
+    d = 3
+    - _ _ - - - - -
+    */
+
+    // Period is decreased each frame. When it reaches zero(goes from 0 to t) it is clocked. 
+
+    // Sequencer starts at zero, and is decremented. Goes from 0 to 7, 6, 5, 4 so on
+    
+/*    
+      The mixer receives the current envelope volume except when
+      The sequencer output is zero, or
+      overflow from the sweep unit's adder is silencing the channel, or
+      the length counter is zero, or
+      the timer has a value less than eight.
+*/  
 }
 
 static void
@@ -86,6 +115,7 @@ clockEnvelope(apu *Apu)
         {
             Apu->Square1.EnvDivider = Apu->Square1.VolumePeriod + 1;
 
+            // TODO:
             if(Apu->Square1.EnvCounter > 0)
                 --Apu->Square1.EnvCounter;
             else if(Apu->Square1.LengthCounterHalt)
@@ -126,7 +156,12 @@ apuTick(apu *Apu)
                 clockLengthCounters(Apu);
                 clockSweep(Apu);
                 clockEnvelope(Apu);
-                //  irq
+
+                if(!Apu->IRQInhibit)
+                {
+                    TriggerIRQ = true;
+                }
+
                 break;
             }
         }
@@ -179,26 +214,32 @@ apuTick(apu *Apu)
     
 // Square 1
     // Envelop picks volume
-    
-    
-    uint8 Square1Out; 
+        
+    uint8 Square1Out = 0; 
     
     // Square 2
-    uint8 Square2Out;
+    uint8 Square2Out = 0;
     
     // Triangle
-    uint8 TriangleOut;
+    uint8 TriangleOut = 0;
     
     // Noise
-    uint8 NoiseOut;
+    uint8 NoiseOut = 0;
     
     // DMC
-    uint8 DmcOut;
+    uint8 DmcOut = 0;
     
-
     // Mixing
-    real32 FinalOutput = ((0.00752 * (Square1Out + Square2Out)) +
-                          (0.00851 * TriangleOut) +
-                          (0.00494 * NoiseOut) +
-                          (0.00335 * DmcOut));
+    Apu->FinalOutput = ((0.00752 * (Square1Out + Square2Out)) +
+                        (0.00851 * TriangleOut) +
+                        (0.00494 * NoiseOut) +
+                        (0.00335 * DmcOut));
 }    
+
+
+static void
+initApu(apu *Apu)
+{
+    *Apu = {};
+    // All registers are clear
+}

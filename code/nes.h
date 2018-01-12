@@ -44,7 +44,6 @@ struct nes
     cartridge Cartridge;
 };
 
-
 global uint64 GlobalCpuMemoryBase = 0;
 global uint64 GlobalPpuMemoryBase = 0;
 global cpu *GlobalCpu;

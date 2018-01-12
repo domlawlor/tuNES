@@ -20,8 +20,7 @@ inline void decrementStack(cpu *Cpu)
 
 inline void writeStack(uint8 Byte, cpu *Cpu)
 {
-    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
-    
+    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);    
 }
 inline uint8 readStack(cpu *Cpu)
 {
@@ -44,17 +43,13 @@ inline void setOverflow(uint8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
 inline void clearOverflow(uint8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
 inline void setZero(uint8 Value, uint8 *Flags)
 {
-    if(Value == 0x00)
-        *Flags = *Flags | ZERO_BIT;
-    else
-        *Flags = *Flags & ~ZERO_BIT;
+    *Flags = (Value == 0x00) ?
+        (*Flags | ZERO_BIT) : (*Flags & ~ZERO_BIT);
 }
 inline void setNegative(uint8 Value, uint8 *Flags)
 {  
-    if(Value >= 0x00 && Value <= 0x7F)
-        *Flags = *Flags & ~NEGATIVE_BIT; // clear negative flag
-    else
-        *Flags = *Flags | NEGATIVE_BIT; // set negative flag
+    *Flags = (Value >= 0x00 && Value <= 0x7F) ?
+        (*Flags & ~NEGATIVE_BIT) : (*Flags | NEGATIVE_BIT);  
 }
 
 inline bool32 isBitSet(uint8 Bit, uint8 Flags)
@@ -62,48 +57,8 @@ inline bool32 isBitSet(uint8 Bit, uint8 Flags)
     return((Bit & Flags) != 0);
 }
 
-global uint8 instAddressType[INSTRUCTION_COUNT] =
-{
-    /*         0        1      2        3       4       5        6        7     8       9     A        B       C     D     E     F  */
-    /*0*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,        
-    /*1*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
-    /*2*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,
-    /*3*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
-    /*4*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,   ABSJ,  ABS_R,  ABS_RW,  ABS_RW,
-    /*5*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
-    /*6*/   IMPL,  INDX_R,  IMPL, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED,  ACM,    IMED,   INDI,  ABS_R,  ABS_RW,  ABS_RW,
-    /*7*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
-    /*8*/   IMED,  INDX_W,  IMED,  INDX_W, ZERO_W, ZERO_W,  ZERO_W,  ZERO_W, IMPL,   IMED, IMPL,    IMED,  ABS_W,  ABS_W,   ABS_W,   ABS_W,
-    /*9*/    REL,  INDY_W,  IMPL,  INDY_W, ZERX_W, ZERX_W,  ZERY_W,  ZERY_W, IMPL, ABSY_W, IMPL,  ABSY_W, ABSX_W, ABSX_W,  ABSY_W,  ABSY_W,
-    /*A*/   IMED,  INDX_R,  IMED,  INDX_R, ZERO_R, ZERO_R,  ZERO_R,  ZERO_R, IMPL,   IMED, IMPL,    IMED,  ABS_R,  ABS_R,   ABS_R,   ABS_R,
-    /*B*/    REL,  INDY_R,  IMPL,  INDY_R, ZERX_R, ZERX_R,  ZERY_R,  ZERY_R, IMPL, ABSY_R, IMPL,  ABSY_R, ABSX_R, ABSX_R,  ABSY_R,  ABSY_R,
-    /*C*/   IMED,  INDX_R,  IMED, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED, IMPL,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,
-    /*D*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
-    /*E*/   IMED,  INDX_R,  IMED, INDX_RW, ZERO_R, ZERO_R, ZERO_RW, ZERO_RW, IMPL,   IMED, IMPL,    IMED,  ABS_R,  ABS_R,  ABS_RW,  ABS_RW,
-    /*F*/    REL,  INDY_R,  IMPL, INDY_RW, ZERX_R, ZERX_R, ZERX_RW, ZERX_RW, IMPL, ABSY_R, IMPL, ABSY_RW, ABSX_R, ABSX_R, ABSX_RW, ABSX_RW,
-};
 
-global char * instName[INSTRUCTION_COUNT] =
-{
-    /*         0     1     2     3     4     5     6     7     8     9     A     B     C     D     E     F        */
-    /*0*/  "BRK","ORA","NMI","SLO","NOP","ORA","ASL","SLO","PHP","ORA","ASL","ANC","NOP","ORA","ASL","SLO",
-    /*1*/  "BPL","ORA","KIL","SLO","NOP","ORA","ASL","SLO","CLC","ORA","NOP","SLO","NOP","ORA","ASL","SLO",
-    /*2*/  "JSR","AND","KIL","RLA","BIT","AND","ROL","RLA","PLP","AND","ROL","ANC","BIT","AND","ROL","RLA", 
-    /*3*/  "BMI","AND","KIL","RLA","NOP","AND","ROL","RLA","SEC","AND","NOP","RLA","NOP","AND","ROL","RLA",
-    /*4*/  "RTI","EOR","KIL","SRE","NOP","EOR","LSR","SRE","PHA","EOR","LSR","ALR","JMP","EOR","LSR","SRE",
-    /*5*/  "BVC","EOR","KIL","SRE","NOP","EOR","LSR","SRE","CLI","EOR","NOP","SRE","NOP","EOR","LSR","SRE",
-    /*6*/  "RTS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","PLA","ADC","ROR","ARR","JMP","ADC","ROR","RRA",
-    /*7*/  "BVS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","SEI","ADC","NOP","RRA","NOP","ADC","ROR","RRA",
-    /*8*/  "NOP","STA","NOP","SAX","STY","STA","STX","SAX","DEY","NOP","TXA","XAA","STY","STA","STX","SAX",
-    /*9*/  "BCC","STA","KIL","AHX","STY","STA","STX","SAX","TYA","STA","TXS","TAS","SHY","STA","SHX","AHX",
-    /*A*/  "LDY","LDA","LDX","LAX","LDY","LDA","LDX","LAX","TAY","LDA","TAX","LAX","LDY","LDA","LDX","LAX",
-    /*B*/  "BCS","LDA","KIL","LAX","LDY","LDA","LDX","LAX","CLV","LDA","TSX","LAS","LDY","LDA","LDX","LAX",
-    /*C*/  "CPY","CMP","NOP","DCP","CPY","CMP","DEC","DCP","INY","CMP","DEX","AXS","CPY","CMP","DEC","DCP",
-    /*D*/  "BNE","CMP","KIL","DCP","NOP","CMP","DEC","DCP","CLD","CMP","NOP","DCP","NOP","CMP","DEC","DCP",
-    /*E*/  "CPX","SBC","NOP","ISC","CPX","SBC","INC","ISC","INX","SBC","NOP","SBC","CPX","SBC","INC","ISC",
-    /*F*/  "BEQ","SBC","KIL","ISC","NOP","SBC","INC","ISC","SED","SBC","NOP","ISC","NOP","SBC","INC","ISC"
-};
-
+#include "operations.cpp"
 
 static void logCpu(cpu* Cpu)
 {
@@ -128,7 +83,7 @@ static void logCpu(cpu* Cpu)
                                    Cpu->LogSP, flagString, 
                                    Cpu->LogPC, Cpu->LogOp,
                                    Cpu->LogData1, Cpu->LogData2,
-                                   instName[Cpu->LogOp],
+                                   opName[Cpu->LogOp],
                                    Cpu->LogExtraInfo);
 
         uint32 bytesWritten;
@@ -144,27 +99,26 @@ static void logCpu(cpu* Cpu)
     Cpu->LogExtraInfo[0] = '\0';
 }
 
-
-#include "operations.cpp"
-
-
 static void fetchOpcode(cpu *Cpu)
 {
     if(NmiInterruptSet)
     {
         NmiInterruptSet = false;
-         
-        Cpu->OpInstruction = 0x02;
-        Cpu->AddressType = instAddressType[Cpu->OpInstruction];
-        Cpu->InstrName = instName[Cpu->OpInstruction];
+        Cpu->OpCode = NMI_OP;
+    }
+    else if(IRQInterruptSet)
+    {
+        IRQInterruptSet = false;
+        Cpu->OpCode = IRQ_OP;            
     }
     else
     {
-        Cpu->OpInstruction = readCpu8(Cpu->PrgCounter, Cpu);
-        Cpu->AddressType = instAddressType[Cpu->OpInstruction];
-        Cpu->InstrName = instName[Cpu->OpInstruction];
+        Cpu->OpCode = readCpu8(Cpu->PrgCounter, Cpu);            
     }
     
+    Cpu->AddressType = opAddressType[Cpu->OpCode];
+    Cpu->OpName = opName[Cpu->OpCode];
+        
 #if CPU_LOG
     Cpu->LogA = Cpu->A;
     Cpu->LogX = Cpu->X;
@@ -172,7 +126,7 @@ static void fetchOpcode(cpu *Cpu)
     Cpu->LogSP = Cpu->StackPtr;
     Cpu->LogFlags = Cpu->Flags;
     Cpu->LogPC = Cpu->PrgCounter;
-    Cpu->LogOp = Cpu->OpInstruction;
+    Cpu->LogOp = Cpu->OpCode;
 #endif
 }
 
@@ -195,53 +149,57 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
         logCpu(Cpu); // Log last Op
 #endif
 
-        fetchOpcode(Cpu);
+	        fetchOpcode(Cpu);
     }
     
     operationAddressModes[Cpu->AddressType](Cpu);
-
     
-    if(Cpu->Branched) // NOTE: If branched, then cycle one of next instruction is done on last relative cycle.
+    if(Cpu->OpBranched) // NOTE: If branched, then cycle one of next instruction is done on last relative cycle.
     {
-        Cpu->Branched = false;
+        Cpu->OpBranched = false;
         Cpu->Cycle = 1;
 
         // If branched, then run the next cycle now. It was pipelined and executed the last cycle of branching
-        cpuTick(Cpu, NewInput); // NOTE: Recursion to run the tick. PadStrobe run again aswell?         
+        cpuTick(Cpu, NewInput); // NOTE: Recursion to run the tick. TODO: Each tick reads input(padstrobe), should this happen again??
     }
 
     Cpu->Cycle = Cpu->NextCycle;    
     return(1);
 }
 
-#if 0
-            // NOTE: CPU Log options
-            char LogBuffer[1024];
-            sprintf(LogBuffer, "%4X %2X %s, SP=%2X\n", Cpu->PrgCounter, Cpu->OpInstruction, Cpu->InstrName, Cpu->StackPtr);
-            OutputDebugString(LogBuffer);
-#endif
-
-#if 0
-    char LogInstrData[16];
-    if(InstrLength == 3)
-        sprintf(LogInstrData, "%2X %2X %2X", InstrData[0], InstrData[1], InstrData[2]);
-    else if(InstrLength == 2)
-        sprintf(LogInstrData, "%2X %2X   ", InstrData[0], InstrData[1]);
-    else
-        sprintf(LogInstrData, "%2X      ", InstrData[0]);
-
-    char LogOpInfo[64];
-//    sprintf(LogOpInfo, ""
     
-    char LogCpuInfo[64];
-    sprintf(LogCpuInfo, "A:%2X X:%2X Y:%2X P:%2X SP:%2X  CYC: %d",
-            LogCpu.A, LogCpu.X, LogCpu.Y, LogCpu.Flags, LogCpu.StackPtr, CyclesElapsed);
+static void
+initCpu(cpu *Cpu, uint64 MemoryBase)
+{
+    ZeroMemory((uint8 *)MemoryBase, Kilobytes(64));
 
-    // NOTE: CPU Log options
-    char LogBuffer[1024];
-    sprintf(LogBuffer, "%4X %s    %s\n", LogCpu.PrgCounter, LogInstrData, LogCpuInfo);
-    OutputDebugString(LogBuffer);
+    // DEBUG at moment. Matching FCEUX initial cpu memory state
+    for(uint16 index = 0; index < 0x2000; ++index)
+    {
+        if(index % 8 >= 4)
+        {
+            uint8 *NewAddress = (uint8 *)(index + MemoryBase);
+            *NewAddress = 0xFF;
+        }
+    }
+
+    for(uint16 index = 0x4008; index < 0x5000; ++index)
+    {
+        uint8 *NewAddress = (uint8 *)(index + MemoryBase);
+        *NewAddress = 0xFF;
+    }
+
+    
+    *Cpu = {};
+    
+    Cpu->MemoryBase = MemoryBase;
+    Cpu->Cycle = 1;
+    Cpu->StackPtr = 0xFD;
+    Cpu->Flags = 0x04;
+
+    Cpu->OpName = "NUL";
+    
+#if CPU_LOG
+    Cpu->LogHandle = createLog("cpu.log");
 #endif
-
-
-
+}

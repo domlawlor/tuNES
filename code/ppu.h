@@ -58,6 +58,16 @@ struct ppu
     uint64 MemoryBase;
     uint32 *BasePixel;
 
+    uint16 LowPatternShiftReg;
+    uint16 HighPatternShiftReg;
+    uint8 PaletteLatchOld;
+    uint8 PaletteLatchNew;
+
+    uint8 NextLowPattern;
+    uint8 NextHighPattern;
+    uint8 NextAtrbByte;
+    uint16 NextNametableAdrs;
+    
     // TODO: Not just for ppu. also apu. So pull out into global
     uint8 OpenBus;
 

@@ -1,5 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
+#include <DSound.h>
+
 
 #define CPU_LOG 0
 
@@ -26,9 +28,19 @@ typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
 
-typedef float real32;
+typedef float  real32;
+typedef double real64;
 
 typedef size_t mem_idx;
+
+#define Align4(Value) ((Value + 3) & ~3)
+#define Align8(Value) ((Value + 7) & ~7)
+#define Align16(Value) ((Value + 15) & ~15)
+
+#define  U8_MAX 0xFF
+#define U16_MAX 0xFFFF
+#define U32_MAX 0xFFFFFFFF
+#define U64_MAX 0xFFFFFFFFFFFFFFFF
 
 #define PPU_REG_ADRS 0x2000    
 #define OAM_SIZE 0x100
@@ -74,15 +86,22 @@ global bool32 DrawScreen = false;
 global input WinInput = {};
 global bool32 GlobalRunning;
 
-static real32 getMilliSeconds(uint64 PerfCountFrequency)
-{
-    LARGE_INTEGER Counter;
-    QueryPerformanceCounter(&Counter);
-    
-    uint64 CounterElapsed = Counter.QuadPart;
-    real32 MSElapsed = ((1000.0f * (real32)CounterElapsed) / (real32)PerfCountFrequency);
+global int64 GlobalPerfCountFrequency;
 
-    return(MSElapsed);
+inline LARGE_INTEGER
+getClock(void)
+{
+    LARGE_INTEGER Result;
+    QueryPerformanceCounter(&Result);
+    return(Result);
+}
+
+inline real32
+getSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
+{
+    real32 Result = ((real32)(End.QuadPart - Start.QuadPart) /
+                     (real32)GlobalPerfCountFrequency);
+    return(Result);
 }
 
 static void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
@@ -278,42 +297,6 @@ WinInputCallback(HWND WindowHandle, UINT Message,
 
 global uint8 *OamData = 0;
 
-bool32 NmiFlag = false;
-bool32 LastNmiFlag = false;
-bool32 TriggerNmi = false;
-bool32 NmiInterruptSet = false;
-
-bool32 IrqTriggered = false;
-
-static void setNmi(bool32 newNmiFlag)
-{
-    NmiFlag = newNmiFlag;
-
-    if(NmiFlag && !LastNmiFlag)
-        TriggerNmi = true;
-
-    LastNmiFlag = NmiFlag;
-}
-
-static void pollInterrupts()
-{
-    if(NmiFlag && !LastNmiFlag)
-    {
-        TriggerNmi = true;
-    }
-    LastNmiFlag = NmiFlag;
-        
-    if(TriggerNmi)
-    {
-        TriggerNmi = false;
-        NmiInterruptSet = true;
-    }
-    else
-    {
-        // TODO: IRQ
-    }
-}
-
 bool32 OamDataChange = false;
 
 #include "file.cpp"
@@ -327,6 +310,28 @@ bool32 OamDataChange = false;
 #include "nes.h"
 
 screen_buffer GlobalScreenBackBuffer = {};
+
+struct win_sound
+{    
+    uint16 SamplesPerSecond;
+    uint8 Channels;
+    uint8 BitsPerSample;
+    uint16 BytesPerSample;
+    uint16 BufferSize;
+    uint32 SampleIndex;
+    uint32 SafetyBytes;
+    int16 *Samples;
+
+    bool32 Valid;
+};
+
+struct nes_sound
+{
+    uint16 SamplesPerSecond;
+    uint32 SampleCount;
+    uint32 BytesToWrite;
+    void *Samples;
+};
 
 static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
 {
@@ -370,281 +375,7 @@ static void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
                   DIB_RGB_COLORS, SRCCOPY);
 }
 
-    
-static void
-initCpu(cpu *Cpu, uint64 MemoryBase)
-{
-    ZeroMemory((uint8 *)MemoryBase, Kilobytes(64));
-
-    // DEBUG at moment. Matching FCEUX initial cpu memory state
-    for(uint16 index = 0; index < 0x2000; ++index)
-    {
-        if(index % 8 >= 4)
-        {
-            uint8 *NewAddress = (uint8 *)(index + MemoryBase);
-            *NewAddress = 0xFF;
-        }
-    }
-
-    for(uint16 index = 0x4008; index < 0x5000; ++index)
-    {
-        uint8 *NewAddress = (uint8 *)(index + MemoryBase);
-        *NewAddress = 0xFF;
-    }
-
-    
-    *Cpu = {};
-    
-    Cpu->MemoryBase = MemoryBase;
-    Cpu->Cycle = 0;
-    Cpu->StackPtr = 0xFD;
-    Cpu->Flags = 0x04;
-
-    Cpu->InstrName = "NUL";
-    
-#if CPU_LOG
-    Cpu->LogHandle = createLog("cpu.log");
-#endif
-}
-
-static void
-initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel)
-{
-    ZeroMemory((uint8 *)MemoryBase, Kilobytes(64));
-    
-    *Ppu = {};
-    
-    OamData = Ppu->Oam;
-
-    Ppu->MemoryBase = MemoryBase;
-    Ppu->BasePixel = BasePixel;
-
-    //Ppu->VerticalBlank = true;
-
-    Ppu->StartupClocks = 0;//29658;
-//    Ppu->SpriteOverflow = true;
-}
-
-static void
-initApu(apu *Apu)
-{
-    *Apu = {};
-    // All registers are clear
-}
-
-void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-    uint16 MemPrgBank1 = 0x8000;
-    uint16 MemPrgBank2 = 0xC000;
-
-    uint8 * BankToCpy1;
-    uint8 * BankToCpy2;
-        
-    if(Cartridge->PrgBankCount == 1)
-    {
-        BankToCpy1 = Cartridge->PrgData;
-        BankToCpy2 = Cartridge->PrgData;
-    }
-    else if(Cartridge->PrgBankCount == 2)
-    {
-        BankToCpy1 = Cartridge->PrgData;
-        BankToCpy2 = Cartridge->PrgData + Kilobytes(16);
-    }
-        
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
-
-    // Map CHR Data to Ppu
-    if(Cartridge->ChrBankCount == 1)
-    {
-        cpyMemory((uint8 *)Ppu->MemoryBase, Cartridge->ChrData, Kilobytes(8));
-    }
-}
-
-void mmc1Init(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-    uint16 MemPrgBank1 = 0x8000;
-    uint16 MemPrgBank2 = 0xC000;
-
-    uint8 * BankToCpy1 = Cartridge->PrgData;
-    uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
-           
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
- }
-
-void unromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-    uint16 MemPrgBank1 = 0x8000;
-    uint16 MemPrgBank2 = 0xC000;
-
-    uint8 * BankToCpy1 = Cartridge->PrgData;
-    uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
-           
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
-}
-
-void axromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-    uint16 MemoryPrgBank = 0x8000;
-    uint8 *BankToCpy = Cartridge->PrgData + ((Cartridge->PrgBankCount) * Kilobytes(16)) - Kilobytes(32);
-    cpyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
-
-    Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
-}
-
-#define MAPPER_TOTAL 8
-
-void (*mapperInit[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
-{
-    nromInit, mmc1Init, unromInit, 0, 0, 0, 0, axromInit 
-};
-
-void nromUpdate(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-//    Assert(0);
-}
-
-void mmc1Update(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-    uint16 PrgRomBank1 = 0x8000;
-    uint16 PrgRomBank2 = 0xC000;
-
-    bool32 IsLargePrg = (Cartridge->PrgBankCount > 16);
-    bool32 IsLargeChr = (Cartridge->ChrBankCount > 1);
-
-    // TODO: Figure a way to deal with these static values
-    static uint8 PrgRomMode;
-    static uint8 ChrRomMode;
-    
-    if(Cpu->MapperWrite)
-    {
-        Cpu->MapperWrite = false;
-        
-        bool32 IsClearBitSet = (Cpu->MapperReg & (1 << 7)) != 0;
-        if(IsClearBitSet)
-        {
-            Cpu->MapperWriteCount = 0;
-            Cpu->MapperReg = 0;
-            Cartridge->MapperInternalReg = 0;
-        }
-        else
-        {
-            ++Cpu->MapperWriteCount;
-            
-            Cartridge->MapperInternalReg = (Cartridge->MapperInternalReg << 1);
-            Cartridge->MapperInternalReg |= (Cpu->MapperReg & 1);
-            
-            if(Cpu->MapperWriteCount == 5) // On 5th write
-            {
-                uint8 DataReg = Cartridge->MapperInternalReg;
-                
-                bool32 bit13Set = (Cpu->MapperWriteAddress & (1 << 13)) != 0;
-                bool32 bit14Set = (Cpu->MapperWriteAddress & (1 << 14)) != 0;
-
-                if(!bit13Set && !bit14Set)     // Control Reg
-                {
-                    uint8 Mirror = DataReg & 3;
-                    if(Mirror == 0)
-                        Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
-                    if(Mirror == 1)
-                        Ppu->MirrorType = SINGLE_SCREEN_BANK_B;
-                    if(Mirror == 2)
-                        Ppu->MirrorType = VERTICAL_MIRROR;
-                    if(Mirror == 3)
-                        Ppu->MirrorType = HORIZONTAL_MIRROR;
-                                        
-                    PrgRomMode = (DataReg & 12) >> 2;
-                    ChrRomMode = (DataReg & (1 << 4)) >> 4;
-                }
-                else if(bit13Set && !bit14Set) // CHR Bank 0
-                {
-                    uint8 SizeToCpy = 0;
-                    
-                    if(ChrRomMode == 1) // 8kb mode Low bit ignored
-                    {
-                        DataReg = DataReg >> 1;
-                        SizeToCpy = Kilobytes(8);
-                    }
-                    else
-                    {
-                        SizeToCpy = Kilobytes(4);
-                    }
-                    uint8 * BankToCpy = Cartridge->ChrData + (DataReg * SizeToCpy);              
-                    cpyMemory((uint8 *)Ppu->MemoryBase, BankToCpy, SizeToCpy);
-                }
-                else if(!bit13Set && bit14Set) // CHR Bank 1
-                {
-                    if(ChrRomMode == 1) // 4kb mode
-                    {
-                        uint8 * BankToCpy = Cartridge->ChrData + (DataReg * Kilobytes(4));              
-                        cpyMemory((uint8 *)Ppu->MemoryBase + 0x1000, BankToCpy, Kilobytes(4));
-                    }
-                }
-                else if(bit13Set && bit14Set) // PRG bank
-                {
-                    uint8 * BankToCpy;
-                    if(PrgRomMode == 0 || PrgRomMode == 1) // 32kib Mode
-                    {
-                        DataReg = DataReg >> 1;
-                        BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(32));              
-                        cpyMemory((uint8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(32));
-                    }
-                    else if(PrgRomMode == 2) // 16kb low bank
-                    {
-                        BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(32));              
-                        cpyMemory((uint8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(16));
-                        
-                    }
-                    else if(PrgRomMode == 3) // 16kb high bank
-                    {
-                        BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(32));              
-                        cpyMemory((uint8 *)Cpu->MemoryBase + 0xC000, BankToCpy, Kilobytes(16));
-                    }
-                }
-                
-                Cpu->MapperWriteCount = 0;
-                Cpu->MapperReg = 0;
-                Cartridge->MapperInternalReg = 0;
-            }
-        }
-    }
-}
-
-void unromUpdate(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-    uint16 MemPrgBank1 = 0x8000;
-    uint8 BankNumber = Cpu->MapperReg;
-    
-    uint8 * BankToCpy = Cartridge->PrgData + (BankNumber * Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy, Kilobytes(16));
-}
-
-void axromUpdate(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
-{
-    uint16 MemoryPrgBank = 0x8000;
-    
-    uint8 SelectedBank = Cpu->MapperReg & 7;
-    uint8 *BankToCpy = Cartridge->PrgData + (SelectedBank * Kilobytes(32));
-    
-    cpyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
-
-    // Nametable Single Screen bank select
-    if(Cpu->MapperReg & 0x10)
-    {
-        Ppu->MirrorType = SINGLE_SCREEN_BANK_B;   
-    }
-    else
-    {
-        Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
-    }
-}
-
-void (*mapperUpdate[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
-{
-    nromUpdate, mmc1Update, unromUpdate, 0, 0, 0, 0, axromUpdate 
-};
+#include "mapper.cpp"
 
 static void loadCartridge(nes *Nes, char * FileName)
 {
@@ -750,143 +481,207 @@ reset(nes *Nes)
     setInterrupt(&Nes->Cpu.Flags);
 }
 
-
-#include "DSound.h"
-
-// NOTE: Taken from handmade hero and adjusted
-static LPDIRECTSOUNDBUFFER
-CreateSoundBuffer(HWND WindowHandle, uint16 SamplesPerSec, uint8 Channels, uint8 BitsPerSample)
-{
-    IDirectSound8 *DSoundInterface;
-    HRESULT result = DirectSoundCreate8(0, &DSoundInterface, 0);
-    Assert(result == DS_OK);
-
-    uint16 BytesPerSample = sizeof(int16) * Channels;
-    uint16 SoundBufferSize = SamplesPerSec * BytesPerSample;
-    
-    WAVEFORMATEX SoundFormat = {};
-    SoundFormat.wFormatTag = WAVE_FORMAT_PCM;
-    SoundFormat.nChannels = Channels;
-    SoundFormat.nSamplesPerSec = SamplesPerSec;
-    SoundFormat.wBitsPerSample = BitsPerSample;
-    SoundFormat.nBlockAlign = (SoundFormat.nChannels * SoundFormat.wBitsPerSample) / 8;
-    SoundFormat.nAvgBytesPerSec = SoundFormat.nSamplesPerSec * SoundFormat.nBlockAlign;
-
-    // Must create a primary buffer so we can set the wave format. We can then throw it away
-    if(SUCCEEDED(DSoundInterface->SetCooperativeLevel(WindowHandle, DSSCL_PRIORITY)))
-    {
-        DSBUFFERDESC BufferDesc = {};
-        BufferDesc.dwSize = sizeof(DSBUFFERDESC);
-        BufferDesc.dwFlags = DSBCAPS_PRIMARYBUFFER;
-
-        LPDIRECTSOUNDBUFFER SoundPrimaryBuffer;
-        if(SUCCEEDED(DSoundInterface->CreateSoundBuffer(&BufferDesc, &SoundPrimaryBuffer, 0)))
-        {
-            result = SoundPrimaryBuffer->SetFormat(&SoundFormat);
-            Assert(result == DS_OK);
-        }        
-    }
-
-    // Secondary buffer is the buffer we use. We create it here and return it
-    DSBUFFERDESC SoundBufferDesc = {};
-    SoundBufferDesc.dwSize = sizeof(DSBUFFERDESC);
-    SoundBufferDesc.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
-    SoundBufferDesc.dwBufferBytes = SoundBufferSize;
-    SoundBufferDesc.lpwfxFormat = &SoundFormat;
-
-    LPDIRECTSOUNDBUFFER SoundBuffer; 
-    result = DSoundInterface->CreateSoundBuffer(&SoundBufferDesc, &SoundBuffer, 0);
-    Assert(result == DS_OK);
-
-    return(SoundBuffer);
-}
-
-// NOTE: Taken from Handmade hero
 static void
-ClearSoundBuffer(LPDIRECTSOUNDBUFFER SoundBuffer, uint32 SoundBufferSize)
+ClearSoundBuffer(LPDIRECTSOUNDBUFFER Buffer, uint32 BufferSize)
 {
-    VOID *Region1;
-    DWORD Region1Size;
-    VOID *Region2;
-    DWORD Region2Size;
-    if(SUCCEEDED(SoundBuffer->Lock(0, SoundBufferSize,
-                                   &Region1, &Region1Size,
-                                   &Region2, &Region2Size,
-                                   0)))
+    VOID *FirstSection;
+    DWORD FirstSectionSize;
+    VOID *SecondSection;
+    DWORD SecondSectionSize;
+    
+    HRESULT Locked = Buffer->Lock(0, BufferSize,
+                                  &FirstSection, &FirstSectionSize,
+                                  &SecondSection, &SecondSectionSize, 0);
+    if(SUCCEEDED(Locked))
     {
-        // TODO(casey): assert that Region1Size/Region2Size is valid
-        uint8 *DestSample = (uint8 *)Region1;
-        for(DWORD ByteIndex = 0;
-            ByteIndex < Region1Size;
-            ++ByteIndex)
+        Assert((FirstSectionSize + SecondSectionSize) == BufferSize);
+
+        uint8 *BytePtr = (uint8 *)FirstSection;
+        for(uint32 ByteNum = 0; ByteNum < FirstSectionSize; ++ByteNum)
         {
-            *DestSample++ = 0;
+            BytePtr[ByteNum] = 0;
         }
 
-        DestSample = (uint8 *)Region2;
-        for(DWORD ByteIndex = 0;
-            ByteIndex < Region2Size;
-            ++ByteIndex)
+        BytePtr = (uint8 *)SecondSection;        
+        for(uint32 ByteNum = 0; ByteNum < SecondSectionSize; ++ByteNum)
         {
-            *DestSample++ = 0;
+            BytePtr[ByteNum] = 0;
         }
-
-        SoundBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+        
+        Buffer->Unlock(FirstSection, FirstSectionSize, SecondSection, SecondSectionSize);
     }
 }
 
 // NOTE: Taken from Handmade hero and adjusted
 static void
-FillSoundBuffer(LPDIRECTSOUNDBUFFER SoundBuffer, uint16 BytesPerSample, DWORD ByteToLock, DWORD BytesToWrite,
+FillSoundBuffer(LPDIRECTSOUNDBUFFER Buffer, uint16 BytesPerSample, DWORD ByteToLock, DWORD BytesToWrite,
                 int16 *SourceSample, uint32 *SourceRunningIndex)
 {
     // TODO(casey): More strenuous test!
-    VOID *Region1;
-    DWORD Region1Size;
-    VOID *Region2;
-    DWORD Region2Size;
-    if(SUCCEEDED(SoundBuffer->Lock(ByteToLock, BytesToWrite,
-                                             &Region1, &Region1Size,
-                                             &Region2, &Region2Size,
-                                             0)))
+    VOID *FirstSection;
+    DWORD FirstSectionSize;
+    VOID *SecondSection;
+    DWORD SecondSectionSize;
+
+    HRESULT LockResult = Buffer->Lock(ByteToLock, BytesToWrite,
+                                      &FirstSection, &FirstSectionSize,
+                                      &SecondSection, &SecondSectionSize, 0);
+    
+    if(SUCCEEDED(LockResult))
     {
-        // TODO(casey): assert that Region1Size/Region2Size is valid
+        // TODO(casey): assert that FirstSectionSize/SecondSectionSize is valid
 
         // TODO(casey): Collapse these two loops
-        DWORD Region1SampleCount = Region1Size/BytesPerSample;
-        int16 *DestSample = (int16 *)Region1;
-//        int16 *SourceSample = SourceSamples;
-        for(DWORD SampleIndex = 0;
-            SampleIndex < Region1SampleCount;
-            ++SampleIndex)
+        DWORD FirstSectionSampleCount = FirstSectionSize/BytesPerSample;
+        int16 *DestSample = (int16 *)FirstSection;
+
+        for(DWORD Index = 0; Index < FirstSectionSampleCount; ++Index)
         {
             *DestSample++ = *SourceSample++;
             *DestSample++ = *SourceSample++;
             ++(*SourceRunningIndex);
         }
 
-        DWORD Region2SampleCount = Region2Size/BytesPerSample;
-        DestSample = (int16 *)Region2;
-        for(DWORD SampleIndex = 0;
-            SampleIndex < Region2SampleCount;
-            ++SampleIndex)
+        DWORD SecondSectionSampleCount = SecondSectionSize/BytesPerSample;
+        DestSample = (int16 *)SecondSection;
+        for(DWORD Index = 0; Index < SecondSectionSampleCount; ++Index)
         {
             *DestSample++ = *SourceSample++;
             *DestSample++ = *SourceSample++;
             ++(*SourceRunningIndex);
         }
 
-        SoundBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+        Buffer->Unlock(FirstSection, FirstSectionSize, SecondSection, SecondSectionSize);
     }
 }
 
-// TAKEN FROM HANDMADE HERO
-inline real32
-Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End, LARGE_INTEGER PerfCountFreq)
+// NOTE: Taken and adapted Handmade hero code
+static LPDIRECTSOUNDBUFFER CreateSoundBuffer(HWND WindowHandle, uint32 BufferSize, uint8 Channels,
+                                             uint32 SamplesPerSecond, uint8 BitsPerSample)
 {
-    real32 Result = ((real32)(End.QuadPart - Start.QuadPart) /
-                     (real32)PerfCountFreq.QuadPart);
-    return(Result);
+    // Create DirectSound Buffer for us to fill and play from    
+    IDirectSound8 *DSoundInterface;
+    HRESULT DSoundResult = DirectSoundCreate8(0, &DSoundInterface, 0);
+    Assert(DSoundResult == DS_OK);
+
+    WAVEFORMATEX WaveFormat = {};
+    WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+    WaveFormat.nChannels = Channels;
+    WaveFormat.nSamplesPerSec = SamplesPerSecond;
+    WaveFormat.wBitsPerSample = BitsPerSample;
+    WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+    WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+
+    // Create Primary Sound buffer first, that we set the wave
+    // format too. We can then create the secondary buffer
+    // that we fill. Primary buffer can be discarded.
+    DSoundResult = DSoundInterface->SetCooperativeLevel(WindowHandle, DSSCL_PRIORITY);
+            
+    if(SUCCEEDED(DSoundResult))
+    {
+        DSBUFFERDESC BufferDescription = {};
+        BufferDescription.dwSize = sizeof(DSBUFFERDESC);
+        BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+        LPDIRECTSOUNDBUFFER PrimaryBuffer;
+
+        DSoundResult = DSoundInterface->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0);
+        if(SUCCEEDED(DSoundResult))
+        {
+            DSoundResult = PrimaryBuffer->SetFormat(&WaveFormat);
+            Assert(DSoundResult == DS_OK);
+        }        
+    }
+
+    // Secondary buffer is the buffer we use. We create it here and return it
+    DSBUFFERDESC BufferDescription = {};
+    BufferDescription.dwSize = sizeof(DSBUFFERDESC);
+    BufferDescription.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
+    BufferDescription.dwBufferBytes = BufferSize;
+    BufferDescription.lpwfxFormat = &WaveFormat;
+
+    LPDIRECTSOUNDBUFFER SoundBuffer; 
+    DSoundResult = DSoundInterface->CreateSoundBuffer(&BufferDescription, &SoundBuffer, 0);
+    Assert(DSoundResult == DS_OK);
+
+    return(SoundBuffer);
+}
+
+static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, win_sound *SoundOut,
+                        uint32 FrameUpdateHz, real32 FrameTargetSeconds, real32 FrameTimeElapsed)
+{
+    DWORD PlayCursor;
+    DWORD WriteCursor;                
+    if(SoundBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
+    {
+        if(!SoundOut->Valid)
+        {
+            SoundOut->SampleIndex = WriteCursor / SoundOut->BytesPerSample;
+            SoundOut->Valid = true;
+        }
+                    
+        DWORD LockByte = ((SoundOut->SampleIndex * SoundOut->BytesPerSample) % SoundOut->BufferSize);
+
+        DWORD FrameExpectedSoundBytes = (int)((real32)(SoundOut->SamplesPerSecond * SoundOut->BytesPerSample) /
+                                              FrameUpdateHz);
+
+        real32 FrameTimeLeft = (FrameTargetSeconds - FrameTimeElapsed);
+        DWORD FrameExpectedBytesLeft = (DWORD)((FrameTimeLeft / FrameTargetSeconds) * (real32)FrameExpectedSoundBytes);
+
+        DWORD ExpectedFrameBoundaryByte = PlayCursor + FrameExpectedBytesLeft;
+
+        DWORD SafeWriteCursor = WriteCursor;
+        if(SafeWriteCursor < PlayCursor)
+        {
+            SafeWriteCursor += SoundOut->BufferSize;
+        }
+        Assert(SafeWriteCursor >= PlayCursor);
+        SafeWriteCursor += SoundOut->SafetyBytes;
+
+        bool32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
+
+        DWORD TargetCursor = 0;
+        if(AudioCardIsLowLatency)
+        {
+            // From the start of next frame until the end of next frame, fill
+            TargetCursor = (ExpectedFrameBoundaryByte + FrameExpectedSoundBytes);
+        }
+        else
+        {
+            // From the current write cursor, add a frames worth of audio plus saftey bytes
+            TargetCursor = (WriteCursor + FrameExpectedSoundBytes +
+                            SoundOut->SafetyBytes);
+        }
+
+        // Mod to reposition in ring buffer
+        TargetCursor = (TargetCursor % SoundOut->BufferSize);
+
+        DWORD BytesToWrite = 0;
+        if(LockByte > TargetCursor)
+        {
+            BytesToWrite = (SoundOut->BufferSize - LockByte);
+            BytesToWrite += TargetCursor;
+        }
+        else
+        {
+            BytesToWrite = TargetCursor - LockByte;
+        }
+
+        nes_sound NesSound = {};
+        NesSound.SamplesPerSecond = SoundOut->SamplesPerSecond;
+        NesSound.SampleCount = Align8(BytesToWrite / SoundOut->BytesPerSample);
+        NesSound.BytesToWrite = NesSound.SampleCount * SoundOut->BytesPerSample;
+        NesSound.Samples = SoundOut->Samples;
+
+        /*
+        if(Game.GetSoundSamples)
+        {
+            Game.GetSoundSamples(&GameMemory, &SoundBuffer);
+        }
+        */
+
+        FillSoundBuffer(SoundBuffer, SoundOut->BytesPerSample, LockByte, BytesToWrite, SoundOut->Samples, &SoundOut->SampleIndex);
+    }
 }
 
 
@@ -896,7 +691,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 {    
     LARGE_INTEGER WinPerfCountFrequency;
     QueryPerformanceFrequency(&WinPerfCountFrequency); 
-    uint64 PerfCountFrequency = WinPerfCountFrequency.QuadPart;            
+    GlobalPerfCountFrequency = WinPerfCountFrequency.QuadPart;            
 
     /**************************************/
     /* NOTE : Screen back buffer creation */
@@ -909,7 +704,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 
     /**************************/
     /* NOTE : Window creation */
-
+    
     WNDCLASSA WindowClass = {};
     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
     WindowClass.lpfnWndProc = WinInputCallback;
@@ -926,20 +721,12 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                                       0, 0, WindowInstance, 0);
 
         if(Window) // If window was created successfully
-        {            
-            // Create DirectSound Buffer for us to fill and play from
-            uint16 SamplesPerSec = 48000;
-            uint8 SoundChannels = 2; // Sterio
-            uint8 BitsPerSample = 16; // Bit depth        
-            LPDIRECTSOUNDBUFFER SoundBuffer = CreateSoundBuffer(Window, SamplesPerSec, SoundChannels, BitsPerSample);
+        {
+            real32 FrameHz = 60.0988; // aka fps. actually is 60.0988 hz. // TODO: PAL is different
 
-            uint16 BytesPerSample = sizeof(int16) * SoundChannels;
-            uint16 SoundBufferSize = SamplesPerSec * BytesPerSample;
-   
-            ClearSoundBuffer(SoundBuffer, SoundBufferSize);
-            SoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
-            
-            // Create Menu for Open, close and restarting the Roms for the emulator
+
+            /********************************/
+            /* NOTE : Window Menu Creation  */            
             
             HMENU WindowMenu = CreateMenu();
             HMENU SubMenu = CreatePopupMenu();
@@ -950,14 +737,33 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             AppendMenu(WindowMenu, MF_STRING | MF_POPUP, (uint64)SubMenu, "&File");
 
             SetMenu(Window, WindowMenu);
-            
-            /**************************************************************************/
-            /* NOTE : creation and initialization of Emulators Cpu, Ppu, and Cartridge structures */
 
-            // Memory allocation for the Cpu and Ppu.
+            /********************************/
+            /* NOTE : Sound Buffer Creation */
+
+            win_sound WinSound = {};
+            WinSound.SamplesPerSecond = 48000;
+            WinSound.Channels = 2; // Sterio
+            WinSound.BitsPerSample = 16; // Bit depth
+            WinSound.BytesPerSample = sizeof(int16) * WinSound.Channels;
+            WinSound.BufferSize = WinSound.SamplesPerSecond * WinSound.BytesPerSample;
+            WinSound.SafetyBytes = (int)(((real32)WinSound.SamplesPerSecond * (real32)WinSound.BytesPerSample
+                                          / FrameHz) / 3.0f);
+
+            WinSound.Samples = (int16 *)VirtualAlloc(0, (size_t)WinSound.BufferSize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+            
+            LPDIRECTSOUNDBUFFER SoundBuffer = CreateSoundBuffer(Window, WinSound.BufferSize, WinSound.Channels,
+                                                                WinSound.SamplesPerSecond, WinSound.BitsPerSample);
+
+            ClearSoundBuffer(SoundBuffer, WinSound.BufferSize);
+            SoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+            
+            /****************************************************************/
+            /* NOTE : Initialization of Cpu, Ppu, and Cartridge structures */
+
+            // Memory allocation for the Cpu and Ppu. TODO: Different Allocation in the future?
             uint32 CpuMemorySize = Kilobytes(64);
             uint32 PpuMemorySize = Kilobytes(64);
-
             uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
 
             uint64 CpuMemoryBase = (uint64)Memory;
@@ -965,39 +771,47 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             GlobalCpuMemoryBase = CpuMemoryBase;
             GlobalPpuMemoryBase = PpuMemoryBase;
 
-            char MemoryInfoBuffer[64];
-            sprintf(MemoryInfoBuffer, "Cpu Base = %X , Ppu Base = %X\n", (uint32)CpuMemoryBase, (uint32)PpuMemoryBase);
-            OutputDebugString(MemoryInfoBuffer);
-            
             nes Nes = {};
             initCpu(&Nes.Cpu, CpuMemoryBase);
             initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
             initApu(&Nes.Apu);
+
+            // TODO: Poor global use?
             GlobalCpu = &Nes.Cpu;
             GlobalPpu = &Nes.Ppu;
             GlobalApu = &Nes.Apu;
-
-            
-            loadCartridge(&Nes, "07.screen_bottom.nes");
+     
+            loadCartridge(&Nes, "Metroid.nes");
 
             // NOTE: Load the program counter with the reset vector
             Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
 
-            /*****************/
+            /********************************************************/
             /* NOTE : Timing */
-            
+            // Using the vertical scan rate of ~60Hz or 16ms a frame.
+            // We run cpu and ppu 16ms worth of ticks. After 16ms
+            // elapsed, we then reset the counters that tracks how
+            // ticks have been. Repeat
+
+
             real32 CpuClockRateHz = 1789772.727272728;
-            real32 SingleCpuClockMs = 1000.0 / CpuClockRateHz;            
+
+            real32 FrameTargetSeconds = 1.0f / FrameHz;
+
+            uint32 TruncatedClockTotal = (uint32)(CpuClockRateHz * FrameTargetSeconds);
+            real32 ClockFractionToAdd = CpuClockRateHz - (real32)TruncatedClockTotal;       
+
+            real32 ElapsedTime = 0.0;
+            uint32 ClocksRun = 0;
+            real32 FrameTime = 0.0;
             
-            uint32 CpuCyclesElapsed = 0;
-            uint32 LastCpuCyclesElapsed = 0;
-            
-            real32 ElapsedSecs = 0;
-            real32 CurrentSecs, PrevSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
+            LARGE_INTEGER LastClock = getClock();
+            LARGE_INTEGER FrameFlippedClock = getClock();
+            LARGE_INTEGER FrameLastFlippedClock = getClock();
             
             /********************/
             /* NOTE : Main Loop */
-            
+
             GlobalRunning = true; 
             while(GlobalRunning)
             {
@@ -1006,8 +820,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 {
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
-                }
-                
+                }            
                 if(PowerHit)
                 {
                     PowerHit = false;
@@ -1020,153 +833,35 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     reset(&Nes);
                     Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
                 }
-
-                if(Nes.Cpu.MapperWrite)
-                {
-                    Nes.Cpu.MapperWrite = false;
-                    mapperUpdate[Nes.Cartridge.MapperNum](&Nes.Cartridge, &Nes.Cpu, &Nes.Ppu);
-                }
                 
-                if(PowerOn)
-                {                    
-                    ppuTick(&Nes.Ppu);
-                    ppuTick(&Nes.Ppu);                    
-                    ppuTick(&Nes.Ppu);
-
-                    cpuTick(&Nes.Cpu, &WinInput);
-                    ++CpuCyclesElapsed;
-                    Nes.Cpu.CycleCount += 1;
-
-                    if(Nes.Ppu.StartupClocks > 0)
-                        --Nes.Ppu.StartupClocks;
-                    
-                    apuTick(&Nes.Apu);
+                if(ClocksRun++ < TruncatedClockTotal)
+                {
+                    if(PowerOn)
+                    {                        
+                        if(Nes.Cpu.MapperWrite)
+                        {
+                            Nes.Cpu.MapperWrite = false;
+                            mapperUpdate[Nes.Cartridge.MapperNum](&Nes.Cartridge, &Nes.Cpu, &Nes.Ppu);
+                        }
+                        
+                        cpuTick(&Nes.Cpu, &WinInput);
+                        
+                        ppuTick(&Nes.Ppu);
+                        ppuTick(&Nes.Ppu);                    
+                        ppuTick(&Nes.Ppu);
+                        
+                        apuTick(&Nes.Apu);
+                    }
                 }
 
-                /*
-                // NOTE TODO: TAKEN FROM HANDMADE HERO. CHANGE TO SUITE ME
-                LARGE_INTEGER AudioWallClock;
-                QueryPerformanceCounter(&AudioWallClock);
-                real32 FromBeginToAudioSeconds = Win32GetSecondsElapsed(FlipWallClock, AudioWallClock, WinPerfCountFrequency);
+                LARGE_INTEGER FrameSoundClock = getClock();
+                real32 FrameTimeElapsed = getSecondsElapsed(FrameFlippedClock, FrameSoundClock);
+//                UpdateAudio(SoundBuffer, &WinSound, FrameHz, FrameTargetSeconds, FrameTimeElapsed);
 
-                DWORD PlayCursor;
-                DWORD WriteCursor;
-                if(SoundBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
+                if(DrawScreen)
                 {
-                */
-                    /* NOTE(casey):
-                       Here is how sound output computation works.
-                       We define a safety value that is the number
-                       of samples we think our game update loop
-                       may vary by (let's say up to 2ms)
-                       When we wake up to write audio, we will look
-                       and see what the play cursor position is and we
-                       will forecast ahead where we think the play
-                       cursor will be on the next frame boundary.
-                       We will then look to see if the write cursor is
-                       before that by at least our safety value.  If
-                       it is, the target fill position is that frame
-                       boundary plus one frame.  This gives us perfect
-                       audio sync in the case of a card that has low
-                       enough latency.
-                       If the write cursor is _after_ that safety
-                       margin, then we assume we can never sync the
-                       audio perfectly, so we will write one frame's
-                       worth of audio plus the safety margin's worth
-                       of guard samples.
-                    */
-                    /*
-                    if(!SoundIsValid)
-                    {
-                        SoundOutput.RunningSampleIndex = WriteCursor / SoundOutput.BytesPerSample;
-                        SoundIsValid = true;
-                    }
-
-                    DWORD ByteToLock = ((SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) %
-                                        SoundOutput.SecondaryBufferSize);
-
-                    DWORD ExpectedSoundBytesPerFrame =
-                        (int)((real32)(SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample) /
-                              GameUpdateHz);
-                    real32 SecondsLeftUntilFlip = (TargetSecondsPerFrame - FromBeginToAudioSeconds);
-                    DWORD ExpectedBytesUntilFlip = (DWORD)((SecondsLeftUntilFlip/TargetSecondsPerFrame)*(real32)ExpectedSoundBytesPerFrame);
-
-                    DWORD ExpectedFrameBoundaryByte = PlayCursor + ExpectedBytesUntilFlip;
-
-                    DWORD SafeWriteCursor = WriteCursor;
-                    if(SafeWriteCursor < PlayCursor)
-                    {
-                        SafeWriteCursor += SoundOutput.SecondaryBufferSize;
-                    }
-                    Assert(SafeWriteCursor >= PlayCursor);
-                    SafeWriteCursor += SoundOutput.SafetyBytes;
-
-                    bool32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
-
-                    DWORD TargetCursor = 0;
-                    if(AudioCardIsLowLatency)
-                    {
-                        TargetCursor = (ExpectedFrameBoundaryByte + ExpectedSoundBytesPerFrame);
-                    }
-                    else
-                    {
-                        TargetCursor = (WriteCursor + ExpectedSoundBytesPerFrame +
-                                        SoundOutput.SafetyBytes);
-                    }
-                    TargetCursor = (TargetCursor % SoundOutput.SecondaryBufferSize);
-
-                    DWORD BytesToWrite = 0;
-                    if(ByteToLock > TargetCursor)
-                    {
-                        BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
-                        BytesToWrite += TargetCursor;
-                    }
-                    else
-                    {
-                        BytesToWrite = TargetCursor - ByteToLock;
-                    }
-
-                    game_sound_output_buffer SoundBuffer = {};
-                    SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
-                    SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
-                    BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
-                    SoundBuffer.Samples = Samples;
-                    if(Game.GetSoundSamples)
-                    {
-                        Game.GetSoundSamples(&GameMemory, &SoundBuffer);
-                    }
-
-#if HANDMADE_INTERNAL
-                    win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
-                    Marker->OutputPlayCursor = PlayCursor;
-                    Marker->OutputWriteCursor = WriteCursor;
-                    Marker->OutputLocation = ByteToLock;
-                    Marker->OutputByteCount = BytesToWrite;
-                    Marker->ExpectedFlipPlayCursor = ExpectedFrameBoundaryByte;
-
-                    DWORD UnwrappedWriteCursor = WriteCursor;
-                    if(UnwrappedWriteCursor < PlayCursor)
-                    {
-                        UnwrappedWriteCursor += SoundOutput.SecondaryBufferSize;
-                    }
-                    AudioLatencyBytes = UnwrappedWriteCursor - PlayCursor;
-                    AudioLatencySeconds =
-                        (((real32)AudioLatencyBytes / (real32)SoundOutput.BytesPerSample) /
-                         (real32)SoundOutput.SamplesPerSecond);
-
-#endif
-                    Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
-                }
-                else
-                {
-                    SoundIsValid = false;
-                }
-                */
-
-                
-                if(DrawScreen) // NOTE: Gets called everytime the vblank happens in Ppu TODO: Should it be the end of vblank?
-                {
-                    DrawScreen = false; 
+                    DrawScreen = false;
+                                                              
                     getWindowSize(Window, &WindowWidth, &WindowHeight);
                 
                     // NOTE: Drawing the backbuffer to the window 
@@ -1174,32 +869,38 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     drawScreenBuffer(&GlobalScreenBackBuffer, DeviceContext,
                                      WindowWidth, WindowHeight);
                     ReleaseDC(Window, DeviceContext);
+
+                    FrameFlippedClock = getClock();
+
+                    FrameTime = getSecondsElapsed(FrameLastFlippedClock, FrameFlippedClock);
+                    FrameLastFlippedClock = getClock();
                 }
 
-//                Sleep(1);
+                LARGE_INTEGER EndClock = getClock();
                 
-                CurrentSecs = getMilliSeconds(PerfCountFrequency) / 1000.0f;
-                ElapsedSecs += CurrentSecs - PrevSecs;
-                PrevSecs = CurrentSecs;
-
-#if 0
-                if(ElapsedSecs > 1)
+                real32 LoopTime = getSecondsElapsed(LastClock, EndClock);
+                ElapsedTime += LoopTime;
+                
+                if(ElapsedTime >= FrameTargetSeconds)
                 {
-                    ElapsedSecs = 0;
-                    uint32 CyclesInSec = CpuCyclesElapsed - LastCpuCyclesElapsed;
-                    LastCpuCyclesElapsed = CpuCyclesElapsed;
                     char TextBuffer[256];
-                    _snprintf(TextBuffer, 256, "Cpu Cycles per Second: %d , vs expected %f\n", CyclesInSec, CpuClockRateHz);
+                    _snprintf(TextBuffer, 256, "CpuCycles %d, FrameTime %f, ElapsedTime %f\n", ClocksRun, FrameTime, ElapsedTime);
                     OutputDebugString(TextBuffer);
-                }
-#endif
-            }
 
-            
+                    ElapsedTime -= FrameTargetSeconds;
+                    ClocksRun = 0;
+                    
+                    real32 TotalClocksToRun = (CpuClockRateHz * FrameTargetSeconds) + ClockFractionToAdd;
+                    TruncatedClockTotal = (uint32)TotalClocksToRun;
+                    ClockFractionToAdd = TotalClocksToRun - (real32)TruncatedClockTotal;               
+                }
+                
+                LastClock = EndClock;
+            }
+     
 #if CPU_LOG
             closeLog(Nes.Cpu.LogHandle);
-#endif
-            
+#endif            
         }
         else
         {
@@ -1239,3 +940,14 @@ OutputDebugString(TextBuffer);
 LastCounter = EndCounter;
 LastCycles = EndCycles;
 #endif
+
+
+
+#if 0
+                    uint32 CyclesInSec = CpuCyclesElapsed - LastCpuCyclesElapsed;
+                    LastCpuCyclesElapsed = CpuCyclesElapsed;
+                    char TextBuffer[256];
+                    _snprintf(TextBuffer, 256, "Cpu Cycles per Second: %d , vs expected %f\n", CyclesInSec, CpuClockRateHz);
+                    OutputDebugString(TextBuffer);
+#endif
+

@@ -6,7 +6,8 @@
    ======================================================================== */
 
 #define PALETTE_ENTRIES 64
-uint8 Palette[PALETTE_ENTRIES][3] =
+#define COLOUR_CHANNELS 3 // RGB is 3
+uint8 Palette[PALETTE_ENTRIES][COLOUR_CHANNELS] =
 {
     {0x75, 0x75, 0x75}, {0x27, 0x1B, 0x8F}, {0x00, 0x00, 0xAB}, {0x47, 0x00, 0x9F}, //0x00
     {0x8F, 0x00, 0x77}, {0xAB, 0x00, 0x13}, {0xA7, 0x00, 0x00}, {0x7F, 0x0B, 0x00}, //0x04
@@ -26,10 +27,7 @@ uint8 Palette[PALETTE_ENTRIES][3] =
     {0x9F, 0xFF, 0xF3}, {0x00, 0x00, 0x00}, {0x00, 0x00, 0x00}, {0x00, 0x00, 0x00}  //0x3C
 }; 
 
-
-void getPaletteValue(uint8 Entry, uint8 *Colour)
+void getPaletteValue(uint8 Entry, uint8 **Colour)
 {
-    Colour[0] = Palette[Entry][0];
-    Colour[1] = Palette[Entry][1];
-    Colour[2]  = Palette[Entry][2];
+    *Colour = (uint8 *)Palette + (Entry * COLOUR_CHANNELS);
 }
