@@ -42,13 +42,18 @@ struct nes
     ppu Ppu;
     apu Apu;
     cartridge Cartridge;
+
+    uint64 CpuMemoryBase;
+    uint64 PpuMemoryBase;
+    
+    bool32 PowerOn;
+
+    real32 CpuHz;
+    
+    real32 FrameClocksElapsed;
+    real32 FrameClockTotal;
 };
 
-global uint64 GlobalCpuMemoryBase = 0;
-global uint64 GlobalPpuMemoryBase = 0;
-global cpu *GlobalCpu;
-global ppu *GlobalPpu;
-global apu *GlobalApu;
-
+global nes *GlobalNes;
 #define NES_H
 #endif

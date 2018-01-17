@@ -7,14 +7,23 @@
 
 #include "cpu.h"
 
+// Stack operations
+inline void incrementStack(cpu *Cpu)
+{
+    ++Cpu->StackPtr;  
+}
+
+inline void decrementStack(cpu *Cpu)
+{
+    --Cpu->StackPtr;  
+}
+
 inline void writeStack(uint8 Byte, cpu *Cpu)
 {
-    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
-    --Cpu->StackPtr;  
+    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);    
 }
 inline uint8 readStack(cpu *Cpu)
 {
-    ++Cpu->StackPtr;  
     uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
     return(Value);
 }
@@ -32,15 +41,22 @@ inline void setBlank(uint8 *Flags)       { *Flags = *Flags | BLANK_BIT; }
 inline void clearBlank(uint8 *Flags)     { *Flags = *Flags & ~BLANK_BIT; }
 inline void setOverflow(uint8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
 inline void clearOverflow(uint8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
-inline void setZero(uint8 Value, uint8 *Flags) {
-    *Flags = (Value == 0x00) ? (*Flags | ZERO_BIT) : (*Flags & ~ZERO_BIT);
+inline void setZero(uint8 Value, uint8 *Flags)
+{
+    *Flags = (Value == 0x00) ?
+        (*Flags | ZERO_BIT) : (*Flags & ~ZERO_BIT);
 }
-inline void setNegative(uint8 Value, uint8 *Flags) {
-    *Flags = (Value >= 0x00 && Value <= 0x7F) ? (*Flags & ~NEGATIVE_BIT) : (*Flags | NEGATIVE_BIT);
+inline void setNegative(uint8 Value, uint8 *Flags)
+{  
+    *Flags = (Value >= 0x00 && Value <= 0x7F) ?
+        (*Flags & ~NEGATIVE_BIT) : (*Flags | NEGATIVE_BIT);  
 }
-inline bool32 isBitSet(uint8 Bit, uint8 Flags) {
+
+inline bool32 isBitSet(uint8 Bit, uint8 Flags)
+{
     return((Bit & Flags) != 0);
 }
+
 
 #include "operations.cpp"
 
@@ -97,13 +113,12 @@ static void fetchOpcode(cpu *Cpu)
     }
     else
     {
-        Cpu->OpCode = readCpu8(Cpu->PrgCounter++, Cpu);            
+        Cpu->OpCode = readCpu8(Cpu->PrgCounter, Cpu);            
     }
     
     Cpu->AddressType = opAddressType[Cpu->OpCode];
     Cpu->OpName = opName[Cpu->OpCode];
-    Cpu->OpClockTotal = opClocks[Cpu->OpCode];
-    
+        
 #if CPU_LOG
     Cpu->LogA = Cpu->A;
     Cpu->LogX = Cpu->X;
@@ -115,36 +130,42 @@ static void fetchOpcode(cpu *Cpu)
 #endif
 }
 
-static uint8 runCpu(cpu *Cpu, input *NewInput)
-{
-    // Input read // TODO: Only run when reading input??
+static uint8 cpuTick(cpu *Cpu, input *NewInput)
+{    
+    Cpu->NextCycle = Cpu->Cycle + 1;
+    
+    // Input read
     if(Cpu->PadStrobe)
     {
         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
 
-    // NOTE: How cpu keeps track of clocks: Calling into a op will
-    // execute all clocks of the instruction at once. If there is any
-    // I/O reads or writes, then ppu and apu are run to catch up to
-    // that point. To know where to catch up too, we have a running
-    // total of 'catchup' clocks.  These clocks will be stored in the
-    // cpu struct. If after running an instruction, the clocks that
-    // need to be added to the 'catchup' total are returned.  After a
-    // frames worth of clocks are run, then we display the frame and
-    // update the audio on the platform
+    // If first cycle, then get instruction opcode. The operation handles incrementing PrgCounter
+    if(Cpu->Cycle == 1)
+    {            
+#if CPU_LOG
+        logCpu(Cpu); // Log last Op
+#endif
 
-    logCpu(Cpu);
+        fetchOpcode(Cpu);
+    }
     
-    fetchOpcode(Cpu);
     operationAddressModes[Cpu->AddressType](Cpu);
+    
+    if(Cpu->OpBranched) // NOTE: If branched, then cycle one of next instruction is done on last relative cycle.
+    {
+        Cpu->OpBranched = false;
+        Cpu->Cycle = 1;
 
-    // Add how many clocks in the Op, minus any clocks already run for catchup.
-    Cpu->CatchupClocks += (Cpu->OpClockTotal - Cpu->LastClocksIntoOp);
-    Cpu->LastClocksIntoOp = 0;
+        // If branched, then run the next cycle now. It was pipelined and executed the last cycle of branching
+        cpuTick(Cpu, NewInput); // NOTE: Recursion to run the tick. TODO: Each tick reads input(padstrobe), should this happen again??
+    }
 
-    return(Cpu->OpClockTotal);
+    Cpu->Cycle = Cpu->NextCycle;    
+    return(1);
 }
+
     
 static void
 initCpu(cpu *Cpu, uint64 MemoryBase)

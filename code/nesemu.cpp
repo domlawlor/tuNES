@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <DSound.h>
 
-
 #define CPU_LOG 0
 
 #define global static
@@ -45,13 +44,6 @@ typedef size_t mem_idx;
 #define PPU_REG_ADRS 0x2000    
 #define OAM_SIZE 0x100
 #define OAM_SPRITE_TOTAL 64
-
-bool32 IOReadFromCpu;
-bool32 IOWriteFromCpu;
-bool32 ScrollAdrsChange;
-bool32 VRamAdrsChange;
-bool32 ResetScrollIOAdrs;
-bool32 ResetVRamIOAdrs;
 
 // A, B, Select, Start, Up, Down, Left, Right
 struct input
@@ -120,10 +112,45 @@ static void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
 
 global bool32 MapperExtWrite = false;
 
-global bool32 PowerOn = true;
-global bool32 PowerHit = false;
-global bool32 ResetHit = false;
 global char RomFileName[MAX_ROM_NAME_SIZE]; 
+
+global uint8 *OamData = 0;
+
+bool32 OamDataChange = false;
+
+
+// TODO: Not make global?
+screen_buffer GlobalScreenBackBuffer = {};
+
+
+#include "file.cpp"
+#include "log.cpp"
+
+#include "nes.cpp"
+
+struct win_sound
+{    
+    uint16 SamplesPerSecond;
+    uint8 Channels;
+    uint8 BitsPerSample;
+    uint16 BytesPerSample;
+    uint16 BufferSize;
+    uint32 SampleIndex;
+    uint32 SafetyBytes;
+    int16 *Samples;
+
+    bool32 Valid;
+};
+
+
+struct nes_sound
+{
+    uint16 SamplesPerSecond;
+    uint32 SampleCount;
+    uint32 BytesToWrite;
+    void *Samples;
+};
+
 
 LRESULT CALLBACK
 WinInputCallback(HWND WindowHandle, UINT Message,
@@ -245,11 +272,11 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                     newRom.lpstrFile[0] = '\0';
                     newRom.nMaxFile = sizeof(tempFileName);
                     newRom.lpstrFilter = ".nes\0*.nes\0";
-                    newRom.nFilterIndex =1;
-                    newRom.lpstrFileTitle = NULL ;
-                    newRom.nMaxFileTitle = 0 ;
-                    newRom.lpstrInitialDir=NULL ;
-                    newRom.Flags = OFN_PATHMUSTEXIST|OFN_FILEMUSTEXIST ;
+                    newRom.nFilterIndex = 1;
+                    newRom.lpstrFileTitle = NULL;
+                    newRom.nMaxFileTitle = 0;
+                    newRom.lpstrInitialDir= NULL;
+                    newRom.Flags = OFN_PATHMUSTEXIST|OFN_FILEMUSTEXIST;
 
                     bool32 FileOpened = GetOpenFileName(&newRom); 
                     
@@ -259,13 +286,13 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                         uint8 NameSize = strlen(tempFileName);
                         cpyMemory((uint8 *)RomFileName, (uint8 *)tempFileName, NameSize);
                         
-                        if(PowerOn)
+                        if(GlobalNes->PowerOn)
                         {
-                            ResetHit = true;
+                            reset(GlobalNes);
                         }
                         else
                         {
-                            PowerHit = true;
+                            power(GlobalNes);
                         }
                     }
                     
@@ -274,7 +301,7 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                 case ID_CLOSE_ROM_ITEM:
                 {
                     ZeroMemory(&RomFileName, sizeof(RomFileName));
-                    PowerHit = true;
+                    power(GlobalNes);
                     break;
                 }
                 case ID_QUIT_ITEM:
@@ -294,44 +321,6 @@ WinInputCallback(HWND WindowHandle, UINT Message,
     }
     return Result;
 }
-
-global uint8 *OamData = 0;
-
-bool32 OamDataChange = false;
-
-#include "file.cpp"
-#include "log.cpp"
-
-// TODO: This will change location once other functions above get relocated.
-#include "apu.cpp"
-#include "ppu.cpp"
-#include "cpu.cpp"
-
-#include "nes.h"
-
-screen_buffer GlobalScreenBackBuffer = {};
-
-struct win_sound
-{    
-    uint16 SamplesPerSecond;
-    uint8 Channels;
-    uint8 BitsPerSample;
-    uint16 BytesPerSample;
-    uint16 BufferSize;
-    uint32 SampleIndex;
-    uint32 SafetyBytes;
-    int16 *Samples;
-
-    bool32 Valid;
-};
-
-struct nes_sound
-{
-    uint16 SamplesPerSecond;
-    uint32 SampleCount;
-    uint32 BytesToWrite;
-    void *Samples;
-};
 
 static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
 {
@@ -373,112 +362,6 @@ static void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
                   BackBuffer->Memory,
                   &BackBuffer->Info,
                   DIB_RGB_COLORS, SRCCOPY);
-}
-
-#include "mapper.cpp"
-
-static void loadCartridge(nes *Nes, char * FileName)
-{
-    cartridge *Cartridge = &Nes->Cartridge;
-    cpu *Cpu = &Nes->Cpu;
-    ppu *Ppu = &Nes->Ppu;
-        
-    // Reading rom file
-    Cartridge->FileName = FileName;
-    Cartridge->FileSize;
-    Cartridge->Data = (uint8 *)readFileData(FileName, &Cartridge->FileSize);
-
-    if(Cartridge->FileSize == 0)
-    {
-        PowerOn = false;
-        return;
-    }
-    else
-    {
-        PowerOn = true;
-    
-        uint8 * RomData = Cartridge->Data;
-        
-        // NOTE: Check for correct header
-        if(RomData[0] != 'N' || RomData[1] != 'E' || RomData[2] != 'S' || RomData[3] != 0x1A)
-            Assert(0);   
-
-        // NOTE: Read header
-        Cartridge->PrgBankCount = RomData[4];
-        Cartridge->ChrBankCount = RomData[5];
-        uint8 Flags6            = RomData[6];        
-        uint8 Flags7            = RomData[7];
-        Cartridge->PrgRamSize   = RomData[8];
-        
-        Cartridge->UseVertMirror       = (Flags6 & (1)) != 0;
-        Cartridge->HasBatteryRam       = (Flags6 & (1 << 1)) != 0;
-        Cartridge->HasTrainer          = (Flags6 & (1 << 2)) != 0;
-        Cartridge->UseFourScreenMirror = (Flags6 & (1 << 3)) != 0;
-        Cartridge->MapperNum           = (Flags7 & 0xF0) | (Flags6 >> 4);
-
-        Assert(Cartridge->UseFourScreenMirror == 0);
-        
-        if(Cartridge->UseFourScreenMirror)
-            Nes->Ppu.MirrorType = FOUR_SCREEN_MIRROR;
-        else if(Cartridge->UseVertMirror)
-            Nes->Ppu.MirrorType = VERTICAL_MIRROR;
-        else
-            Nes->Ppu.MirrorType = HORIZONTAL_MIRROR;      
-        
-        Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
-
-        if(Cartridge->HasTrainer)
-        {
-            Cartridge->PrgData += 512; // Trainer size 512 bytes
-        }
-
-        Cartridge->ChrData = Cartridge->PrgData + (Cartridge->PrgBankCount * Kilobytes(16));
-
-        mapperInit[Cartridge->MapperNum](Cartridge, Cpu, Ppu);
-    }
-}
-
-static void
-power(nes *Nes)
-{
-    PowerOn = !PowerOn;
-
-    if(PowerOn)
-    {
-        initCpu(&Nes->Cpu, GlobalCpuMemoryBase);
-        initPpu(&Nes->Ppu, GlobalPpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
-    
-        
-        loadCartridge(Nes, RomFileName);
-        Nes->Cpu.PrgCounter = (read8(RESET_VEC+1, Nes->Cpu.MemoryBase) << 8) | read8(RESET_VEC, Nes->Cpu.MemoryBase);
-    }
-    else
-    {
-        uint64 MemoryBase = Nes->Cpu.MemoryBase;
-        Nes->Cpu = {};
-        Nes->Cpu.MemoryBase = MemoryBase;
-
-        MemoryBase = Nes->Ppu.MemoryBase;
-        uint32 *BasePixel = Nes->Ppu.BasePixel;
-        Nes->Ppu = {};
-        Nes->Ppu.MemoryBase = MemoryBase;
-        Nes->Ppu.BasePixel = BasePixel;
-    }
-}
-
-static void
-reset(nes *Nes)
-{
-    initCpu(&Nes->Cpu, GlobalCpuMemoryBase);
-    initPpu(&Nes->Ppu, GlobalPpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
-
-    loadCartridge(Nes, RomFileName);
-    
-    Nes->Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes->Cpu);
-
-    // NOTE: The status after reset was taken from nesdev
-    Nes->Cpu.StackPtr -= 3;
-    setInterrupt(&Nes->Cpu.Flags);
 }
 
 static void
@@ -685,6 +568,8 @@ static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, win_sound *SoundOut,
 }
 
 
+
+
 int CALLBACK
 WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
         LPSTR CommandLine, int CommandShow)
@@ -722,7 +607,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 
         if(Window) // If window was created successfully
         {
-            real32 FrameHz = 60.0988; // aka fps. actually is 60.0988 hz. // TODO: PAL is different
+            real32 FrameHz = 60.0988; // aka fps. // TODO: PAL is different
 
 
             /********************************/
@@ -757,35 +642,7 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 
             ClearSoundBuffer(SoundBuffer, WinSound.BufferSize);
             SoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
-            
-            /****************************************************************/
-            /* NOTE : Initialization of Cpu, Ppu, and Cartridge structures */
-
-            // Memory allocation for the Cpu and Ppu. TODO: Different Allocation in the future?
-            uint32 CpuMemorySize = Kilobytes(64);
-            uint32 PpuMemorySize = Kilobytes(64);
-            uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-
-            uint64 CpuMemoryBase = (uint64)Memory;
-            uint64 PpuMemoryBase = (uint64)Memory + CpuMemorySize;
-            GlobalCpuMemoryBase = CpuMemoryBase;
-            GlobalPpuMemoryBase = PpuMemoryBase;
-
-            nes Nes = {};
-            initCpu(&Nes.Cpu, CpuMemoryBase);
-            initPpu(&Nes.Ppu, PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
-            initApu(&Nes.Apu);
-
-            // TODO: Poor global use?
-            GlobalCpu = &Nes.Cpu;
-            GlobalPpu = &Nes.Ppu;
-            GlobalApu = &Nes.Apu;
-     
-            loadCartridge(&Nes, "Metroid.nes");
-
-            // NOTE: Load the program counter with the reset vector
-            Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
-
+                        
             /********************************************************/
             /* NOTE : Timing */
             // Using the vertical scan rate of ~60Hz or 16ms a frame.
@@ -793,13 +650,13 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             // elapsed, we then reset the counters that tracks how
             // ticks have been. Repeat
 
-
-            real32 CpuClockRateHz = 1789772.727272728;
+            nes *Nes = createNes();
+            
+            Nes->CpuHz = 1789772.727272728;            
 
             real32 FrameTargetSeconds = 1.0f / FrameHz;
 
-            uint32 TruncatedClockTotal = (uint32)(CpuClockRateHz * FrameTargetSeconds);
-            real32 ClockFractionToAdd = CpuClockRateHz - (real32)TruncatedClockTotal;       
+            Nes->FrameClockTotal = Nes->CpuHz * FrameTargetSeconds;
 
             real32 ElapsedTime = 0.0;
             uint32 ClocksRun = 0;
@@ -808,6 +665,8 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             LARGE_INTEGER LastClock = getClock();
             LARGE_INTEGER FrameFlippedClock = getClock();
             LARGE_INTEGER FrameLastFlippedClock = getClock();
+
+
             
             /********************/
             /* NOTE : Main Loop */
@@ -821,42 +680,20 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
                 }            
-                if(PowerHit)
-                {
-                    PowerHit = false;
-                    power(&Nes);
-                    Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
-                }                
-                if(ResetHit)
-                {
-                    ResetHit = false;
-                    reset(&Nes);
-                    Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
-                }
                 
-                if(ClocksRun++ < TruncatedClockTotal)
+                if(Nes->FrameClocksElapsed < Nes->FrameClockTotal)
                 {
-                    if(PowerOn)
-                    {                        
-                        if(Nes.Cpu.MapperWrite)
-                        {
-                            Nes.Cpu.MapperWrite = false;
-                            mapperUpdate[Nes.Cartridge.MapperNum](&Nes.Cartridge, &Nes.Cpu, &Nes.Ppu);
-                        }
-                        
-                        cpuTick(&Nes.Cpu, &WinInput);
-                        
-                        ppuTick(&Nes.Ppu);
-                        ppuTick(&Nes.Ppu);                    
-                        ppuTick(&Nes.Ppu);
-                        
-                        apuTick(&Nes.Apu);
+                    if(Nes->PowerOn)
+                    {                      
+                        runNes(Nes, &WinInput);
                     }
                 }
 
+                /*
                 LARGE_INTEGER FrameSoundClock = getClock();
                 real32 FrameTimeElapsed = getSecondsElapsed(FrameFlippedClock, FrameSoundClock);
-//                UpdateAudio(SoundBuffer, &WinSound, FrameHz, FrameTargetSeconds, FrameTimeElapsed);
+                UpdateAudio(SoundBuffer, &WinSound, FrameHz, FrameTargetSeconds, FrameTimeElapsed);
+                */
 
                 if(DrawScreen)
                 {
@@ -884,22 +721,24 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 if(ElapsedTime >= FrameTargetSeconds)
                 {
                     char TextBuffer[256];
-                    _snprintf(TextBuffer, 256, "CpuCycles %d, FrameTime %f, ElapsedTime %f\n", ClocksRun, FrameTime, ElapsedTime);
+                    _snprintf(TextBuffer, 256, "CpuCycles %f, FrameTime %f, ElapsedTime %f\n",
+                              Nes->FrameClocksElapsed, FrameTime, ElapsedTime);
                     OutputDebugString(TextBuffer);
 
                     ElapsedTime -= FrameTargetSeconds;
-                    ClocksRun = 0;
-                    
-                    real32 TotalClocksToRun = (CpuClockRateHz * FrameTargetSeconds) + ClockFractionToAdd;
-                    TruncatedClockTotal = (uint32)TotalClocksToRun;
-                    ClockFractionToAdd = TotalClocksToRun - (real32)TruncatedClockTotal;               
+
+                    // The extra clocks we need to add to the next frame. Is 0 or more
+                    if(Nes->FrameClocksElapsed >= Nes->FrameClockTotal)
+                        Nes->FrameClocksElapsed = Nes->FrameClocksElapsed - Nes->FrameClockTotal;
+                    else
+                        Nes->FrameClocksElapsed = 0;
                 }
                 
                 LastClock = EndClock;
             }
      
 #if CPU_LOG
-            closeLog(Nes.Cpu.LogHandle);
+            closeLog(Nes->Cpu.LogHandle);
 #endif            
         }
         else

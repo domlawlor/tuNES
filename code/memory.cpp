@@ -9,6 +9,38 @@ static void writePpuRegister(uint8 Byte, uint16 Address);
 static uint8 readApuRegister(uint16 Address);
 static void writeApuRegister(uint8 Byte, uint16 Address);
 
+static void ppuTick(ppu *Ppu);
+
+static void runCatchup(uint8 ClocksIntoCurrentOp)
+{
+    // TODO: Find a better way to get Global values?
+    cpu *Cpu = &GlobalNes->Cpu;
+    ppu *Ppu = &GlobalNes->Ppu;
+    //ppu *Apu = &GlobalNes->Apu;
+    
+    // New ClocksInto Op should be minus 1. Because we send in what
+    // cycle we want to catch up too. We don't want to run that cycle
+    // yet. Just one behind it
+    
+    uint16 NewClocks = (ClocksIntoCurrentOp-1) - Cpu->LastClocksIntoOp;
+    
+    // Add the clocks already elapsed in Op.
+    uint16 ClocksToRun = Cpu->CatchupClocks + NewClocks;
+
+    // For the total, run the ppu and apu to catchup
+    for(uint8 ClocksLeft = ClocksToRun; ClocksLeft > 0; --ClocksLeft)
+    {
+        ppuTick(Ppu);
+        ppuTick(Ppu);                    
+        ppuTick(Ppu);
+                        
+//        apuTick(&Nes.Apu);
+    }
+    
+    Cpu->CatchupClocks = 0;
+    Cpu->LastClocksIntoOp = (ClocksIntoCurrentOp-1);
+    Assert((ClocksIntoCurrentOp-1) >= 0);
+}
 
 static void write8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
 {   
@@ -23,6 +55,15 @@ static uint8 read8(uint16 Address, uint64 MemoryOffset)
     return(Value);
 }
 
+static uint8 read8(uint16 Address, uint64 MemoryOffset, uint8 CurrentCycle)
+{
+    if(0x2000 <= Address && Address < 0x4020)
+    {
+        runCatchup(CurrentCycle);
+    }
+
+    return read8(Address, MemoryOffset);
+}
 
 static uint16 cpuMemoryMirror(uint16 Address)
 {
@@ -84,24 +125,21 @@ static uint8 readCpu8(uint16 Address, cpu *Cpu)
     return(Value);
 }
 
+static uint8 readCpu8(uint16 Address, cpu *Cpu, uint8 CurrentCycle)
+{
+    if(0x2000 <= Address && Address < 0x4020)
+    {
+        runCatchup(CurrentCycle);
+    }
+    
+    return readCpu8(Address, Cpu);
+}
+
 static uint16 readCpu16(uint16 Address, cpu * Cpu)
 {
     // NOTE: Little Endian
     uint8 LowByte = readCpu8(Address, Cpu);
     uint8 HighByte = readCpu8(Address+1, Cpu);
-        
-    uint16 NewAddress = (HighByte << 8) | LowByte;
-    return(NewAddress);
-}
-
-static uint16 bugReadCpu16(uint16 Address, cpu * Cpu)
-{
-    // NOTE: This is a bug in the nes 6502 that will wrap the value instead of going to new page.
-    //       Only happens with indirect addressing.
-    
-    uint8 LowByte = readCpu8(Address, Cpu);
-    uint16 Byte2Adrs = (Address & 0xFF00) | (uint16)((uint8)(Address + 1));
-    uint8 HighByte = readCpu8(Byte2Adrs, Cpu);
         
     uint16 NewAddress = (HighByte << 8) | LowByte;
     return(NewAddress);
@@ -161,6 +199,15 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
         Cpu->MapperReg = Byte;
         Cpu->MapperWriteAddress = Address;
     }
+}
+
+static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu, uint8 CurrentCycle)
+{
+    if(0x2000 <= Address && Address < 0x4020)
+    {
+        runCatchup(CurrentCycle);
+    }
+    writeCpu8(Byte, Address, Cpu);
 }
 
 static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
@@ -247,7 +294,7 @@ static void writeNametable(uint8 Byte, uint16 Address, ppu *Ppu)
 
 static uint16 ppuMemoryMirror(uint16 Address)
 {
-    ppu * Ppu = GlobalPpu;
+    ppu * Ppu = &GlobalNes->Ppu;
     
     if(Address >= 0x4000) // Over half of the memory map is mirrored
         Address = Address % 0x4000; 
@@ -313,7 +360,7 @@ static void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
 
 static void writePpuRegister(uint8 Byte, uint16 Address)
 {
-    ppu * Ppu = GlobalPpu;
+    ppu * Ppu = &GlobalNes->Ppu;
     
     Ppu->OpenBus = Byte;
     
@@ -445,7 +492,7 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
                 uint16 NewAddress = (Byte << 8) | ByteCount;
 
                 uint8 Index = (Ppu->OamAddress + ByteCount);
-                OamData[Index] = read8(NewAddress, GlobalCpu->MemoryBase);
+                OamData[Index] = read8(NewAddress, GlobalNes->Cpu.MemoryBase);
             }            
             break;
         }
@@ -454,7 +501,7 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
 
 static uint8 readPpuRegister(uint16 Address)
 {
-    ppu * Ppu = GlobalPpu;
+    ppu * Ppu = &GlobalNes->Ppu;
     
     uint8 Byte = 0;
     
@@ -545,7 +592,7 @@ uint8 LengthCounterTable[] = {0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06,
 
 static void writeApuRegister(uint8 Byte, uint16 Address)
 {
-    apu * Apu = GlobalApu;
+    apu * Apu = &GlobalNes->Apu;
     
     //TODO Ppu->OpenBus = Byte;
     
@@ -718,7 +765,7 @@ static void writeApuRegister(uint8 Byte, uint16 Address)
 
 static uint8 readApuRegister(uint16 Address)
 {
-    apu * Apu = GlobalApu;
+    apu * Apu = &GlobalNes->Apu;
     
     uint8 Byte = 0;
     

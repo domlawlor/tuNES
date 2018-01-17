@@ -74,6 +74,11 @@ struct cpu
 
     char *OpName;
 
+    uint8 OpClockTotal;
+    
+    uint16 CatchupClocks;
+    uint16 LastClocksIntoOp;
+    
     bool32 OpBranched;
     
     // TODO: Make platform independant. Hold the pointer?
