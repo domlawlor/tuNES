@@ -44,6 +44,7 @@ inline bool32 isBitSet(uint8 Bit, uint8 Flags) {
 
 #include "operations.cpp"
 
+#if CPU_LOG
 static void logCpu(cpu* Cpu)
 {
     if(Cpu->LogHandle != INVALID_HANDLE_VALUE)
@@ -82,6 +83,7 @@ static void logCpu(cpu* Cpu)
     Cpu->LogData2[0] = '\0';
     Cpu->LogExtraInfo[0] = '\0';
 }
+#endif
 
 static void fetchOpcode(cpu *Cpu)
 {
@@ -118,6 +120,7 @@ static void fetchOpcode(cpu *Cpu)
 static uint8 runCpu(cpu *Cpu, input *NewInput)
 {
     // Input read // TODO: Only run when reading input??
+    // TODO: Move this to where it happens in memory read.
     if(Cpu->PadStrobe)
     {
         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
@@ -134,7 +137,9 @@ static uint8 runCpu(cpu *Cpu, input *NewInput)
     // frames worth of clocks are run, then we display the frame and
     // update the audio on the platform
 
+#if CPU_LOG
     logCpu(Cpu);
+#endif
     
     fetchOpcode(Cpu);
     operationAddressModes[Cpu->AddressType](Cpu);

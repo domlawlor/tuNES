@@ -5,7 +5,6 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
-#include "memory.cpp"
 #include "palette.cpp"
 
 static void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
@@ -14,18 +13,18 @@ static void drawPixel(ppu *Ppu, uint16 X, uint16 Y, uint8 *Colour)
     *CurrentPixel  = ((Colour[0] << 16) | (Colour[1] << 8) | Colour[2]);
 }
 
-void resetScrollHorz(vram_io *VRamIO)
+static void resetScrollHorz(vram_io *VRamIO)
 {   
     VRamIO->VRamAdrs &= ~(0x041F);
     VRamIO->VRamAdrs |= (VRamIO->TempVRamAdrs & 0x041F);
 }
 
-void resetScrollVert(vram_io *VRamIO)
+static void resetScrollVert(vram_io *VRamIO)
 {
     VRamIO->VRamAdrs = VRamIO->TempVRamAdrs;
 }
 
-void scrollIncHorz(vram_io *Vram)
+static void scrollIncHorz(vram_io *Vram)
 {
     //NOTE: Code take from nesdev wiki. Could be quicker??
     if ((Vram->VRamAdrs & 0x001F) == 31) // if coarse X == 31
@@ -37,7 +36,7 @@ void scrollIncHorz(vram_io *Vram)
         Vram->VRamAdrs += 1;                // increment coarse X
 }
 
-void scrollIncVert(vram_io *Vram)
+static void scrollIncVert(vram_io *Vram)
 {
     // NOTE: Code take from nesdev wiki. Could be quicker??
     if ((Vram->VRamAdrs & 0x7000) != 0x7000) // if fine Y < 7
@@ -256,6 +255,7 @@ static void ppuTick(ppu *Ppu)
         {
             if(Ppu->ScanlineCycle == 0)
             {
+                DrawScreen = true; // NOTE: Always draw screen here. Nmi is exclusive to this
                 Ppu->SpriteOverflow = false;
                 Ppu->SpriteZeroDelaySet = false;
                 Ppu->SpriteZeroHit = false;
@@ -373,17 +373,14 @@ static void ppuTick(ppu *Ppu)
             NmiFlag = Ppu->GenerateNMI && Ppu->VerticalBlank && !Ppu->SupressNmiSet;
 
             if(Ppu->SupressNmiSet)
-                Ppu->SupressNmiSet = false;
-            
-            DrawScreen = true; // NOTE: Always draw screen here. Nmi is exclusive to this
+                Ppu->SupressNmiSet = false;            
         }
     }
         
     // Incrementing to the next cycle. If reached end of
     // scanline cycles then increment scanline.
     ++Ppu->ScanlineCycle;
-    ++Ppu->CycleCount;
-
+    
     // Move to next scanline
     if(Ppu->ScanlineCycle == 341)
     {        
@@ -396,22 +393,29 @@ static void ppuTick(ppu *Ppu)
     {
         Ppu->Scanline = 0;
         Ppu->OddFrame = !Ppu->OddFrame;
+        
+        if(RenderingEnabled && Ppu->OddFrame)
+        {
+            Ppu->ScanlineCycle++; // NOTE: Odd frame with rendering.
+        }
     }
 
-    if(Ppu->Scanline == 0 && Ppu->ScanlineCycle == 0 &&
-       RenderingEnabled && Ppu->OddFrame)
+}
+
+
+static void runPpu(ppu *Ppu, uint16 ClocksToRun)
+{
+    while(ClocksToRun > 0)
     {
-        Ppu->ScanlineCycle++; // NOTE: Odd frame with rendering. Skips cycle 240
+        --ClocksToRun;
+        ppuTick(Ppu);
     }
+}
 
-    /*
-      With rendering enabled, each odd PPU frame is one PPU clock shorter
-      than normal. This is done by skipping the first idle tick on the first
-      visible scanline (by jumping directly from (339,261) on the pre-render
-      scanline to (0,0) on the first visible scanline and doing the last
-      cycle of the last dummy nametable fetch there instead; see this
-      diagram).
-     */
+
+static void runPpu(ppu *Ppu)
+{    
+    ppuTick(Ppu);
 }
 
 static void
@@ -425,12 +429,6 @@ initPpu(ppu *Ppu, uint64 MemoryBase, uint32 * BasePixel)
 
     Ppu->MemoryBase = MemoryBase;
     Ppu->BasePixel = BasePixel;
-
-    //Ppu->VerticalBlank = true;
-
-    Ppu->StartupClocks = 0;//29658;
-//    Ppu->SpriteOverflow = true;
-
     
     // Palette at startup according to Blargg
     uint8 PaletteSize = 32;

@@ -10,6 +10,8 @@
 #include "ppu.h"
 #include "apu.h"
 
+#define MAPPER_TOTAL 8
+
 struct cartridge
 {
     char * FileName;
@@ -34,6 +36,7 @@ struct cartridge
     bool32 UseFourScreenMirror;
 
     uint8 MapperInternalReg;
+    uint8 MapperWriteCount;
 };
 
 struct nes

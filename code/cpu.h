@@ -6,7 +6,6 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
-
 #define NMI_VEC     0xFFFA
 #define RESET_VEC   0xFFFC
 #define IRQ_BRK_VEC 0xFFFE 
@@ -53,11 +52,6 @@ struct cpu
     uint8 Cycle;
     uint8 NextCycle;
     
-    uint8  MapperReg;
-    uint16 MapperWriteAddress;
-    bool32 MapperWrite;
-    uint8 MapperWriteCount;
-    
     bool32 PadStrobe; 
     
     input InputPad1;
@@ -65,22 +59,20 @@ struct cpu
     input InputPad2;
     uint8 Pad2CurrentButton;
 
+    char *OpName;
     uint8 OpCode;
+    uint8 OpClockTotal;
     uint8 AddressType;
     uint8 OpLowByte;
     uint8 OpHighByte;
     uint8 OpValue;
     uint8 OpTemp;
 
-    char *OpName;
-
-    uint8 OpClockTotal;
-    
+    // Timing
     uint16 CatchupClocks;
     uint16 LastClocksIntoOp;
-    
-    bool32 OpBranched;
-    
+
+#if CPU_LOG    
     // TODO: Make platform independant. Hold the pointer?
     uint8 LogA;
     uint8 LogX;
@@ -93,8 +85,7 @@ struct cpu
     char LogData2[8];
     char LogExtraInfo[32];
     HANDLE LogHandle;
-
-    uint64 CycleCount;
+#endif
 };
 
 /*

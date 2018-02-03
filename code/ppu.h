@@ -53,11 +53,28 @@ struct sprite
     uint8 PatternHigh;
 };
 
+enum scanlineType
+{
+    VISIBLE = 0,
+    POST_RENDER,
+    VBLANK,
+    PRE_RENDER
+};
+
 struct ppu
 {
+    uint16 Scanline;
+    uint16 ScanlineCycle;
+
+    scanlineType ScanlineType;
+    
+    bool32 OddFrame;
+    
     uint64 MemoryBase;
     uint32 *BasePixel;
 
+    bool32 RenderingEnabled;
+    
     uint16 LowPatternShiftReg;
     uint16 HighPatternShiftReg;
     uint8 PaletteLatchOld;
@@ -122,20 +139,12 @@ struct ppu
     
     uint8 PreparedSpriteCount;
     sprite PreparedSprites[SECONDARY_OAM_SPRITE_MAX];
-    
-    uint16 Scanline;
-    uint16 ScanlineCycle;
 
     vram_io VRamIO;
 
-    bool32 OddFrame;
-
     bool32 SpriteZeroDelaySet;
-    
-    screen_buffer *BackBuffer;
 
-    uint64 CycleCount;
-    uint64 StartupClocks;
+//    uint64 StartupClocks;
 };
 
 

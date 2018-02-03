@@ -789,4 +789,3 @@ LastCycles = EndCycles;
                     _snprintf(TextBuffer, 256, "Cpu Cycles per Second: %d , vs expected %f\n", CyclesInSec, CpuClockRateHz);
                     OutputDebugString(TextBuffer);
 #endif
-

@@ -9,7 +9,9 @@ static void writePpuRegister(uint8 Byte, uint16 Address);
 static uint8 readApuRegister(uint16 Address);
 static void writeApuRegister(uint8 Byte, uint16 Address);
 
-static void ppuTick(ppu *Ppu);
+// TODO: Forward declarations, is this the best idea?
+static void runPpu(ppu *Ppu, uint16 ClocksToRun);
+//void (*mapperUpdate[MAPPER_TOTAL])(nes *Nes, uint8 ByteWritten, uint16 Address);
 
 static void runCatchup(uint8 ClocksIntoCurrentOp)
 {
@@ -27,16 +29,10 @@ static void runCatchup(uint8 ClocksIntoCurrentOp)
     // Add the clocks already elapsed in Op.
     uint16 ClocksToRun = Cpu->CatchupClocks + NewClocks;
 
-    // For the total, run the ppu and apu to catchup
-    for(uint8 ClocksLeft = ClocksToRun; ClocksLeft > 0; --ClocksLeft)
-    {
-        ppuTick(Ppu);
-        ppuTick(Ppu);                    
-        ppuTick(Ppu);
-                        
-//        apuTick(&Nes.Apu);
-    }
-    
+    uint16 PpuClocksToRun = ClocksToRun * 3;
+
+    runPpu(Ppu, PpuClocksToRun);
+        
     Cpu->CatchupClocks = 0;
     Cpu->LastClocksIntoOp = (ClocksIntoCurrentOp-1);
     Assert((ClocksIntoCurrentOp-1) >= 0);
@@ -149,7 +145,6 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
 {
     Address = cpuMemoryMirror(Address);
 
-
     if((0x2000 <= Address && Address < 0x2008) ||
        (Address == 0x4014))
     {
@@ -195,9 +190,7 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
     // Mapper
     if(Address >= 0x8000)
     {
-        Cpu->MapperWrite = true;
-        Cpu->MapperReg = Byte;
-        Cpu->MapperWriteAddress = Address;
+        mapperUpdate[GlobalNes->Cartridge.MapperNum](GlobalNes, Byte, Address);
     }
 }
 
@@ -344,6 +337,7 @@ static uint8 readPpu8(uint16 Address, ppu *Ppu)
     }
     return(Result);
 }
+
 static void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
 {    
     Address = ppuMemoryMirror(Address);
@@ -368,9 +362,6 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
     {
         case 0x2000:
         {
-            if(Ppu->StartupClocks > 0)
-                return;
-            
             Ppu->NametableBase = Byte & 3;
             Ppu->VRamIO.TempVRamAdrs &= ~0xC00;
             Ppu->VRamIO.TempVRamAdrs |= (Byte & 3) << 10;            
@@ -397,9 +388,6 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2001:
         {
-            if(Ppu->StartupClocks > 0)
-                return;
-            
             Ppu->GreyScale           = ((Byte & 1) != 0);
             Ppu->ShowBGLeft8Pixels   = ((Byte & 2) != 0);
             Ppu->ShowSPRTLeft8Pixels = ((Byte & 4) != 0);
@@ -408,6 +396,8 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             Ppu->EmphasizeRed        = ((Byte & 32) != 0);
             Ppu->EmphasizeGreen      = ((Byte & 64) != 0);
             Ppu->EmphasizeBlue       = ((Byte & 128) != 0);
+
+            Ppu->RenderingEnabled = (Ppu->ShowBackground || Ppu->ShowSprites);
             break;
         }
         case 0x2003:
@@ -431,9 +421,6 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2005:
         {
-            if(Ppu->StartupClocks > 0)
-                return;
-            
             if(Ppu->VRamIO.LatchWrite == 0)
             {
                 Ppu->VRamIO.FineX = Byte & 7; // Bit 0,1, and 2 are fine X
@@ -453,9 +440,6 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2006:
         {
-            if(Ppu->StartupClocks > 0)
-                return;
-            
             if(Ppu->VRamIO.LatchWrite == 0)
             {
                 Ppu->VRamIO.TempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
@@ -487,6 +471,7 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         case 0x4014:
         {
             // NOTE: OAM DMA Write
+            // TODO: Happens over time!
             for(uint16 ByteCount = 0; ByteCount < 256; ++ByteCount)
             {
                 uint16 NewAddress = (Byte << 8) | ByteCount;

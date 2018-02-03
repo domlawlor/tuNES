@@ -7,40 +7,21 @@
 
 #include "nes.h"
 
+#include "mapper.cpp"
+#include "interrupts.cpp"
+#include "memory.cpp"
 
-bool32 IOReadFromCpu;
-bool32 IOWriteFromCpu;
-bool32 ScrollAdrsChange;
-bool32 VRamAdrsChange;
-bool32 ResetScrollIOAdrs;
-bool32 ResetVRamIOAdrs;
-
-// TODO: This will change location once other functions above get relocated.
 #include "apu.cpp"
 #include "ppu.cpp"
 #include "cpu.cpp"
-
-#include "mapper.cpp"
 
 static void runNes(nes *Nes, input *NewInput)
 {
     cpu *Cpu = &Nes->Cpu;
     ppu *Ppu = &Nes->Ppu;
     apu *Apu = &Nes->Apu;
-    
-    if(Nes->Cpu.MapperWrite)
-    {
-        Nes->Cpu.MapperWrite = false;
-        mapperUpdate[Nes->Cartridge.MapperNum](&Nes->Cartridge, &Nes->Cpu, &Nes->Ppu);
-    }
 
     Nes->FrameClocksElapsed += runCpu(Cpu, NewInput);
-    
-    
-    
-    // TODO: If Catchup clocks plus clock elapsed this frame is greater than clocksPerFrame
-    //       Then draw frame and set clocks elapsed to the overflow of clocks
-    // TODO: Put it in the main loop, not here. I think....
 }
 
 static void loadCartridge(nes *Nes, char * FileName)

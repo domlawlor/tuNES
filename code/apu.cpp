@@ -7,8 +7,6 @@
 
 #include "apu.h"
 
-#include "interrupts.cpp"
-
 static void
 clockLengthCounters(apu *Apu)
 {
