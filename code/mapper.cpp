@@ -24,13 +24,13 @@ void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
         BankToCpy2 = Cartridge->PrgData + Kilobytes(16);
     }
         
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+    copyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+    copyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
 
     // Map CHR Data to Ppu
     if(Cartridge->ChrBankCount == 1)
     {
-        cpyMemory((uint8 *)Ppu->MemoryBase, Cartridge->ChrData, Kilobytes(8));
+        copyMemory((uint8 *)Ppu->MemoryBase, Cartridge->ChrData, Kilobytes(8));
     }
 }
 
@@ -42,8 +42,8 @@ void mmc1Init(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
     uint8 * BankToCpy1 = Cartridge->PrgData;
     uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
            
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+    copyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+    copyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
  }
 
 void unromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
@@ -54,15 +54,15 @@ void unromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
     uint8 * BankToCpy1 = Cartridge->PrgData;
     uint8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
            
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+    copyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
+    copyMemory((uint8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
 }
 
 void axromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
 {
     uint16 MemoryPrgBank = 0x8000;
     uint8 *BankToCpy = Cartridge->PrgData + ((Cartridge->PrgBankCount) * Kilobytes(16)) - Kilobytes(32);
-    cpyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
+    copyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
 
     Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
 }
@@ -167,7 +167,7 @@ void mmc1Update(nes *Nes, uint8 ByteWritten, uint16 Address)
                 // If CHR bank count is 0, then it uses RAM?? TODO: Check
                 if(Cartridge->ChrBankCount > 0) {
                     uint8 * BankToCpy = Cartridge->ChrData + (DataReg * SizeToCpy);              
-                    cpyMemory((uint8 *)Ppu->MemoryBase, BankToCpy, SizeToCpy);
+                    copyMemory((uint8 *)Ppu->MemoryBase, BankToCpy, SizeToCpy);
                 }
             }
             else if(!bit13Set && bit14Set) // CHR Bank 1
@@ -175,7 +175,7 @@ void mmc1Update(nes *Nes, uint8 ByteWritten, uint16 Address)
                 if(!Chr8KbMode && Cartridge->ChrBankCount > 0)
                 {
                     uint8 * BankToCpy = Cartridge->ChrData + (DataReg * Kilobytes(4));              
-                    cpyMemory((uint8 *)Ppu->MemoryBase + 0x1000, BankToCpy, Kilobytes(4));
+                    copyMemory((uint8 *)Ppu->MemoryBase + 0x1000, BankToCpy, Kilobytes(4));
                 }
             }
             else if(bit13Set && bit14Set) // PRG bank
@@ -185,12 +185,12 @@ void mmc1Update(nes *Nes, uint8 ByteWritten, uint16 Address)
                 {
                     DataReg = DataReg >> 1;
                     BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(32));              
-                    cpyMemory((uint8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(32));
+                    copyMemory((uint8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(32));
                 }
                 else if(PrgRomMode == 2) // 16kb fixed low bank - swap highbank
                 {
                     BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(16));              
-                    cpyMemory((uint8 *)Cpu->MemoryBase + 0xC000, BankToCpy, Kilobytes(16));
+                    copyMemory((uint8 *)Cpu->MemoryBase + 0xC000, BankToCpy, Kilobytes(16));
                         
                 }
                 else if(PrgRomMode == 3) // 16kb fixed high bank - swap lowbank
@@ -199,7 +199,7 @@ void mmc1Update(nes *Nes, uint8 ByteWritten, uint16 Address)
                     Assert(DataReg < Cartridge->PrgBankCount);
                         
                     BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(16));              
-                    cpyMemory((uint8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(16));
+                    copyMemory((uint8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(16));
                 }
             }
                 
@@ -218,7 +218,7 @@ void unromUpdate(nes *Nes, uint8 ByteWritten, uint16 Address)
     uint8 BankNumber = ByteWritten;
     
     uint8 * BankToCpy = Cartridge->PrgData + (BankNumber * Kilobytes(16));
-    cpyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy, Kilobytes(16));
+    copyMemory((uint8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy, Kilobytes(16));
 }
 
 void axromUpdate(nes *Nes, uint8 ByteWritten, uint16 Address)
@@ -232,7 +232,7 @@ void axromUpdate(nes *Nes, uint8 ByteWritten, uint16 Address)
     uint8 SelectedBank = ByteWritten & 7;
     uint8 *BankToCpy = Cartridge->PrgData + (SelectedBank * Kilobytes(32));
     
-    cpyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
+    copyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
 
     // Nametable Single Screen bank select
     if(ByteWritten & 0x10)

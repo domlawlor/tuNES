@@ -17,9 +17,14 @@
 
 static void runNes(nes *Nes, input *NewInput)
 {
+    // TODO: If power is off, could we just run the nes on an empty cartridge?
+    //       Or is this the best check to stop extra work being done
+    if(!Nes->PowerOn)
+    {
+        return;
+    }
+
     cpu *Cpu = &Nes->Cpu;
-    ppu *Ppu = &Nes->Ppu;
-    apu *Apu = &Nes->Apu;
 
     Nes->FrameClocksElapsed += runCpu(Cpu, NewInput);
 }
@@ -47,9 +52,8 @@ static void loadCartridge(nes *Nes, char * FileName)
         uint8 * RomData = Cartridge->Data;
         
         // NOTE: Check for correct header
-        if(RomData[0] != 'N' || RomData[1] != 'E' || RomData[2] != 'S' || RomData[3] != 0x1A)
-            Assert(0);   
-
+        Assert(RomData[0] == 'N' && RomData[1] == 'E' && RomData[2] == 'S' && RomData[3] == 0x1A);
+        
         // NOTE: Read header
         Cartridge->PrgBankCount = RomData[4];
         Cartridge->ChrBankCount = RomData[5];
@@ -94,8 +98,7 @@ power(nes *Nes)
     {
         initCpu(&Nes->Cpu, Nes->CpuMemoryBase);
         initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
-    
-        
+           
         loadCartridge(Nes, RomFileName);
         Nes->Cpu.PrgCounter = (read8(RESET_VEC+1, Nes->Cpu.MemoryBase) << 8) | read8(RESET_VEC, Nes->Cpu.MemoryBase);
     }
@@ -135,29 +138,30 @@ reset(nes *Nes)
 
 /****************************************************************/
 /* NOTE : Initialization of Cpu, Ppu, and Cartridge structures */
-static nes * createNes()
+static nes createNes(char *RomName)
 {    
-    nes *Nes = (nes *)VirtualAlloc(0, sizeof(nes), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-
+    //nes *Nes = (nes *)VirtualAlloc(0, sizeof(nes), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+    nes Nes = {};
+    
     // Memory allocation for the Cpu and Ppu. TODO: Different Allocation in the future?
     uint32 CpuMemorySize = Kilobytes(64);
     uint32 PpuMemorySize = Kilobytes(64);
     uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
     
-    Nes->CpuMemoryBase = (uint64)Memory;
-    Nes->PpuMemoryBase = (uint64)Memory + CpuMemorySize;
+    Nes.CpuMemoryBase = (uint64)Memory;
+    Nes.PpuMemoryBase = (uint64)Memory + CpuMemorySize;
 
-    initCpu(&Nes->Cpu, Nes->CpuMemoryBase);
-    initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
-    initApu(&Nes->Apu);
-     
-    loadCartridge(Nes, "Zelda.nes");
+    initCpu(&Nes.Cpu, Nes.CpuMemoryBase);
+    initPpu(&Nes.Ppu, Nes.PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
+    initApu(&Nes.Apu);
+
+    // TODO: Check ref?
+    loadCartridge(&Nes, RomName);
 
     // NOTE: Load the program counter with the reset vector
-    Nes->Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes->Cpu);
+    Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
 
-    // TODO: Change from global?
-    GlobalNes = Nes;
+    Nes.CpuHz = 1789772.727272728;            
     
     return(Nes);
 }

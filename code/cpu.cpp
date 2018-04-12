@@ -44,47 +44,6 @@ inline bool32 isBitSet(uint8 Bit, uint8 Flags) {
 
 #include "operations.cpp"
 
-#if CPU_LOG
-static void logCpu(cpu* Cpu)
-{
-    if(Cpu->LogHandle != INVALID_HANDLE_VALUE)
-    {
-        char logString[512];
-
-        // NOTE: Go through each of the Cpu flags, and capitalise the coresponding letter
-        //       in the string.     eg flags - 1000 0000, then string becomes Nvubdizc
-        char flagString[9] = "nvubdizc";
-        for(int i = 0; i < 8; ++i)
-        {
-            if(Cpu->LogFlags & (1 << (7 - i)))
-            {
-                flagString[i] -= 0x20;
-            }
-        }
-        
-        uint32 byteCount = sprintf(logString,
-                                   "A:%02X X:%02X Y:%02X S:%02X P:%s  $%04X:%02X %2s %2s  %s%s\n",
-                                   Cpu->LogA, Cpu->LogX, Cpu->LogY,
-                                   Cpu->LogSP, flagString, 
-                                   Cpu->LogPC, Cpu->LogOp,
-                                   Cpu->LogData1, Cpu->LogData2,
-                                   opName[Cpu->LogOp],
-                                   Cpu->LogExtraInfo);
-
-        uint32 bytesWritten;
-        
-        if(!writeLog(logString, byteCount, &bytesWritten, Cpu->LogHandle))
-        {
-            // Failed
-        }
-    }
-    
-    Cpu->LogData1[0] = '\0';
-    Cpu->LogData2[0] = '\0';
-    Cpu->LogExtraInfo[0] = '\0';
-}
-#endif
-
 static void fetchOpcode(cpu *Cpu)
 {
     if(NmiInterruptSet)
@@ -105,16 +64,6 @@ static void fetchOpcode(cpu *Cpu)
     Cpu->AddressType = opAddressType[Cpu->OpCode];
     Cpu->OpName = opName[Cpu->OpCode];
     Cpu->OpClockTotal = opClocks[Cpu->OpCode];
-    
-#if CPU_LOG
-    Cpu->LogA = Cpu->A;
-    Cpu->LogX = Cpu->X;
-    Cpu->LogY = Cpu->Y;
-    Cpu->LogSP = Cpu->StackPtr;
-    Cpu->LogFlags = Cpu->Flags;
-    Cpu->LogPC = Cpu->PrgCounter;
-    Cpu->LogOp = Cpu->OpCode;
-#endif
 }
 
 static uint8 runCpu(cpu *Cpu, input *NewInput)
@@ -124,7 +73,9 @@ static uint8 runCpu(cpu *Cpu, input *NewInput)
     if(Cpu->PadStrobe)
     {
         for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
+        {
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
+        }
     }
 
     // NOTE: How cpu keeps track of clocks: Calling into a op will
@@ -137,10 +88,6 @@ static uint8 runCpu(cpu *Cpu, input *NewInput)
     // frames worth of clocks are run, then we display the frame and
     // update the audio on the platform
 
-#if CPU_LOG
-    logCpu(Cpu);
-#endif
-    
     fetchOpcode(Cpu);
     operationAddressModes[Cpu->AddressType](Cpu);
 
@@ -171,18 +118,13 @@ initCpu(cpu *Cpu, uint64 MemoryBase)
         uint8 *NewAddress = (uint8 *)(index + MemoryBase);
         *NewAddress = 0xFF;
     }
-
     
     *Cpu = {};
     
     Cpu->MemoryBase = MemoryBase;
-    Cpu->Cycle = 1;
     Cpu->StackPtr = 0xFD;
     Cpu->Flags = 0x04;
 
     Cpu->OpName = "NUL";
-    
-#if CPU_LOG
-    Cpu->LogHandle = createLog("cpu.log");
-#endif
 }
+

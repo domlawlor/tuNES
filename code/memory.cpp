@@ -11,7 +11,6 @@ static void writeApuRegister(uint8 Byte, uint16 Address);
 
 // TODO: Forward declarations, is this the best idea?
 static void runPpu(ppu *Ppu, uint16 ClocksToRun);
-//void (*mapperUpdate[MAPPER_TOTAL])(nes *Nes, uint8 ByteWritten, uint16 Address);
 
 static void runCatchup(uint8 ClocksIntoCurrentOp)
 {
@@ -23,8 +22,7 @@ static void runCatchup(uint8 ClocksIntoCurrentOp)
     // New ClocksInto Op should be minus 1. Because we send in what
     // cycle we want to catch up too. We don't want to run that cycle
     // yet. Just one behind it
-    
-    uint16 NewClocks = (ClocksIntoCurrentOp-1) - Cpu->LastClocksIntoOp;
+    uint16 NewClocks = (ClocksIntoCurrentOp - 1) - Cpu->LastClocksIntoOp;
     
     // Add the clocks already elapsed in Op.
     uint16 ClocksToRun = Cpu->CatchupClocks + NewClocks;
@@ -34,7 +32,7 @@ static void runCatchup(uint8 ClocksIntoCurrentOp)
     runPpu(Ppu, PpuClocksToRun);
         
     Cpu->CatchupClocks = 0;
-    Cpu->LastClocksIntoOp = (ClocksIntoCurrentOp-1);
+    Cpu->LastClocksIntoOp = (ClocksIntoCurrentOp - 1);
     Assert((ClocksIntoCurrentOp-1) >= 0);
 }
 
@@ -356,22 +354,23 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
 {
     ppu * Ppu = &GlobalNes->Ppu;
     
-    Ppu->OpenBus = Byte;
+    GlobalOpenBus = Byte;
     
     switch(Address)
     {
         case 0x2000:
         {
-            Ppu->NametableBase = Byte & 3;
-            Ppu->VRamIO.TempVRamAdrs &= ~0xC00;
-            Ppu->VRamIO.TempVRamAdrs |= (Byte & 3) << 10;            
-            Ppu->VRamIncrement = ((Byte & 4) != 0) ? 32 : 1;
+            Ppu->NametableBase  = Byte & 3;            
+            Ppu->VRamIncrement  = ((Byte & 4) != 0) ? 32 : 1;
             Ppu->SPRTPattenBase = ((Byte & 8) != 0) ? 0x1000 : 0;
-            Ppu->BGPatternBase = ((Byte & 16) != 0) ? 0x1000 : 0;
+            Ppu->BGPatternBase  = ((Byte & 16) != 0) ? 0x1000 : 0;
             Ppu->SpriteSize8x16 = ((Byte & 32) != 0);
-            Ppu->PpuSlave = ((Byte & 64) != 0);
-            Ppu->GenerateNMI = ((Byte & 128) != 0);
+            Ppu->PpuSlave       = ((Byte & 64) != 0);
+            Ppu->GenerateNMI    = ((Byte & 128) != 0);
 
+            Ppu->TempVRamAdrs &= ~0xC00;
+            Ppu->TempVRamAdrs |= (Ppu->NametableBase) << 10;
+            
             // Nmi On Timing
             if( !(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 1) )
             {
@@ -421,50 +420,50 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         }
         case 0x2005:
         {
-            if(Ppu->VRamIO.LatchWrite == 0)
+            if(Ppu->LatchWrite == 0)
             {
-                Ppu->VRamIO.FineX = Byte & 7; // Bit 0,1, and 2 are fine X
-                Ppu->VRamIO.TempVRamAdrs &= ~(0x001F); // Clear Bits
-                Ppu->VRamIO.TempVRamAdrs |= ((uint16)Byte) >> 3;
-                Ppu->VRamIO.LatchWrite = 1;
+                Ppu->FineX = Byte & 7; // Bit 0,1, and 2 are fine X
+                Ppu->TempVRamAdrs &= ~(0x001F); // Clear Bits
+                Ppu->TempVRamAdrs |= ((uint16)Byte) >> 3;
+                Ppu->LatchWrite = 1;
             }
             else
             {
-                Ppu->VRamIO.TempVRamAdrs &= ~(0x73E0); // Clear Bits
-                Ppu->VRamIO.TempVRamAdrs |= ((uint16)(Byte & 0x7)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
-                Ppu->VRamIO.TempVRamAdrs |= ((uint16)(Byte & 0xF8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
-                Ppu->VRamIO.LatchWrite = 0;
+                Ppu->TempVRamAdrs &= ~(0x73E0); // Clear Bits
+                Ppu->TempVRamAdrs |= ((uint16)(Byte & 0x7)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
+                Ppu->TempVRamAdrs |= ((uint16)(Byte & 0xF8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
+                Ppu->LatchWrite = 0;
             }
                 
             break;
         }
         case 0x2006:
         {
-            if(Ppu->VRamIO.LatchWrite == 0)
+            if(Ppu->LatchWrite == 0)
             {
-                Ppu->VRamIO.TempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
-                Ppu->VRamIO.TempVRamAdrs |= ((uint16)(Byte & 0x003F)) << 8;
-                Ppu->VRamIO.TempVRamAdrs &= 0x3FFF; // Clear 14th bit 
-                Ppu->VRamIO.LatchWrite = 1;
+                Ppu->TempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
+                Ppu->TempVRamAdrs |= ((uint16)(Byte & 0x003F)) << 8;
+                Ppu->TempVRamAdrs &= 0x3FFF; // Clear 14th bit 
+                Ppu->LatchWrite = 1;
             }
             else
             { 
-                Ppu->VRamIO.TempVRamAdrs &= 0x7F00; // Clear low byte
-                Ppu->VRamIO.TempVRamAdrs |= (uint16)(Byte & 0x00FF); 
-                Ppu->VRamIO.VRamAdrs = Ppu->VRamIO.TempVRamAdrs;
-                Ppu->VRamIO.LatchWrite = 0;
+                Ppu->TempVRamAdrs &= 0x7F00; // Clear low byte
+                Ppu->TempVRamAdrs |= (uint16)(Byte & 0x00FF); 
+                Ppu->VRamAdrs = Ppu->TempVRamAdrs;
+                Ppu->LatchWrite = 0;
             }
             
             break;
         }
         case 0x2007:
         {
-            writePpu8(Byte, Ppu->VRamIO.VRamAdrs, Ppu);
+            writePpu8(Byte, Ppu->VRamAdrs, Ppu);
 
             if( !(Ppu->ShowBackground || Ppu->ShowSprites) ||
                 (Ppu->Scanline > 240 && Ppu->Scanline <= 260) )
             {            
-                Ppu->VRamIO.VRamAdrs += Ppu->VRamIncrement;
+                Ppu->VRamAdrs += Ppu->VRamIncrement;
             }
             break;
         }
@@ -477,7 +476,7 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
                 uint16 NewAddress = (Byte << 8) | ByteCount;
 
                 uint8 Index = (Ppu->OamAddress + ByteCount);
-                OamData[Index] = read8(NewAddress, GlobalNes->Cpu.MemoryBase);
+                Ppu->Oam[Index] = read8(NewAddress, GlobalNes->Cpu.MemoryBase);
             }            
             break;
         }
@@ -521,43 +520,47 @@ static uint8 readPpuRegister(uint16 Address)
 
             Byte |= Ppu->SpriteZeroHit ? 0x40 : 0;
             Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
-            Byte |= (Ppu->OpenBus & 0x1F); // Low 5 bits is the open bus
+            Byte |= (GlobalOpenBus & 0x1F); // Low 5 bits is the open bus
 
-            Ppu->VRamIO.LatchWrite = 0;
-            Ppu->OpenBus = Byte;
+            Ppu->LatchWrite = 0; // VRAM latch reset
+            GlobalOpenBus = Byte;
             break;
         }
         case 0x2004:
         {
-            Ppu->OpenBus = Ppu->Oam[Ppu->OamAddress];
+            GlobalOpenBus = Ppu->Oam[Ppu->OamAddress];
             break;
         }
         case 0x2007:
         {
-            bool32 OnPalette = !((Ppu->VRamIO.VRamAdrs&0x3FFF) < 0x3F00);
+            bool32 OnPalette = !((Ppu->VRamAdrs & 0x3FFF) < 0x3F00);
 
             if(OnPalette)
             {
-                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamIO.VRamAdrs-0x1000, Ppu);
-                Byte = readPpu8(Ppu->VRamIO.VRamAdrs, Ppu);
+                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamAdrs-0x1000, Ppu);
+                Byte = readPpu8(Ppu->VRamAdrs, Ppu);
 
                 // Pulled from nes dev forum
                 Byte &= 0x3F;
-                Byte |= Ppu->OpenBus & 0xC0;
+                Byte |= GlobalOpenBus & 0xC0;
             }
             else
             {
                 Byte = Ppu->VRamDataBuffer;
-                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamIO.VRamAdrs, Ppu);
+                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamAdrs, Ppu);
             }
 
-            if( !(Ppu->ShowBackground || Ppu->ShowSprites) ||
+            if( !(Ppu->RenderingEnabled) ||
                 (Ppu->Scanline > 240 && Ppu->Scanline <= 260) )
             {            
-                Ppu->VRamIO.VRamAdrs += Ppu->VRamIncrement;
+                Ppu->VRamAdrs += Ppu->VRamIncrement;
+            }
+            else
+            {
+                // TODO: Weird update of Vram, check ppu_scrolling on wiki
             }
                         
-            Ppu->OpenBus = Byte;
+            GlobalOpenBus = Byte;
             break;
         }
         case 0x4014:
@@ -566,7 +569,7 @@ static uint8 readPpuRegister(uint16 Address)
         }
     }
 
-    return Ppu->OpenBus;
+    return(GlobalOpenBus);
 }
 
 
@@ -579,7 +582,7 @@ static void writeApuRegister(uint8 Byte, uint16 Address)
 {
     apu * Apu = &GlobalNes->Apu;
     
-    //TODO Ppu->OpenBus = Byte;
+    GlobalOpenBus = Byte;
     
     switch(Address)
     {
@@ -773,15 +776,13 @@ static uint8 readApuRegister(uint16 Address)
             // it will be read as set and not be cleared
             if(0)
                 ;
-
             
-//            Ppu->OpenBus = Byte;
+            GlobalOpenBus = Byte;
             break;
         }
     }
-
-    return(0);
-    //return Ppu->OpenBus;
+    
+    return(GlobalOpenBus);
 }
 
 

@@ -58,5 +58,10 @@ struct nes
 };
 
 global nes *GlobalNes;
+
+global uint8 GlobalOpenBus;
+
+
+
 #define NES_H
 #endif

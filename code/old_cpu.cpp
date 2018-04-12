@@ -60,6 +60,7 @@ inline bool32 isBitSet(uint8 Bit, uint8 Flags)
 
 #include "operations.cpp"
 
+/*
 static void logCpu(cpu* Cpu)
 {
     if(Cpu->LogHandle != INVALID_HANDLE_VALUE)
@@ -98,6 +99,8 @@ static void logCpu(cpu* Cpu)
     Cpu->LogData2[0] = '\0';
     Cpu->LogExtraInfo[0] = '\0';
 }
+*/
+
 
 static void fetchOpcode(cpu *Cpu)
 {
@@ -145,7 +148,7 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
     if(Cpu->Cycle == 1)
     {            
 #if CPU_LOG
-        logCpu(Cpu); // Log last Op
+        //logCpu(Cpu); // Log last Op
 #endif
 
         fetchOpcode(Cpu);

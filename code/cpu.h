@@ -24,7 +24,6 @@
 #define NMI_OP 0x02
 #define IRQ_OP 0x12
 
-
 enum addressType
 {
     ACM = 0, IMPL, IMED, REL,
@@ -49,9 +48,7 @@ struct cpu
     uint16 PrgCounter;
     uint64 MemoryBase;
 
-    uint8 Cycle;
-    uint8 NextCycle;
-    
+    // TODO: Check if still needed
     bool32 PadStrobe; 
     
     input InputPad1;
@@ -71,6 +68,8 @@ struct cpu
     // Timing
     uint16 CatchupClocks;
     uint16 LastClocksIntoOp;
+};
+
 
 #if CPU_LOG    
     // TODO: Make platform independant. Hold the pointer?
@@ -86,12 +85,6 @@ struct cpu
     char LogExtraInfo[32];
     HANDLE LogHandle;
 #endif
-};
-
-/*
-  A:00 X:00 Y:00 S:FD P:nvubdIZc  $C008:AD 02 20  LDA $2002 = #$00
-  A:E3 X:20 Y:00 S:F7 P:nvUbdIZc  $D4F2:B1 1F     LDA ($1F),Y @ $D998 = #$E5
-*/
 
 #define CPU_H
 #endif

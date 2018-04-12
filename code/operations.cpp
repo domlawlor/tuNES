@@ -190,7 +190,6 @@ uint8 brk(uint8 Value, cpu *Cpu)
     setInterrupt(&Cpu->Flags);
     Cpu->PrgCounter = (Cpu->PrgCounter & 0xFF00) | read8(IRQ_BRK_VEC, Cpu->MemoryBase, 6); // Cycle 6
     Cpu->PrgCounter = (read8(IRQ_BRK_VEC + 1, Cpu->MemoryBase, 7) << 8) | (Cpu->PrgCounter & 0x00FF); // Cycle 7
-    Cpu->NextCycle = 1;
     return(0);
 }
 
@@ -813,7 +812,6 @@ uint8 (*operations[INSTRUCTION_COUNT])(uint8 InByte, cpu *Cpu) =
     /*E*/    cpx,sbc,skb,isc,cpx,sbc,inc,isc,inx,sbc,nop,sbc,cpx,sbc,inc,isc,
     /*F*/    beq,sbc,kil,isc,skb,sbc,inc,isc,sed,sbc,nop,isc,skw,sbc,inc,isc
 };
-
 
 
 void implied(cpu *Cpu)

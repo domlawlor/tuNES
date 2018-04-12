@@ -16,6 +16,9 @@
 
 #define SECONDARY_OAM_SPRITE_MAX 8
 
+#define OAM_SIZE 0x100
+#define OAM_SPRITE_TOTAL 64
+
 enum NT_MIRROR
 {
     SINGLE_SCREEN_BANK_A = 0,
@@ -23,14 +26,6 @@ enum NT_MIRROR
     VERTICAL_MIRROR,
     HORIZONTAL_MIRROR,
     FOUR_SCREEN_MIRROR,   
-};
-
-struct vram_io
-{
-    uint16 VRamAdrs;
-    uint16 TempVRamAdrs;
-    uint8 LatchWrite;
-    uint8 FineX;
 };
 
 struct oam_sprite
@@ -63,18 +58,25 @@ enum scanlineType
 
 struct ppu
 {
+    uint64 MemoryBase;
+    uint32 *BasePixel;
+
+    bool32 RenderingEnabled;
+
+    bool32 OddFrame;
+    
     uint16 Scanline;
     uint16 ScanlineCycle;
 
     scanlineType ScanlineType;
     
-    bool32 OddFrame;
-    
-    uint64 MemoryBase;
-    uint32 *BasePixel;
+    // VRAM Address
+    uint16 VRamAdrs;
+    uint16 TempVRamAdrs;
+    uint8 LatchWrite;
+    uint8 FineX;
 
-    bool32 RenderingEnabled;
-    
+    // 
     uint16 LowPatternShiftReg;
     uint16 HighPatternShiftReg;
     uint8 PaletteLatchOld;
@@ -84,14 +86,10 @@ struct ppu
     uint8 NextHighPattern;
     uint8 NextAtrbByte;
     uint16 NextNametableAdrs;
-    
-    // TODO: Not just for ppu. also apu. So pull out into global
-    uint8 OpenBus;
 
-    // Nametable mirror type
+    // Name table banks. 
     NT_MIRROR MirrorType;
-
-    // Name table banks. Mirror type selects which one is used
+    // TODO: Pre allocate?
     uint8 NametableBankA[0x400];
     uint8 NametableBankB[0x400];
     uint8 NametableBankC[0x400];
@@ -139,12 +137,6 @@ struct ppu
     
     uint8 PreparedSpriteCount;
     sprite PreparedSprites[SECONDARY_OAM_SPRITE_MAX];
-
-    vram_io VRamIO;
-
-    bool32 SpriteZeroDelaySet;
-
-//    uint64 StartupClocks;
 };
 
 

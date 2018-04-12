@@ -1,49 +1,12 @@
+/*
+  Entry Point for window platform
+*/
+
+#include "globals.h"
+
 #include <windows.h>
 #include <stdio.h>
 #include <DSound.h>
-
-#define CPU_LOG 0
-
-#define global static
-
-#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
-
-#define ArrayCount(Array) (sizeof(Array) / sizeof((Array)[0]))
-
-#define Kilobytes(Value) ((Value)*1024LL)
-#define Megabytes(Value) (Kilobytes(Value)*1024LL)
-#define Gigabytes(Value) (Megabytes(Value)*1024LL)
-#define Terabytes(Value) (Gigabytes(Value)*1024LL)
-
-#include <stdint.h>
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-typedef int32 bool32;
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef float  real32;
-typedef double real64;
-
-typedef size_t mem_idx;
-
-#define Align4(Value) ((Value + 3) & ~3)
-#define Align8(Value) ((Value + 7) & ~7)
-#define Align16(Value) ((Value + 15) & ~15)
-
-#define  U8_MAX 0xFF
-#define U16_MAX 0xFFFF
-#define U32_MAX 0xFFFFFFFF
-#define U64_MAX 0xFFFFFFFFFFFFFFFF
-
-#define PPU_REG_ADRS 0x2000    
-#define OAM_SIZE 0x100
-#define OAM_SPRITE_TOTAL 64
 
 // A, B, Select, Start, Up, Down, Left, Right
 struct input
@@ -73,13 +36,18 @@ struct screen_buffer
     int BytesPerPixel;
 };
 
-global bool32 DrawScreen = false;
 
-global input WinInput = {};
+// TODO: Investigate if all these need to be global
+global screen_buffer GlobalScreenBackBuffer = {};
+
+global input GlobalInput = {};
+
 global bool32 GlobalRunning;
+global bool32 GlobalDrawScreen = false;
 
 global int64 GlobalPerfCountFrequency;
 
+// Return the amount of clocks elapsed
 inline LARGE_INTEGER
 getClock(void)
 {
@@ -88,6 +56,7 @@ getClock(void)
     return(Result);
 }
 
+// Take start and end clocks and return seconds elapsed. Uses ClockFrequency
 inline real32
 getSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
 {
@@ -96,61 +65,27 @@ getSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
     return(Result);
 }
 
-static void cpyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
+// Copy Size amount of bytes from source to destination
+static void copyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
 {
     // NOTE: Very basic copy. Not bounds protection
     for(uint16 Byte = 0; Byte < Size; ++Byte)
         Dest[Byte] = Src[Byte];
 }
 
-
-#define ID_OPEN_ROM_ITEM        1001
-#define ID_CLOSE_ROM_ITEM        1002
-#define ID_QUIT_ITEM            1003
-
-#define MAX_ROM_NAME_SIZE 256
-
-global bool32 MapperExtWrite = false;
-
-global char RomFileName[MAX_ROM_NAME_SIZE]; 
-
-global uint8 *OamData = 0;
-
-bool32 OamDataChange = false;
-
-
-// TODO: Not make global?
-screen_buffer GlobalScreenBackBuffer = {};
-
-
 #include "file.cpp"
 #include "log.cpp"
 
+
+#define MAX_ROM_NAME_SIZE 256
+global char RomFileName[MAX_ROM_NAME_SIZE]; 
+
 #include "nes.cpp"
 
-struct win_sound
-{    
-    uint16 SamplesPerSecond;
-    uint8 Channels;
-    uint8 BitsPerSample;
-    uint16 BytesPerSample;
-    uint16 BufferSize;
-    uint32 SampleIndex;
-    uint32 SafetyBytes;
-    int16 *Samples;
-
-    bool32 Valid;
-};
-
-
-struct nes_sound
-{
-    uint16 SamplesPerSecond;
-    uint32 SampleCount;
-    uint32 BytesToWrite;
-    void *Samples;
-};
-
+// Windows Menu Item command defines
+#define ID_OPEN_ROM_ITEM        1001
+#define ID_CLOSE_ROM_ITEM        1002
+#define ID_QUIT_ITEM            1003
 
 LRESULT CALLBACK
 WinInputCallback(HWND WindowHandle, UINT Message,
@@ -197,42 +132,42 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                 {
                     case VK_UP:
                     {
-                        WinInput.buttons[input::B_UP] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_UP] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_DOWN:
                     {
-                        WinInput.buttons[input::B_DOWN] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_DOWN] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_LEFT:
                     {
-                        WinInput.buttons[input::B_LEFT] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_LEFT] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_RIGHT:
                     {
-                        WinInput.buttons[input::B_RIGHT] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_RIGHT] = IsDown ? 1 : 0;
                         break;
                     }
                     case 'Z':
                     {
-                        WinInput.buttons[input::B_A] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_A] = IsDown ? 1 : 0;
                         break;
                     }
                     case 'X':
                     {
-                        WinInput.buttons[input::B_B] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_B] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_RETURN:
                     {
-                        WinInput.buttons[input::B_START] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_START] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_SHIFT:
                     {
-                        WinInput.buttons[input::B_SELECT] = IsDown ? 1 : 0;
+                        GlobalInput.buttons[input::B_SELECT] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_SPACE:
@@ -284,7 +219,7 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                     {
                         ZeroMemory(&RomFileName, sizeof(RomFileName));
                         uint8 NameSize = strlen(tempFileName);
-                        cpyMemory((uint8 *)RomFileName, (uint8 *)tempFileName, NameSize);
+                        copyMemory((uint8 *)RomFileName, (uint8 *)tempFileName, NameSize);
                         
                         if(GlobalNes->PowerOn)
                         {
@@ -339,7 +274,7 @@ static void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
 
     Buffer->Width = Width;
     Buffer->Height = Height;
-    Buffer->BytesPerPixel = 4; // TODO: Check if this is wrong. Should it be 3 instead? No alpha value
+    Buffer->BytesPerPixel = 4; // TODO: Should it be 3 instead because of no alpha?
 
     Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
     Buffer->Info.bmiHeader.biWidth = Width;
@@ -363,6 +298,29 @@ static void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
                   &BackBuffer->Info,
                   DIB_RGB_COLORS, SRCCOPY);
 }
+
+
+struct win_sound
+{    
+    uint16 SamplesPerSecond;
+    uint8 Channels;
+    uint8 BitsPerSample;
+    uint16 BytesPerSample;
+    uint16 BufferSize;
+    uint32 SampleIndex;
+    uint32 SafetyBytes;
+    int16 *Samples;
+
+    bool32 Valid;
+};
+
+struct nes_sound
+{
+    uint16 SamplesPerSecond;
+    uint32 SampleCount;
+    uint32 BytesToWrite;
+    void *Samples;
+};
 
 static void
 ClearSoundBuffer(LPDIRECTSOUNDBUFFER Buffer, uint32 BufferSize)
@@ -567,17 +525,21 @@ static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, win_sound *SoundOut,
     }
 }
 
+// NOTE: Entry Point
 
-
-
-int CALLBACK
+/*int CALLBACK
 WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
         LPSTR CommandLine, int CommandShow)
-{    
+{
+*/
+int main()
+{
     LARGE_INTEGER WinPerfCountFrequency;
     QueryPerformanceFrequency(&WinPerfCountFrequency); 
     GlobalPerfCountFrequency = WinPerfCountFrequency.QuadPart;            
 
+    printf("Test\n");
+    
     /**************************************/
     /* NOTE : Screen back buffer creation */
     
@@ -593,23 +555,23 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     WNDCLASSA WindowClass = {};
     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
     WindowClass.lpfnWndProc = WinInputCallback;
-    WindowClass.hInstance = WindowInstance;
-    WindowClass.lpszClassName = "Nes Emulator";
+    WindowClass.hInstance = GetModuleHandle(NULL);//WindowInstance;
+    WindowClass.lpszClassName = "tuNES";
 
     uint16 InitialWindowPosX = 700;
     uint16 InitialWindowPosY = 400;
     
     if(RegisterClassA(&WindowClass))
     {        
-        HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+        HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "tuNES", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
                                       InitialWindowPosX, InitialWindowPosY, WindowWidth, WindowHeight,
-                                      0, 0, WindowInstance, 0);
+                                      0, 0, WindowClass.hInstance, 0);
 
         if(Window) // If window was created successfully
         {
-            real32 FrameHz = 60.0988; // aka fps. // TODO: PAL is different
-
-
+            real32 FrameHz = 60.0988; // aka fps. // TODO: Will be different for PAL
+            real32 FrameTargetSeconds = 1.0f / FrameHz;
+            
             /********************************/
             /* NOTE : Window Menu Creation  */            
             
@@ -649,15 +611,14 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             // We run cpu and ppu 16ms worth of ticks. After 16ms
             // elapsed, we then reset the counters that tracks how
             // ticks have been. Repeat
-
-            nes *Nes = createNes();
             
-            Nes->CpuHz = 1789772.727272728;            
+            nes Nes = createNes("Mario Bros.nes");
+            Nes.FrameClockTotal = Nes.CpuHz * FrameTargetSeconds; // TODO: Put in create nes?
+            
+            GlobalNes = &Nes;
 
-            real32 FrameTargetSeconds = 1.0f / FrameHz;
-
-            Nes->FrameClockTotal = Nes->CpuHz * FrameTargetSeconds;
-
+            ////
+            
             real32 ElapsedTime = 0.0;
             uint32 ClocksRun = 0;
             real32 FrameTime = 0.0;
@@ -665,8 +626,6 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
             LARGE_INTEGER LastClock = getClock();
             LARGE_INTEGER FrameFlippedClock = getClock();
             LARGE_INTEGER FrameLastFlippedClock = getClock();
-
-
             
             /********************/
             /* NOTE : Main Loop */
@@ -679,14 +638,15 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 {
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
-                }            
-                
-                if(Nes->FrameClocksElapsed < Nes->FrameClockTotal)
+                }
+
+                if(Nes.FrameClocksElapsed < Nes.FrameClockTotal)
                 {
-                    if(Nes->PowerOn)
-                    {                      
-                        runNes(Nes, &WinInput);
-                    }
+                    runNes(&Nes, &GlobalInput);
+                }
+                else
+                {
+                    Sleep(2);
                 }
 
                 /*
@@ -695,9 +655,14 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 UpdateAudio(SoundBuffer, &WinSound, FrameHz, FrameTargetSeconds, FrameTimeElapsed);
                 */
 
-                if(DrawScreen)
+                // NOTE: TODO: The cpu might run several more cycles before we get to drawn screen.
+                // This could lead to pixels from the next frame overwriting other pixels we haven't displayed
+                // To fix, I could implement a double buffer. Two buffers, one is drawn on buy the ppu while the other is the displayed.
+                // They are then swapped. This will let the complete frame to be displayed while the new one can created.
+                
+                if(GlobalDrawScreen)
                 {
-                    DrawScreen = false;
+                    GlobalDrawScreen = false;
                                                               
                     getWindowSize(Window, &WindowWidth, &WindowHeight);
                 
@@ -720,18 +685,24 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
                 
                 if(ElapsedTime >= FrameTargetSeconds)
                 {
+                    /*
                     char TextBuffer[256];
                     _snprintf(TextBuffer, 256, "CpuCycles %f, FrameTime %f, ElapsedTime %f\n",
-                              Nes->FrameClocksElapsed, FrameTime, ElapsedTime);
-                    OutputDebugString(TextBuffer);
-
+                              Nes.FrameClocksElapsed, FrameTime, ElapsedTime);
+                    printf("%s\n", TextBuffer);
+                    */
+                    
                     ElapsedTime -= FrameTargetSeconds;
 
                     // The extra clocks we need to add to the next frame. Is 0 or more
-                    if(Nes->FrameClocksElapsed >= Nes->FrameClockTotal)
-                        Nes->FrameClocksElapsed = Nes->FrameClocksElapsed - Nes->FrameClockTotal;
+                    if(Nes.FrameClocksElapsed >= Nes.FrameClockTotal)
+                    {
+                        Nes.FrameClocksElapsed = Nes.FrameClocksElapsed - Nes.FrameClockTotal;
+                    }
                     else
-                        Nes->FrameClocksElapsed = 0;
+                    {
+                        Nes.FrameClocksElapsed = 0;
+                    }
                 }
                 
                 LastClock = EndClock;
@@ -758,34 +729,3 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     return(0);
 } 
 
-
-#if 0
-uint64 EndCycles = __rdtsc();
-                
-LARGE_INTEGER EndCounter;
-QueryPerformanceCounter(&EndCounter);
-                
-uint64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart; 
-uint64 CyclesElapsed = EndCycles - LastCycles;
-                
-real32 MSElapsed = ((1000.0f * (real32)CounterElapsed) / (real32)PerfCountFrequency);
-real32 FPSElapsed = (real32)PerfCountFrequency / (real32)CounterElapsed;
-real32 MCElapsed = (real32)CyclesElapsed / (1000.0f*1000.0f);                 
-                
-char TextBuffer[256];
-_snprintf(TextBuffer, 256, "Cycles: %f, FPS: %f, DeltaTime: %f\n", MCElapsed, FPSElapsed, MSElapsed);
-OutputDebugString(TextBuffer);
-                
-LastCounter = EndCounter;
-LastCycles = EndCycles;
-#endif
-
-
-
-#if 0
-                    uint32 CyclesInSec = CpuCyclesElapsed - LastCpuCyclesElapsed;
-                    LastCpuCyclesElapsed = CpuCyclesElapsed;
-                    char TextBuffer[256];
-                    _snprintf(TextBuffer, 256, "Cpu Cycles per Second: %d , vs expected %f\n", CyclesInSec, CpuClockRateHz);
-                    OutputDebugString(TextBuffer);
-#endif
