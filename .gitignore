@@ -262,6 +262,5 @@ paket-files/
 misc/
 misc/emacs.bat
 misc/shell.bat
-*.deb
-*.exe
+roms/games/
 *.sln
