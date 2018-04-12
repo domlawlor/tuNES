@@ -155,22 +155,23 @@ static void clearPreparedSprites(ppu *Ppu)
     }
 }
 
-/* Loops through the OAM and find the sprites one the next scanline */
+
+
 static void evaluateSecondaryOam(ppu *Ppu)
 {
     uint8 *Oam = Ppu->Oam;
     sprite *SecondaryOam = Ppu->SecondaryOam;
-        
     Ppu->SecondarySpriteCount = 0;
-            
+    
+    uint8 SpriteHeight = (Ppu->SpriteSize8x16 != 0) ? 16: 8;
+                
     for(uint8 OamSpriteCount = 0;
         OamSpriteCount < OAM_SPRITE_TOTAL && Ppu->SecondarySpriteCount != SECONDARY_OAM_SPRITE_MAX;
         ++OamSpriteCount)
     {
         oam_sprite *OamSprite = (oam_sprite *)Oam + OamSpriteCount;
         
-        if(Ppu->SecondarySpriteCount < SECONDARY_OAM_SPRITE_MAX &&
-           OamSprite->Y <= Ppu->Scanline && Ppu->Scanline < (OamSprite->Y + PIXEL_PER_TILE))
+        if(OamSprite->Y <= Ppu->Scanline && Ppu->Scanline < (OamSprite->Y + SpriteHeight))
         {
             sprite Sprite = {};
             Sprite.OamData = *OamSprite;
@@ -184,24 +185,36 @@ static void evaluateSecondaryOam(ppu *Ppu)
             // Palette
             Sprite.PaletteValue = Sprite.OamData.Atrb & 3;
 
-            // CHR Data            
-            uint16 SpritePatternBase = Ppu->SPRTPattenBase;
-            if(Ppu->SpriteSize8x16)
+            // Chr Pattern Select
+            uint8 TileRelY = (uint8)(Ppu->Scanline - Sprite.OamData.Y ) % SpriteHeight;
+            uint8 YOffset = (Sprite.OamData.Atrb & (1 << 7)) ? ((SpriteHeight-1) - TileRelY) : TileRelY;
+
+            uint8 TileIndex;
+            uint16 SpritePatternBase;
+            
+            if(!Ppu->SpriteSize8x16)
             {
-                SpritePatternBase = (Sprite.OamData.Tile & 1) ? 0x1000 : 0;
+                TileIndex = Sprite.OamData.Tile; 
+                SpritePatternBase = Ppu->SPRTPattenBase;
             }
-            
-            uint8 TileRelY = (uint8)(Ppu->Scanline - Sprite.OamData.Y ) % PIXEL_PER_TILE; // NOTE TODO: -1?????               
-            Assert(0 <= TileRelY && TileRelY < PIXEL_PER_TILE);
+            else
+            {
+                TileIndex = Sprite.OamData.Tile & ~0x1; // Bit 0 is ignored in 8x16 mode 
+                SpritePatternBase = (Sprite.OamData.Tile & 1) ? 0x1000 : 0;
 
-            uint8 YOffset = (Sprite.OamData.Atrb & (1 << 7)) ? (7 - TileRelY) : TileRelY;
-            
-            uint16 LowAddress  = (SpritePatternBase + (Sprite.OamData.Tile * 16)) + YOffset;
-            uint16 HighAddress = (SpritePatternBase + (Sprite.OamData.Tile * 16) + 8) + YOffset;
+                if(YOffset >= 8)
+                {
+                    YOffset -= 8;
+                    TileIndex += 1;
+                }
+            }
 
+            uint16 LowAddress  = (SpritePatternBase + (TileIndex * 16)) + YOffset;
+            uint16 HighAddress = (SpritePatternBase + (TileIndex * 16) + 8) + YOffset;
+            
             Sprite.PatternLow  = readPpu8(LowAddress, Ppu);
             Sprite.PatternHigh = readPpu8(HighAddress, Ppu);
-
+            
             if(Sprite.OamData.Atrb & (1 << 6))
             {
                 Sprite.PatternLow = byteReverse(Sprite.PatternLow);
