@@ -55,6 +55,8 @@ struct cpu
 
     uint8 CatchUpCyclesRun;
     uint8 PotentialCatchUp;
+
+    bool32 StartNmi;
 };
 
 #define CPU_H

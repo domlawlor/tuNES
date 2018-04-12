@@ -118,6 +118,9 @@ struct ppu
     bool32 OddFrame;
 
     screen_buffer *BackBuffer;
+
+    bool32 SupressNmi;
+    bool32 SupressVbl;
 };
 
 

@@ -316,13 +316,8 @@ static void * LoadFile(char * Filename, uint32 *Size)
 
 global uint8 *OamData = 0;
 
-struct nmi
-{
-    bool32 Trigger;
-    bool32 AlreadyTriggered;
-    bool32 NmiSupress;
-    bool32 VblSupress;
-};
+bool32 TriggerNmi = false;
+bool32 NmiTriggered = false;
 
 
 bool32 IrqTriggered = false;
