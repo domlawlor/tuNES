@@ -733,14 +733,14 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
     WindowClass.style = CS_HREDRAW | CS_VREDRAW;
     WindowClass.lpfnWndProc = WinInputCallback;
     WindowClass.hInstance = WindowInstance;
-    WindowClass.lpszClassName = "Nes Emulator";
+    WindowClass.lpszClassName = "tuNES";
 
     uint16 InitialWindowPosX = 0;
     uint16 InitialWindowPosY = 0;
     
     if(RegisterClassA(&WindowClass))
     {        
-        HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "NesEmu", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+        HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "tuNES", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
                                       InitialWindowPosX, InitialWindowPosY, WindowWidth, WindowHeight,
                                       0, 0, WindowInstance, 0);
 
