@@ -12,7 +12,7 @@ static void writeApuRegister(uint8 Byte, uint16 Address);
 // TODO: Forward declarations, is this the best idea?
 static void runPpu(ppu *Ppu, uint16 ClocksToRun);
 
-static void runCatchup(uint8 ClocksIntoCurrentOp)
+static void runPpuCatchup(uint8 ClocksIntoCurrentOp)
 {
     // TODO: Find a better way to get Global values?
     cpu *Cpu = &GlobalNes->Cpu;
@@ -51,10 +51,12 @@ static uint8 read8(uint16 Address, uint64 MemoryOffset)
 
 static uint8 read8(uint16 Address, uint64 MemoryOffset, uint8 CurrentCycle)
 {
-    if(0x2000 <= Address && Address < 0x4020)
+    /*
+    if((0x2000 <= Address && Address <= 0x2007) || Address == 0x4014)
     {
-        runCatchup(CurrentCycle);
+        runPpuCatchup(CurrentCycle);
     }
+    */
 
     return read8(Address, MemoryOffset);
 }
@@ -90,25 +92,30 @@ static uint8 readCpu8(uint16 Address, cpu *Cpu)
     // Input
     if(Address == 0x4016 || Address == 0x4017)
     {
-        if( !Cpu->PadStrobe )
+        if(!Cpu->PadStrobe)
         {
             if(Address == 0x4016)
+            {
                 Cpu->Pad1CurrentButton = ++(Cpu->Pad1CurrentButton);
+            }
             else
+            {
                 Cpu->Pad2CurrentButton = ++(Cpu->Pad2CurrentButton);
+            }
         }
         
         uint16 InputAddress;
         uint8 BtnValue;
+
         if(Address == 0x4016)
         {
             InputAddress = 0x4016;
-            BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
+            BtnValue = Cpu->InputPad1.Buttons[Cpu->Pad1CurrentButton] & 1;
         }
         else
         {
             InputAddress = 0x4017;
-            BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
+            BtnValue = Cpu->InputPad2.Buttons[Cpu->Pad2CurrentButton] & 1;
         }
 
         uint8 CurrentValue = read8(InputAddress, Cpu->MemoryBase);
@@ -121,9 +128,9 @@ static uint8 readCpu8(uint16 Address, cpu *Cpu)
 
 static uint8 readCpu8(uint16 Address, cpu *Cpu, uint8 CurrentCycle)
 {
-    if(0x2000 <= Address && Address < 0x4020)
+    if((0x2000 <= Address && Address <= 0x2007) || Address == 0x4014)
     {
-        runCatchup(CurrentCycle);
+        runPpuCatchup(CurrentCycle);
     }
     
     return readCpu8(Address, Cpu);
@@ -178,10 +185,10 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
             Cpu->PadStrobe = true;
         }        
 
-        uint8 BtnValue = Cpu->InputPad1.buttons[Cpu->Pad1CurrentButton] & 1;
+        uint8 BtnValue = Cpu->InputPad1.Buttons[Cpu->Pad1CurrentButton] & 1;
         write8(BtnValue, 0x4016, Cpu->MemoryBase);
 
-        BtnValue = Cpu->InputPad2.buttons[Cpu->Pad2CurrentButton] & 1;
+        BtnValue = Cpu->InputPad2.Buttons[Cpu->Pad2CurrentButton] & 1;
         write8(BtnValue, 0x4017, Cpu->MemoryBase);
     }
 
@@ -194,9 +201,9 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
 
 static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu, uint8 CurrentCycle)
 {
-    if(0x2000 <= Address && Address < 0x4020)
+    if((0x2000 <= Address && Address <= 0x2007) || Address == 0x4014)
     {
-        runCatchup(CurrentCycle);
+        runPpuCatchup(CurrentCycle);
     }
     writeCpu8(Byte, Address, Cpu);
 }

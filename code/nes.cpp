@@ -25,6 +25,18 @@ static void runNes(nes *Nes, input *NewInput)
     }
 
     cpu *Cpu = &Nes->Cpu;
+    
+    // Input read // TODO: Only run when reading input??
+    // TODO: Move this to where it happens in memory read.
+    if(Cpu->PadStrobe)
+    {
+        for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
+        {
+            Cpu->InputPad1.Buttons[idx] = NewInput->Buttons[idx];
+        }
+    }
+    
+
 
     Nes->FrameClocksElapsed += runCpu(Cpu, NewInput);
 }

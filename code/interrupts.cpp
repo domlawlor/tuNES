@@ -17,7 +17,7 @@ bool32 LastIRQFlag = false;
 bool32 TriggerIRQ = false;
 bool32 IRQInterruptSet = false;
 
-static void runCatchup(uint8 ClocksIntoCurrentOp);
+static void runPpuCatchup(uint8 ClocksIntoCurrentOp);
 
 static void setNmi(bool32 newNmiFlag)
 {
@@ -56,6 +56,6 @@ static void pollInterrupts(cpu *Cpu)
 
 static void pollInterrupts(cpu *Cpu, uint8 CurrentCycle)
 {
-    runCatchup(CurrentCycle);
+    runPpuCatchup(CurrentCycle);
     pollInterrupts(Cpu);
 }

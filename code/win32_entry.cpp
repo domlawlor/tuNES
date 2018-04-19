@@ -22,7 +22,7 @@ struct input
         B_RIGHT,
         BUTTON_NUM
     };    
-    bool32 buttons[BUTTON_NUM];
+    bool32 Buttons[BUTTON_NUM];
 };
 
 struct screen_buffer
@@ -132,42 +132,42 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                 {
                     case VK_UP:
                     {
-                        GlobalInput.buttons[input::B_UP] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_UP] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_DOWN:
                     {
-                        GlobalInput.buttons[input::B_DOWN] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_DOWN] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_LEFT:
                     {
-                        GlobalInput.buttons[input::B_LEFT] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_LEFT] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_RIGHT:
                     {
-                        GlobalInput.buttons[input::B_RIGHT] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_RIGHT] = IsDown ? 1 : 0;
                         break;
                     }
                     case 'Z':
                     {
-                        GlobalInput.buttons[input::B_A] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_A] = IsDown ? 1 : 0;
                         break;
                     }
                     case 'X':
                     {
-                        GlobalInput.buttons[input::B_B] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_B] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_RETURN:
                     {
-                        GlobalInput.buttons[input::B_START] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_START] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_SHIFT:
                     {
-                        GlobalInput.buttons[input::B_SELECT] = IsDown ? 1 : 0;
+                        GlobalInput.Buttons[input::B_SELECT] = IsDown ? 1 : 0;
                         break;
                     }
                     case VK_SPACE:
@@ -612,7 +612,7 @@ int main()
             // elapsed, we then reset the counters that tracks how
             // ticks have been. Repeat
             
-            nes Nes = createNes("Mario Bros.nes");
+            nes Nes = createNes("games/Contra (USA).nes");
             Nes.FrameClockTotal = Nes.CpuHz * FrameTargetSeconds; // TODO: Put in create nes?
             
             GlobalNes = &Nes;
@@ -639,7 +639,7 @@ int main()
                     TranslateMessage(&Message);
                     DispatchMessage(&Message);
                 }
-
+                
                 if(Nes.FrameClocksElapsed < Nes.FrameClockTotal)
                 {
                     runNes(&Nes, &GlobalInput);
@@ -728,4 +728,3 @@ int main()
 
     return(0);
 } 
-
