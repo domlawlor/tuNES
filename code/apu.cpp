@@ -228,10 +228,10 @@ apuTick(apu *Apu)
     uint8 DmcOut = 0;
     
     // Mixing
-    Apu->FinalOutput = ((0.00752 * (Square1Out + Square2Out)) +
-                        (0.00851 * TriangleOut) +
-                        (0.00494 * NoiseOut) +
-                        (0.00335 * DmcOut));
+    Apu->FinalOutput = ((0.00752f * (Square1Out + Square2Out)) +
+                        (0.00851f * TriangleOut) +
+                        (0.00494f * NoiseOut) +
+                        (0.00335f * DmcOut));
 }    
 
 

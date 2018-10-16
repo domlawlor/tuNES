@@ -218,7 +218,7 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                     if(FileOpened) // If exists then restart emulator with new file 
                     {
                         ZeroMemory(&RomFileName, sizeof(RomFileName));
-                        uint8 NameSize = strlen(tempFileName);
+                        uint16 NameSize = (uint16)strlen(tempFileName);
                         copyMemory((uint8 *)RomFileName, (uint8 *)tempFileName, NameSize);
                         
                         if(GlobalNes->PowerOn)
@@ -261,8 +261,8 @@ static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
 {
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
-    *Width = ClientRect.right - ClientRect.left;
-    *Height = ClientRect.bottom - ClientRect.top;
+    *Width = (uint16)(ClientRect.right - ClientRect.left);
+    *Height = (uint16)(ClientRect.bottom - ClientRect.top);
 }
 
 static void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
@@ -569,7 +569,7 @@ int main()
 
         if(Window) // If window was created successfully
         {
-            real32 FrameHz = 60.0988; // aka fps. // TODO: Will be different for PAL
+            real32 FrameHz = 60.0988f; // aka fps. // TODO: Will be different for PAL
             real32 FrameTargetSeconds = 1.0f / FrameHz;
             
             /********************************/

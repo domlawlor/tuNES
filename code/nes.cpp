@@ -173,7 +173,7 @@ static nes createNes(char *RomName)
     // NOTE: Load the program counter with the reset vector
     Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
 
-    Nes.CpuHz = 1789772.727272728;            
+    Nes.CpuHz = 1789772.727272728f;            
     
     return(Nes);
 }

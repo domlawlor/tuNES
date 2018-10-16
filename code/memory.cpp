@@ -781,9 +781,9 @@ static uint8 readApuRegister(uint16 Address)
             
             // TODO: If an interrupt Flag was set the same moment as read,
             // it will be read as set and not be cleared
-            if(0)
+            /*if(0)
                 ;
-            
+            */
             GlobalOpenBus = Byte;
             break;
         }

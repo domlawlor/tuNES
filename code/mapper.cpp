@@ -154,11 +154,11 @@ void mmc1Update(nes *Nes, uint8 ByteWritten, uint16 Address)
                 if(Chr8KbMode) // 8kb mode Low bit ignored
                 {
                     DataReg = DataReg >> 1;
-                    SizeToCpy = Kilobytes(8);
+                    SizeToCpy = (uint8)Kilobytes(8);
                 }
                 else
                 {
-                    SizeToCpy = Kilobytes(4);
+                    SizeToCpy = (uint8)Kilobytes(4);
                 }
 
                 // TODO: We shouldn't need to copy the memory to another place.

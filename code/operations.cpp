@@ -333,8 +333,9 @@ uint8 adc(uint8 Value, cpu *Cpu)
     else
         clearCarry(&Cpu->Flags);
 
-    setZero(Sum, &Cpu->Flags);
-    setNegative(Sum, &Cpu->Flags);
+	// TODO: Check this cast, sum has a negative flag on the 16th bit??
+    setZero((uint8)Sum, &Cpu->Flags);
+    setNegative((uint8)Sum, &Cpu->Flags);
 
     Cpu->A = (uint8)Sum;
     return(0);
@@ -359,8 +360,8 @@ uint8 sbc(uint8 Value, cpu *Cpu)
     else
         clearCarry(&Cpu->Flags);
 
-    setZero(Sum, &Cpu->Flags);
-    setNegative(Sum, &Cpu->Flags);
+    setZero((uint8)Sum, &Cpu->Flags);
+    setNegative((uint8)Sum, &Cpu->Flags);
 
     Cpu->A = (uint8)Sum;
 
