@@ -64,7 +64,7 @@ void axromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
     uint8 *BankToCpy = Cartridge->PrgData + ((Cartridge->PrgBankCount) * Kilobytes(16)) - Kilobytes(32);
     copyMemory((uint8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
 
-    Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
+    Ppu->mirrorType = SINGLE_SCREEN_BANK_A;
 }
 
 void (*mapperInit[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
@@ -129,13 +129,13 @@ void mmc1Update(nes *Nes, uint8 ByteWritten, uint16 Address)
             {
                 uint8 Mirror = DataReg & 3;
                 if(Mirror == 0)
-                    Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
+                    Ppu->mirrorType = SINGLE_SCREEN_BANK_A;
                 if(Mirror == 1)
-                    Ppu->MirrorType = SINGLE_SCREEN_BANK_B;
+                    Ppu->mirrorType = SINGLE_SCREEN_BANK_B;
                 if(Mirror == 2)
-                    Ppu->MirrorType = VERTICAL_MIRROR;
+                    Ppu->mirrorType = VERTICAL_MIRROR;
                 if(Mirror == 3)
-                    Ppu->MirrorType = HORIZONTAL_MIRROR;
+                    Ppu->mirrorType = HORIZONTAL_MIRROR;
 
                 uint8 PrevPrgRomMode = PrgRomMode;
                 PrgRomMode = (DataReg & 0xC) >> 2;
@@ -237,11 +237,11 @@ void axromUpdate(nes *Nes, uint8 ByteWritten, uint16 Address)
     // Nametable Single Screen bank select
     if(ByteWritten & 0x10)
     {
-        Ppu->MirrorType = SINGLE_SCREEN_BANK_B;   
+        Ppu->mirrorType = SINGLE_SCREEN_BANK_B;   
     }
     else
     {
-        Ppu->MirrorType = SINGLE_SCREEN_BANK_A;
+        Ppu->mirrorType = SINGLE_SCREEN_BANK_A;
     }
 }
 

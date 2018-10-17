@@ -82,11 +82,11 @@ static void loadCartridge(nes *Nes, char * FileName)
         Assert(Cartridge->UseFourScreenMirror == 0);
         
         if(Cartridge->UseFourScreenMirror)
-            Nes->Ppu.MirrorType = FOUR_SCREEN_MIRROR;
+            Nes->Ppu.mirrorType = FOUR_SCREEN_MIRROR;
         else if(Cartridge->UseVertMirror)
-            Nes->Ppu.MirrorType = VERTICAL_MIRROR;
+            Nes->Ppu.mirrorType = VERTICAL_MIRROR;
         else
-            Nes->Ppu.MirrorType = HORIZONTAL_MIRROR;      
+            Nes->Ppu.mirrorType = HORIZONTAL_MIRROR;      
         
         Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
 

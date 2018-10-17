@@ -6,20 +6,20 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
-#define PIXEL_WIDTH 256
-#define PIXEL_HEIGHT 240
+const uint16 PIXEL_WIDTH = 256;
+const uint16 PIXEL_HEIGHT = 240;
 
-#define PIXEL_PER_TILE 8
+const uint16 PixelsPerTile = 8;
 
-#define BGRD_PALETTE_ADRS 0x3F00
-#define SPRT_PALETTE_ADRS 0x3F10
+const uint16 BackgroundPaletteAddress = 0x3F00;
+const uint16 SpritePaletteAddress = 0x3F10;
 
-#define SECONDARY_OAM_SPRITE_MAX 8
+const uint16 SecondaryOamSpriteMax = 8;
 
-#define OAM_SIZE 0x100
-#define OAM_SPRITE_TOTAL 64
+const uint16 OamSize = 0x100;
+const uint16 OamSpriteTotal = 64;
 
-enum NT_MIRROR
+enum NameTableMirrorType
 {
     SINGLE_SCREEN_BANK_A = 0,
     SINGLE_SCREEN_BANK_B,
@@ -88,7 +88,7 @@ struct ppu
     uint16 NextNametableAdrs;
 
     // Name table banks. 
-    NT_MIRROR MirrorType;
+    NameTableMirrorType mirrorType;
     // TODO: Pre allocate?
     uint8 NametableBankA[0x400];
     uint8 NametableBankB[0x400];
@@ -130,13 +130,13 @@ struct ppu
     
     //Sprites
     uint8 *OamDma; 
-    uint8 Oam[OAM_SIZE];
+    uint8 Oam[OamSize];
 
     uint8 SecondarySpriteCount;
-    sprite SecondaryOam[SECONDARY_OAM_SPRITE_MAX];
+    sprite SecondaryOam[SecondaryOamSpriteMax];
     
     uint8 PreparedSpriteCount;
-    sprite PreparedSprites[SECONDARY_OAM_SPRITE_MAX];
+    sprite PreparedSprites[SecondaryOamSpriteMax];
 };
 
 

@@ -612,7 +612,7 @@ int main()
             // elapsed, we then reset the counters that tracks how
             // ticks have been. Repeat
             
-            nes Nes = createNes("games/Contra (USA).nes");
+            nes Nes = createNes("../roms/Zelda.nes");
             Nes.FrameClockTotal = Nes.CpuHz * FrameTargetSeconds; // TODO: Put in create nes?
             
             GlobalNes = &Nes;

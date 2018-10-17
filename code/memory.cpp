@@ -212,7 +212,7 @@ static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
 {
     uint8 * Result = 0;
 
-    switch(Ppu->MirrorType)
+    switch(Ppu->mirrorType)
     {
         case SINGLE_SCREEN_BANK_A:
         {

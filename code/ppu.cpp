@@ -154,7 +154,7 @@ static void evaluateSecondaryOam(ppu *Ppu)
     uint8 SpriteHeight = (Ppu->SpriteSize8x16 != 0) ? 16: 8;
                 
     for(uint8 OamSpriteCount = 0;
-        OamSpriteCount < OAM_SPRITE_TOTAL && Ppu->SecondarySpriteCount != SECONDARY_OAM_SPRITE_MAX;
+        OamSpriteCount < OamSpriteTotal && Ppu->SecondarySpriteCount != SecondaryOamSpriteMax;
         ++OamSpriteCount)
     {
         oam_sprite *OamSprite = (oam_sprite *)Oam + OamSpriteCount;
@@ -227,7 +227,7 @@ static void visibleLine(ppu *Ppu)
         {
             // Secondary Oam Clear
             Ppu->SecondarySpriteCount = 0;
-            for(uint8 SpriteCount = 0; SpriteCount < SECONDARY_OAM_SPRITE_MAX; ++SpriteCount)
+            for(uint8 SpriteCount = 0; SpriteCount < SecondaryOamSpriteMax; ++SpriteCount)
             {
                 sprite *Sprite = Ppu->SecondaryOam + SpriteCount;
                 Sprite->OamData.Y    = 0xFF;
@@ -252,7 +252,7 @@ static void visibleLine(ppu *Ppu)
         {
             // Clear prepared sprites
             Ppu->PreparedSpriteCount = 0;
-            for(uint8 SpriteCount = 0; SpriteCount < SECONDARY_OAM_SPRITE_MAX; ++SpriteCount)
+            for(uint8 SpriteCount = 0; SpriteCount < SecondaryOamSpriteMax; ++SpriteCount)
             {
                 sprite *Sprite = Ppu->PreparedSprites + SpriteCount;
                 Sprite->OamData.Y    = 0xFF;
@@ -287,7 +287,7 @@ static void visibleLine(ppu *Ppu)
         colour PixelColour = {};
 
         // Get the default colour
-        uint8 BlankPaletteIndex = readPpu8(BGRD_PALETTE_ADRS, Ppu);
+        uint8 BlankPaletteIndex = readPpu8(BackgroundPaletteAddress, Ppu);
         PixelColour = Palette[BlankPaletteIndex];
                 
         /* *********************** */
@@ -308,7 +308,7 @@ static void visibleLine(ppu *Ppu)
                 BackgroundResult = AtrbPixelValue | PatternPixelValue;
             }
                             
-            uint8 BgrdPaletteIndex = readPpu8(BGRD_PALETTE_ADRS + BackgroundResult, Ppu);
+            uint8 BgrdPaletteIndex = readPpu8(BackgroundPaletteAddress + BackgroundResult, Ppu);
             PixelColour = Palette[BgrdPaletteIndex];
         }
                 
@@ -322,7 +322,7 @@ static void visibleLine(ppu *Ppu)
                 sprite *Sprite = Ppu->PreparedSprites + SpriteIdx;
                 uint8 SpriteX = Sprite->OamData.X;
                             
-                if(PixelX != 0xFF && SpriteX <= PixelX && PixelX < (SpriteX + PIXEL_PER_TILE)) 
+                if(PixelX != 0xFF && SpriteX <= PixelX && PixelX < (SpriteX + PixelsPerTile)) 
                 {
                     uint8 RelX = ((PixelX - (SpriteX)) % 8);                                    
                     uint8 PatternValue = (((Sprite->PatternHigh >> (7 - RelX)) & 1) << 1) |
@@ -341,7 +341,7 @@ static void visibleLine(ppu *Ppu)
 
                         if( Sprite->Priority || BackgroundResult == 0 )
                         {
-                            uint8 SprtPaletteIndex = readPpu8(SPRT_PALETTE_ADRS + SpriteColour, Ppu);                       
+                            uint8 SprtPaletteIndex = readPpu8(SpritePaletteAddress + SpriteColour, Ppu);                       
                             PixelColour = Palette[SprtPaletteIndex];                        
                         }
                     }
@@ -399,7 +399,7 @@ static void preRenderLine(ppu *Ppu)
             // Secondary Oam Clear
             uint8 *Data = (uint8 *)Ppu->SecondaryOam;
     
-            for(uint16 Byte = 0; Byte < (SECONDARY_OAM_SPRITE_MAX * sizeof(sprite)); ++Byte)
+            for(uint16 Byte = 0; Byte < (SecondaryOamSpriteMax * sizeof(sprite)); ++Byte)
             {
                 Data[Byte] = 0xFF;
             }
@@ -409,7 +409,7 @@ static void preRenderLine(ppu *Ppu)
             // Clear prepared sprites
             uint8 *Data = (uint8 *)Ppu->PreparedSprites;
     
-            for(uint16 Byte = 0; Byte < (SECONDARY_OAM_SPRITE_MAX * sizeof(sprite)); ++Byte)
+            for(uint16 Byte = 0; Byte < (SecondaryOamSpriteMax * sizeof(sprite)); ++Byte)
             {
                 Data[Byte] = 0xFF;
             }
