@@ -35,8 +35,6 @@ static void runNes(nes *Nes, input *NewInput)
             Cpu->InputPad1.Buttons[idx] = NewInput->Buttons[idx];
         }
     }
-    
-
 
     Nes->FrameClocksElapsed += runCpu(Cpu, NewInput);
 }

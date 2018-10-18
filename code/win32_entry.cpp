@@ -9,9 +9,9 @@
 #include <DSound.h>
 
 // A, B, Select, Start, Up, Down, Left, Right
-struct input
+struct Input
 {
-    enum buttons {
+    enum Buttons {
         B_A = 0,
         B_B,
         B_SELECT,
@@ -22,63 +22,61 @@ struct input
         B_RIGHT,
         BUTTON_NUM
     };    
-    bool32 Buttons[BUTTON_NUM];
+    b32 buttons[BUTTON_NUM];
 };
 
-struct screen_buffer
+struct ScreenBuffer
 {
     // NOTE: Memory Order BB GG RR XX
-    BITMAPINFO Info;
-    void *Memory;
-    int Width;
-    int Height;
-    int Pitch;
-    int BytesPerPixel;
+    BITMAPINFO info;
+    void *memory;
+    s16 width;
+    s16 height;
+    s16 pitch;
+    s16 bytesPerPixel;
 };
 
 
 // TODO: Investigate if all these need to be global
-global screen_buffer GlobalScreenBackBuffer = {};
+global ScreenBuffer globalScreenBackBuffer = {};
 
-global input GlobalInput = {};
+global Input globalInput = {};
 
-global bool32 GlobalRunning;
-global bool32 GlobalDrawScreen = false;
+global b32 globalRunning;
+global b32 globalDrawScreen = false;
 
-global int64 GlobalPerfCountFrequency;
+global s64 globalPerfCountFrequency;
 
 // Return the amount of clocks elapsed
-inline LARGE_INTEGER
-getClock(void)
+inline LARGE_INTEGER GetClock()
 {
-    LARGE_INTEGER Result;
-    QueryPerformanceCounter(&Result);
-    return(Result);
+    LARGE_INTEGER result;
+    QueryPerformanceCounter(&result);
+    return(result);
 }
 
 // Take start and end clocks and return seconds elapsed. Uses ClockFrequency
-inline real32
-getSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
+inline r32 GetSecondsElapsed(LARGE_INTEGER start, LARGE_INTEGER end)
 {
-    real32 Result = ((real32)(End.QuadPart - Start.QuadPart) /
-                     (real32)GlobalPerfCountFrequency);
-    return(Result);
+    r32 result = ((r32)(end.QuadPart - start.QuadPart) /
+                     (r32)globalPerfCountFrequency);
+    return(result);
 }
 
 // Copy Size amount of bytes from source to destination
-static void copyMemory(uint8 *Dest, uint8 *Src, uint16 Size)
+static void MemoryCopy(u8 *dest, u8 *src, u16 size)
 {
     // NOTE: Very basic copy. Not bounds protection
-    for(uint16 Byte = 0; Byte < Size; ++Byte)
-        Dest[Byte] = Src[Byte];
+    for(u16 byte = 0; byte < size; ++byte)
+        dest[byte] = src[byte];
 }
 
 #include "file.cpp"
 #include "log.cpp"
 
 
-#define MAX_ROM_NAME_SIZE 256
-global char RomFileName[MAX_ROM_NAME_SIZE]; 
+global const u16 romNameMaxSize = 256;
+global u8 romFileName[romNameMaxSize];
 
 #include "nes.cpp"
 
@@ -87,13 +85,11 @@ global char RomFileName[MAX_ROM_NAME_SIZE];
 #define ID_CLOSE_ROM_ITEM        1002
 #define ID_QUIT_ITEM            1003
 
-LRESULT CALLBACK
-WinInputCallback(HWND WindowHandle, UINT Message,
-                 WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK WinInputCallback(HWND windowHandle, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    LRESULT Result = 0;
+    LRESULT result = 0;
     
-    switch(Message) 
+    switch(msg) 
     { 
         case WM_CREATE:
         {
@@ -108,7 +104,7 @@ WinInputCallback(HWND WindowHandle, UINT Message,
         }
         case WM_CLOSE:
         {
-            GlobalRunning = false;
+            globalRunning = false;
             break;
         }
         case WM_DESTROY:
@@ -120,54 +116,54 @@ WinInputCallback(HWND WindowHandle, UINT Message,
         case WM_KEYDOWN:
         case WM_KEYUP:
         {
-            bool32 IsDown = ((lParam & (1<<31)) == 0);
-            bool32 WasDown = ((lParam & (1<<30)) != 0);
+            b32 isDown = ((lParam & (1<<31)) == 0);
+            b32 wasDown = ((lParam & (1<<30)) != 0);
 
             // NOTE: Alt only on SYSDOWN messages
-            bool32 AltPressed = ((lParam & (1<<29)) != 0);
+            b32 altPressed = ((lParam & (1<<29)) != 0);
             
-            if(IsDown != WasDown)
+            if(isDown != wasDown)
             {  
                 switch(wParam)
                 {
                     case VK_UP:
                     {
-                        GlobalInput.Buttons[input::B_UP] = IsDown ? 1 : 0;
+                        globalInput.buttons[Input::B_UP] = isDown ? 1 : 0;
                         break;
                     }
                     case VK_DOWN:
                     {
-                        GlobalInput.Buttons[input::B_DOWN] = IsDown ? 1 : 0;
+						globalInput.buttons[Input::B_DOWN] = isDown ? 1 : 0;
                         break;
                     }
                     case VK_LEFT:
                     {
-                        GlobalInput.Buttons[input::B_LEFT] = IsDown ? 1 : 0;
+						globalInput.buttons[Input::B_LEFT] = isDown ? 1 : 0;
                         break;
                     }
                     case VK_RIGHT:
                     {
-                        GlobalInput.Buttons[input::B_RIGHT] = IsDown ? 1 : 0;
+						globalInput.buttons[Input::B_RIGHT] = isDown ? 1 : 0;
                         break;
                     }
                     case 'Z':
                     {
-                        GlobalInput.Buttons[input::B_A] = IsDown ? 1 : 0;
+						globalInput.buttons[Input::B_A] = isDown ? 1 : 0;
                         break;
                     }
                     case 'X':
                     {
-                        GlobalInput.Buttons[input::B_B] = IsDown ? 1 : 0;
+						globalInput.buttons[Input::B_B] = isDown ? 1 : 0;
                         break;
                     }
                     case VK_RETURN:
                     {
-                        GlobalInput.Buttons[input::B_START] = IsDown ? 1 : 0;
+						globalInput.buttons[Input::B_START] = isDown ? 1 : 0;
                         break;
                     }
                     case VK_SHIFT:
                     {
-                        GlobalInput.Buttons[input::B_SELECT] = IsDown ? 1 : 0;
+						globalInput.buttons[Input::B_SELECT] = isDown ? 1 : 0;
                         break;
                     }
                     case VK_SPACE:
@@ -176,14 +172,14 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                     }
                     case VK_ESCAPE:
                     {
-                        GlobalRunning = false;
+                        globalRunning = false;
                         break;
                     }
                     case VK_F4:
                     {
-                        if(AltPressed)
+                        if(altPressed)
                         {
-                            GlobalRunning = false;
+                            globalRunning = false;
                         }
                         break;
                     }
@@ -202,7 +198,7 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                     
                     OPENFILENAMEA newRom = {};
                     newRom.lStructSize = sizeof(OPENFILENAME);
-                    newRom.hwndOwner = WindowHandle;
+                    newRom.hwndOwner = windowHandle;
                     newRom.lpstrFile = tempFileName;
                     newRom.lpstrFile[0] = '\0';
                     newRom.nMaxFile = sizeof(tempFileName);
@@ -213,21 +209,21 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                     newRom.lpstrInitialDir= NULL;
                     newRom.Flags = OFN_PATHMUSTEXIST|OFN_FILEMUSTEXIST;
 
-                    bool32 FileOpened = GetOpenFileName(&newRom); 
+                    b32 fileOpened = GetOpenFileName(&newRom); 
                     
-                    if(FileOpened) // If exists then restart emulator with new file 
+                    if(fileOpened) // If exists then restart emulator with new file 
                     {
-                        ZeroMemory(&RomFileName, sizeof(RomFileName));
-                        uint16 NameSize = (uint16)strlen(tempFileName);
-                        copyMemory((uint8 *)RomFileName, (uint8 *)tempFileName, NameSize);
+                        ZeroMemory(&romFileName, sizeof(romFileName));
+                        u16 nameSize = (u16)strlen(tempFileName);
+                        MemoryCopy((u8 *)romFileName, (u8 *)tempFileName, nameSize);
                         
-                        if(GlobalNes->PowerOn)
+                        if(globalNes->powerOn)
                         {
-                            reset(GlobalNes);
+                            Reset(globalNes);
                         }
                         else
                         {
-                            power(GlobalNes);
+                            Power(globalNes);
                         }
                     }
                     
@@ -235,13 +231,13 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                 }
                 case ID_CLOSE_ROM_ITEM:
                 {
-                    ZeroMemory(&RomFileName, sizeof(RomFileName));
-                    power(GlobalNes);
+                    ZeroMemory(&romFileName, sizeof(romFileName));
+                    Power(globalNes);
                     break;
                 }
                 case ID_QUIT_ITEM:
                 {
-                    GlobalRunning = false;
+                    globalRunning = false;
                     break;
                 }
             }
@@ -250,155 +246,140 @@ WinInputCallback(HWND WindowHandle, UINT Message,
                 
         default:
         {
-            Result = DefWindowProc(WindowHandle, Message, wParam, lParam);
+            result = DefWindowProc(windowHandle, msg, wParam, lParam);
             break;
         }
     }
-    return Result;
+    return result;
 }
 
-static void getWindowSize(HWND Window, uint16 *Width, uint16 *Height)
+static void GetWindowSize(HWND window, u16 *width, u16 *height)
 {
-    RECT ClientRect;
-    GetClientRect(Window, &ClientRect);
-    *Width = (uint16)(ClientRect.right - ClientRect.left);
-    *Height = (uint16)(ClientRect.bottom - ClientRect.top);
+    RECT clientRect;
+    GetClientRect(window, &clientRect);
+    *width = (u16)(clientRect.right - clientRect.left);
+    *height = (u16)(clientRect.bottom - clientRect.top);
 }
 
-static void createBackBuffer(screen_buffer *Buffer, uint16 Width, uint16 Height)
+static void CreateBackBuffer(ScreenBuffer *buffer, u16 width, u16 height)
 {
-    if(Buffer->Memory)
+    if(buffer->memory)
     {
-        VirtualFree(Buffer->Memory, 0, MEM_RELEASE);
+        VirtualFree(buffer->memory, 0, MEM_RELEASE);
     }
 
-    Buffer->Width = Width;
-    Buffer->Height = Height;
-    Buffer->BytesPerPixel = 4; // TODO: Should it be 3 instead because of no alpha?
+	buffer->width = width;
+    buffer->height = height;
+    buffer->bytesPerPixel = 4; // TODO: Should it be 3 instead because of no alpha?
+	
+	buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
+	buffer->info.bmiHeader.biWidth = width;
+	buffer->info.bmiHeader.biHeight = -height; // Negative tells windows that we raster top to bottom
+	buffer->info.bmiHeader.biPlanes = 1;
+	buffer->info.bmiHeader.biBitCount = 32;
+	buffer->info.bmiHeader.biCompression = BI_RGB;
 
-    Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
-    Buffer->Info.bmiHeader.biWidth = Width;
-    Buffer->Info.bmiHeader.biHeight = -Height; // Negative tells windows that we raster top to bottom
-    Buffer->Info.bmiHeader.biPlanes = 1;
-    Buffer->Info.bmiHeader.biBitCount = 32;
-    Buffer->Info.bmiHeader.biCompression = BI_RGB;
-
-    int MemorySize = Width * Height * Buffer->BytesPerPixel;
-    Buffer->Memory = VirtualAlloc(0, MemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); 
-    Buffer->Pitch = Width * Buffer->BytesPerPixel;
+    int memorySize = width * height * buffer->bytesPerPixel;
+	buffer->memory = VirtualAlloc(0, memorySize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	buffer->pitch = width * buffer->bytesPerPixel;
 }
 
-static void drawScreenBuffer(screen_buffer *BackBuffer, HDC DeviceContext,
-                               uint16 WindowWidth, uint16 WindowHeight)
+static void DrawScreenBuffer(ScreenBuffer *backBuffer, HDC deviceContext,
+                               u16 windowWidth, u16 windowHeight)
 {                
-    StretchDIBits(DeviceContext,
-                  0, 0, WindowWidth, WindowHeight,
-                  0, 0, BackBuffer->Width, BackBuffer->Height,
-                  BackBuffer->Memory,
-                  &BackBuffer->Info,
+    StretchDIBits(deviceContext,
+                  0, 0, windowWidth, windowHeight,
+                  0, 0, backBuffer->width, backBuffer->height,
+				  backBuffer->memory,
+                  &backBuffer->info,
                   DIB_RGB_COLORS, SRCCOPY);
 }
 
 
-struct win_sound
+struct WinSound
 {    
-    uint16 SamplesPerSecond;
-    uint8 Channels;
-    uint8 BitsPerSample;
-    uint16 BytesPerSample;
-    uint16 BufferSize;
-    uint32 SampleIndex;
-    uint32 SafetyBytes;
-    int16 *Samples;
+    u16 samplesPerSecond;
+    u8 channels;
+    u8 bitsPerSample;
+    u16 bytesPerSample;
+    u16 bufferSize;
+    u32 sampleIndex;
+    u32 safetyBytes;
+    s16 *samples;
 
-    bool32 Valid;
+    b32 valid;
 };
 
-struct nes_sound
+struct NesSound
 {
-    uint16 SamplesPerSecond;
-    uint32 SampleCount;
-    uint32 BytesToWrite;
-    void *Samples;
+    u16 samplesPerSecond;
+    u32 sampleCount;
+    u32 bytesToWrite;
+    void *samples;
 };
 
-static void
-ClearSoundBuffer(LPDIRECTSOUNDBUFFER Buffer, uint32 BufferSize)
+static void ClearSoundBuffer(LPDIRECTSOUNDBUFFER buffer, u32 bufferSize)
 {
-    VOID *FirstSection;
-    DWORD FirstSectionSize;
-    VOID *SecondSection;
-    DWORD SecondSectionSize;
+    VOID *firstSection;
+    DWORD firstSectionSize;
+    VOID *secondSection;
+    DWORD secondSectionSize;
     
-    HRESULT Locked = Buffer->Lock(0, BufferSize,
-                                  &FirstSection, &FirstSectionSize,
-                                  &SecondSection, &SecondSectionSize, 0);
-    if(SUCCEEDED(Locked))
+    HRESULT locked = buffer->Lock(0, bufferSize,
+                                  &firstSection, &firstSectionSize,
+                                  &secondSection, &secondSectionSize, 0);
+    if(SUCCEEDED(locked))
     {
-        Assert((FirstSectionSize + SecondSectionSize) == BufferSize);
+        Assert((firstSectionSize + secondSectionSize) == bufferSize);
 
-        uint8 *BytePtr = (uint8 *)FirstSection;
-        for(uint32 ByteNum = 0; ByteNum < FirstSectionSize; ++ByteNum)
-        {
-            BytePtr[ByteNum] = 0;
-        }
+		ZeroMemory(firstSection, firstSectionSize);
+		ZeroMemory(secondSection, secondSectionSize);
 
-        BytePtr = (uint8 *)SecondSection;        
-        for(uint32 ByteNum = 0; ByteNum < SecondSectionSize; ++ByteNum)
-        {
-            BytePtr[ByteNum] = 0;
-        }
-        
-        Buffer->Unlock(FirstSection, FirstSectionSize, SecondSection, SecondSectionSize);
+        buffer->Unlock(firstSection, firstSectionSize, secondSection, secondSectionSize);
     }
 }
 
 // NOTE: Taken from Handmade hero and adjusted
-static void
-FillSoundBuffer(LPDIRECTSOUNDBUFFER Buffer, uint16 BytesPerSample, DWORD ByteToLock, DWORD BytesToWrite,
-                int16 *SourceSample, uint32 *SourceRunningIndex)
+static void FillSoundBuffer(LPDIRECTSOUNDBUFFER buffer, u16 bytesPerSample, DWORD byteToLock, DWORD bytesToWrite,
+                s16 *sourceSample, u32 *sourceRunningIndex)
 {
-    // TODO(casey): More strenuous test!
-    VOID *FirstSection;
-    DWORD FirstSectionSize;
-    VOID *SecondSection;
-    DWORD SecondSectionSize;
+    VOID *firstSection;
+    DWORD firstSectionSize;
+    VOID *secondSection;
+    DWORD secondSectionSize;
 
-    HRESULT LockResult = Buffer->Lock(ByteToLock, BytesToWrite,
-                                      &FirstSection, &FirstSectionSize,
-                                      &SecondSection, &SecondSectionSize, 0);
+    HRESULT locked = buffer->Lock(byteToLock, bytesToWrite,
+                                      &firstSection, &firstSectionSize,
+                                      &secondSection, &secondSectionSize, 0);
     
-    if(SUCCEEDED(LockResult))
+    if(SUCCEEDED(locked))
     {
-        // TODO(casey): assert that FirstSectionSize/SecondSectionSize is valid
+        DWORD firstSectionSampleCount = firstSectionSize / bytesPerSample;
+        s16 *destSample = (s16 *)firstSection;
 
-        // TODO(casey): Collapse these two loops
-        DWORD FirstSectionSampleCount = FirstSectionSize/BytesPerSample;
-        int16 *DestSample = (int16 *)FirstSection;
-
-        for(DWORD Index = 0; Index < FirstSectionSampleCount; ++Index)
+        for(DWORD Index = 0; Index < firstSectionSampleCount; ++Index)
         {
-            *DestSample++ = *SourceSample++;
-            *DestSample++ = *SourceSample++;
-            ++(*SourceRunningIndex);
+            *destSample++ = *sourceSample++;
+            *destSample++ = *sourceSample++;
+            ++(*sourceRunningIndex);
         }
 
-        DWORD SecondSectionSampleCount = SecondSectionSize/BytesPerSample;
-        DestSample = (int16 *)SecondSection;
-        for(DWORD Index = 0; Index < SecondSectionSampleCount; ++Index)
+        DWORD secondSectionSampleCount = secondSectionSize / bytesPerSample;
+        destSample = (s16 *)secondSection;
+        for(DWORD Index = 0; Index < secondSectionSampleCount; ++Index)
         {
-            *DestSample++ = *SourceSample++;
-            *DestSample++ = *SourceSample++;
-            ++(*SourceRunningIndex);
+            *destSample++ = *sourceSample++;
+            *destSample++ = *sourceSample++;
+            ++(*sourceRunningIndex);
         }
 
-        Buffer->Unlock(FirstSection, FirstSectionSize, SecondSection, SecondSectionSize);
+        buffer->Unlock(firstSection, firstSectionSize, secondSection, secondSectionSize);
     }
 }
 
 // NOTE: Taken and adapted Handmade hero code
-static LPDIRECTSOUNDBUFFER CreateSoundBuffer(HWND WindowHandle, uint32 BufferSize, uint8 Channels,
-                                             uint32 SamplesPerSecond, uint8 BitsPerSample)
+static LPDIRECTSOUNDBUFFER CreateSoundBuffer(HWND WindowHandle, u32 BufferSize, u8 Channels,
+                                             u32 SamplesPerSecond, u8 BitsPerSample)
 {
     // Create DirectSound Buffer for us to fill and play from    
     IDirectSound8 *DSoundInterface;
@@ -448,38 +429,38 @@ static LPDIRECTSOUNDBUFFER CreateSoundBuffer(HWND WindowHandle, uint32 BufferSiz
     return(SoundBuffer);
 }
 
-static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, win_sound *SoundOut,
-                        uint32 FrameUpdateHz, real32 FrameTargetSeconds, real32 FrameTimeElapsed)
+static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, WinSound *soundOut,
+                        u32 FrameUpdateHz, r32 FrameTargetSeconds, r32 FrameTimeElapsed)
 {
     DWORD PlayCursor;
     DWORD WriteCursor;                
     if(SoundBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
     {
-        if(!SoundOut->Valid)
+        if(!soundOut->valid)
         {
-            SoundOut->SampleIndex = WriteCursor / SoundOut->BytesPerSample;
-            SoundOut->Valid = true;
+			soundOut->sampleIndex = WriteCursor / soundOut->bytesPerSample;
+			soundOut->valid = true;
         }
                     
-        DWORD LockByte = ((SoundOut->SampleIndex * SoundOut->BytesPerSample) % SoundOut->BufferSize);
+        DWORD LockByte = ((soundOut->sampleIndex * soundOut->bytesPerSample) % soundOut->bufferSize);
 
-        DWORD FrameExpectedSoundBytes = (int)((real32)(SoundOut->SamplesPerSecond * SoundOut->BytesPerSample) /
+        DWORD FrameExpectedSoundBytes = (int)((r32)(soundOut->samplesPerSecond * soundOut->bytesPerSample) /
                                               FrameUpdateHz);
 
-        real32 FrameTimeLeft = (FrameTargetSeconds - FrameTimeElapsed);
-        DWORD FrameExpectedBytesLeft = (DWORD)((FrameTimeLeft / FrameTargetSeconds) * (real32)FrameExpectedSoundBytes);
+        r32 FrameTimeLeft = (FrameTargetSeconds - FrameTimeElapsed);
+        DWORD FrameExpectedBytesLeft = (DWORD)((FrameTimeLeft / FrameTargetSeconds) * (r32)FrameExpectedSoundBytes);
 
         DWORD ExpectedFrameBoundaryByte = PlayCursor + FrameExpectedBytesLeft;
 
         DWORD SafeWriteCursor = WriteCursor;
         if(SafeWriteCursor < PlayCursor)
         {
-            SafeWriteCursor += SoundOut->BufferSize;
+            SafeWriteCursor += soundOut->bufferSize;
         }
         Assert(SafeWriteCursor >= PlayCursor);
-        SafeWriteCursor += SoundOut->SafetyBytes;
+        SafeWriteCursor += soundOut->safetyBytes;
 
-        bool32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
+        b32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
 
         DWORD TargetCursor = 0;
         if(AudioCardIsLowLatency)
@@ -491,16 +472,16 @@ static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, win_sound *SoundOut,
         {
             // From the current write cursor, add a frames worth of audio plus saftey bytes
             TargetCursor = (WriteCursor + FrameExpectedSoundBytes +
-                            SoundOut->SafetyBytes);
+				soundOut->safetyBytes);
         }
 
         // Mod to reposition in ring buffer
-        TargetCursor = (TargetCursor % SoundOut->BufferSize);
+        TargetCursor = (TargetCursor % soundOut->bufferSize);
 
         DWORD BytesToWrite = 0;
         if(LockByte > TargetCursor)
         {
-            BytesToWrite = (SoundOut->BufferSize - LockByte);
+            BytesToWrite = (soundOut->bufferSize - LockByte);
             BytesToWrite += TargetCursor;
         }
         else
@@ -508,11 +489,11 @@ static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, win_sound *SoundOut,
             BytesToWrite = TargetCursor - LockByte;
         }
 
-        nes_sound NesSound = {};
-        NesSound.SamplesPerSecond = SoundOut->SamplesPerSecond;
-        NesSound.SampleCount = Align8(BytesToWrite / SoundOut->BytesPerSample);
-        NesSound.BytesToWrite = NesSound.SampleCount * SoundOut->BytesPerSample;
-        NesSound.Samples = SoundOut->Samples;
+		NesSound nesSound = {};
+		nesSound.samplesPerSecond = soundOut->samplesPerSecond;
+		nesSound.sampleCount = Align8(BytesToWrite / soundOut->bytesPerSample);
+		nesSound.bytesToWrite = nesSound.sampleCount * soundOut->bytesPerSample;
+		nesSound.samples = soundOut->samples;
 
         /*
         if(Game.GetSoundSamples)
@@ -521,7 +502,7 @@ static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, win_sound *SoundOut,
         }
         */
 
-        FillSoundBuffer(SoundBuffer, SoundOut->BytesPerSample, LockByte, BytesToWrite, SoundOut->Samples, &SoundOut->SampleIndex);
+        FillSoundBuffer(SoundBuffer, soundOut->bytesPerSample, LockByte, BytesToWrite, soundOut->samples, &soundOut->sampleIndex);
     }
 }
 
@@ -536,18 +517,18 @@ int main()
 {
     LARGE_INTEGER WinPerfCountFrequency;
     QueryPerformanceFrequency(&WinPerfCountFrequency); 
-    GlobalPerfCountFrequency = WinPerfCountFrequency.QuadPart;            
+    globalPerfCountFrequency = WinPerfCountFrequency.QuadPart;            
 
     printf("Test\n");
     
     /**************************************/
     /* NOTE : Screen back buffer creation */
     
-    uint16 RenderScaleWidth = 256, RenderScaleHeight = 240;
-    uint8 ResScale = 2;
-    uint16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
-    GlobalScreenBackBuffer = {};
-    createBackBuffer(&GlobalScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
+    u16 RenderScaleWidth = 256, RenderScaleHeight = 240;
+    u8 ResScale = 2;
+    u16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
+    globalScreenBackBuffer = {};
+    CreateBackBuffer(&globalScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
 
     /**************************/
     /* NOTE : Window creation */
@@ -558,8 +539,8 @@ int main()
     WindowClass.hInstance = GetModuleHandle(NULL);//WindowInstance;
     WindowClass.lpszClassName = "tuNES";
 
-    uint16 InitialWindowPosX = 700;
-    uint16 InitialWindowPosY = 400;
+    u16 InitialWindowPosX = 700;
+    u16 InitialWindowPosY = 400;
     
     if(RegisterClassA(&WindowClass))
     {        
@@ -569,8 +550,8 @@ int main()
 
         if(Window) // If window was created successfully
         {
-            real32 FrameHz = 60.0988f; // aka fps. // TODO: Will be different for PAL
-            real32 FrameTargetSeconds = 1.0f / FrameHz;
+            r32 FrameHz = 60.0988f; // aka fps. // TODO: Will be different for PAL
+            r32 FrameTargetSeconds = 1.0f / FrameHz;
             
             /********************************/
             /* NOTE : Window Menu Creation  */            
@@ -581,29 +562,29 @@ int main()
             AppendMenu(SubMenu, MF_STRING, ID_OPEN_ROM_ITEM, "&Open Rom");
             AppendMenu(SubMenu, MF_STRING, ID_CLOSE_ROM_ITEM, "&Close Rom");
             AppendMenu(SubMenu, MF_STRING, ID_QUIT_ITEM, "&Quit");
-            AppendMenu(WindowMenu, MF_STRING | MF_POPUP, (uint64)SubMenu, "&File");
+            AppendMenu(WindowMenu, MF_STRING | MF_POPUP, (u64)SubMenu, "&File");
 
             SetMenu(Window, WindowMenu);
 
             /********************************/
             /* NOTE : Sound Buffer Creation */
 
-            win_sound WinSound = {};
-            WinSound.SamplesPerSecond = 48000;
-            WinSound.Channels = 2; // Sterio
-            WinSound.BitsPerSample = 16; // Bit depth
-            WinSound.BytesPerSample = sizeof(int16) * WinSound.Channels;
-            WinSound.BufferSize = WinSound.SamplesPerSecond * WinSound.BytesPerSample;
-            WinSound.SafetyBytes = (int)(((real32)WinSound.SamplesPerSecond * (real32)WinSound.BytesPerSample
+            WinSound winSound = {};
+			winSound.samplesPerSecond = 48000;
+			winSound.channels = 2; // Sterio
+			winSound.bitsPerSample = 16; // Bit depth
+			winSound.bytesPerSample = sizeof(s16) * winSound.channels;
+			winSound.bufferSize = winSound.samplesPerSecond * winSound.bytesPerSample;
+			winSound.safetyBytes = (int)(((r32)winSound.samplesPerSecond * (r32)winSound.bytesPerSample
                                           / FrameHz) / 3.0f);
 
-            WinSound.Samples = (int16 *)VirtualAlloc(0, (size_t)WinSound.BufferSize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+            winSound.samples = (s16 *)VirtualAlloc(0, (size_t)winSound.bufferSize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
             
-            LPDIRECTSOUNDBUFFER SoundBuffer = CreateSoundBuffer(Window, WinSound.BufferSize, WinSound.Channels,
-                                                                WinSound.SamplesPerSecond, WinSound.BitsPerSample);
+            LPDIRECTSOUNDBUFFER soundBuffer = CreateSoundBuffer(Window, winSound.bufferSize, winSound.channels,
+				winSound.samplesPerSecond, winSound.bitsPerSample);
 
-            ClearSoundBuffer(SoundBuffer, WinSound.BufferSize);
-            SoundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+            ClearSoundBuffer(soundBuffer, winSound.bufferSize);
+			soundBuffer->Play(0, 0, DSBPLAY_LOOPING);
                         
             /********************************************************/
             /* NOTE : Timing */
@@ -619,19 +600,19 @@ int main()
 
             ////
             
-            real32 ElapsedTime = 0.0;
-            uint32 ClocksRun = 0;
-            real32 FrameTime = 0.0;
+            r32 ElapsedTime = 0.0;
+            u32 ClocksRun = 0;
+            r32 FrameTime = 0.0;
             
-            LARGE_INTEGER LastClock = getClock();
-            LARGE_INTEGER FrameFlippedClock = getClock();
-            LARGE_INTEGER FrameLastFlippedClock = getClock();
+            LARGE_INTEGER LastClock = GetClock();
+            LARGE_INTEGER FrameFlippedClock = GetClock();
+            LARGE_INTEGER FrameLastFlippedClock = GetClock();
             
             /********************/
             /* NOTE : Main Loop */
 
-            GlobalRunning = true; 
-            while(GlobalRunning)
+            globalRunning = true; 
+            while(globalRunning)
             {
                 MSG Message = {}; 
                 while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
@@ -642,7 +623,7 @@ int main()
                 
                 if(Nes.FrameClocksElapsed < Nes.FrameClockTotal)
                 {
-                    runNes(&Nes, &GlobalInput);
+                    runNes(&Nes, &globalInput);
                 }
                 else
                 {
@@ -651,7 +632,7 @@ int main()
 
                 /*
                 LARGE_INTEGER FrameSoundClock = getClock();
-                real32 FrameTimeElapsed = getSecondsElapsed(FrameFlippedClock, FrameSoundClock);
+                r32 FrameTimeElapsed = getSecondsElapsed(FrameFlippedClock, FrameSoundClock);
                 UpdateAudio(SoundBuffer, &WinSound, FrameHz, FrameTargetSeconds, FrameTimeElapsed);
                 */
 
@@ -660,27 +641,27 @@ int main()
                 // To fix, I could implement a double buffer. Two buffers, one is drawn on buy the ppu while the other is the displayed.
                 // They are then swapped. This will let the complete frame to be displayed while the new one can created.
                 
-                if(GlobalDrawScreen)
+                if(globalDrawScreen)
                 {
-                    GlobalDrawScreen = false;
+					globalDrawScreen = false;
                                                               
-                    getWindowSize(Window, &WindowWidth, &WindowHeight);
+                    GetWindowSize(Window, &WindowWidth, &WindowHeight);
                 
                     // NOTE: Drawing the backbuffer to the window 
                     HDC DeviceContext = GetDC(Window);
-                    drawScreenBuffer(&GlobalScreenBackBuffer, DeviceContext,
+                    DrawScreenBuffer(&globalScreenBackBuffer, DeviceContext,
                                      WindowWidth, WindowHeight);
                     ReleaseDC(Window, DeviceContext);
 
-                    FrameFlippedClock = getClock();
+                    FrameFlippedClock = GetClock();
 
-                    FrameTime = getSecondsElapsed(FrameLastFlippedClock, FrameFlippedClock);
-                    FrameLastFlippedClock = getClock();
+                    FrameTime = GetSecondsElapsed(FrameLastFlippedClock, FrameFlippedClock);
+                    FrameLastFlippedClock = GetClock();
                 }
 
-                LARGE_INTEGER EndClock = getClock();
+                LARGE_INTEGER EndClock = GetClock();
                 
-                real32 LoopTime = getSecondsElapsed(LastClock, EndClock);
+                r32 LoopTime = GetSecondsElapsed(LastClock, EndClock);
                 ElapsedTime += LoopTime;
                 
                 if(ElapsedTime >= FrameTargetSeconds)
