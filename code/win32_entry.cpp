@@ -378,120 +378,120 @@ static void FillSoundBuffer(LPDIRECTSOUNDBUFFER buffer, u16 bytesPerSample, DWOR
 }
 
 // NOTE: Taken and adapted Handmade hero code
-static LPDIRECTSOUNDBUFFER CreateSoundBuffer(HWND WindowHandle, u32 BufferSize, u8 Channels,
-                                             u32 SamplesPerSecond, u8 BitsPerSample)
+static LPDIRECTSOUNDBUFFER CreateSoundBuffer(HWND windowHandle, u32 bufferSize, u8 channels,
+                                             u32 samplesPerSecond, u8 bitsPerSample)
 {
     // Create DirectSound Buffer for us to fill and play from    
-    IDirectSound8 *DSoundInterface;
-    HRESULT DSoundResult = DirectSoundCreate8(0, &DSoundInterface, 0);
-    Assert(DSoundResult == DS_OK);
+    IDirectSound8 *dSoundInterface;
+    HRESULT dSoundResult = DirectSoundCreate8(0, &dSoundInterface, 0);
+    Assert(dSoundResult == DS_OK);
 
-    WAVEFORMATEX WaveFormat = {};
-    WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
-    WaveFormat.nChannels = Channels;
-    WaveFormat.nSamplesPerSec = SamplesPerSecond;
-    WaveFormat.wBitsPerSample = BitsPerSample;
-    WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
-    WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+    WAVEFORMATEX waveFormat = {};
+    waveFormat.wFormatTag = WAVE_FORMAT_PCM;
+    waveFormat.nChannels = channels;
+    waveFormat.nSamplesPerSec = samplesPerSecond;
+    waveFormat.wBitsPerSample = bitsPerSample;
+    waveFormat.nBlockAlign = (waveFormat.nChannels * waveFormat.wBitsPerSample) / 8;
+    waveFormat.nAvgBytesPerSec = waveFormat.nSamplesPerSec * waveFormat.nBlockAlign;
 
     // Create Primary Sound buffer first, that we set the wave
     // format too. We can then create the secondary buffer
     // that we fill. Primary buffer can be discarded.
-    DSoundResult = DSoundInterface->SetCooperativeLevel(WindowHandle, DSSCL_PRIORITY);
+    dSoundResult = dSoundInterface->SetCooperativeLevel(windowHandle, DSSCL_PRIORITY);
             
-    if(SUCCEEDED(DSoundResult))
+    if(SUCCEEDED(dSoundResult))
     {
-        DSBUFFERDESC BufferDescription = {};
-        BufferDescription.dwSize = sizeof(DSBUFFERDESC);
-        BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+        DSBUFFERDESC bufferDescription = {};
+        bufferDescription.dwSize = sizeof(DSBUFFERDESC);
+        bufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
 
-        LPDIRECTSOUNDBUFFER PrimaryBuffer;
+        LPDIRECTSOUNDBUFFER primaryBuffer;
 
-        DSoundResult = DSoundInterface->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0);
-        if(SUCCEEDED(DSoundResult))
+        dSoundResult = dSoundInterface->CreateSoundBuffer(&bufferDescription, &primaryBuffer, 0);
+        if(SUCCEEDED(dSoundResult))
         {
-            DSoundResult = PrimaryBuffer->SetFormat(&WaveFormat);
-            Assert(DSoundResult == DS_OK);
+            dSoundResult = primaryBuffer->SetFormat(&waveFormat);
+            Assert(dSoundResult == DS_OK);
         }        
     }
 
     // Secondary buffer is the buffer we use. We create it here and return it
-    DSBUFFERDESC BufferDescription = {};
-    BufferDescription.dwSize = sizeof(DSBUFFERDESC);
-    BufferDescription.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
-    BufferDescription.dwBufferBytes = BufferSize;
-    BufferDescription.lpwfxFormat = &WaveFormat;
+    DSBUFFERDESC bufferDescription = {};
+    bufferDescription.dwSize = sizeof(DSBUFFERDESC);
+    bufferDescription.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
+    bufferDescription.dwBufferBytes = bufferSize;
+    bufferDescription.lpwfxFormat = &waveFormat;
 
-    LPDIRECTSOUNDBUFFER SoundBuffer; 
-    DSoundResult = DSoundInterface->CreateSoundBuffer(&BufferDescription, &SoundBuffer, 0);
-    Assert(DSoundResult == DS_OK);
+    LPDIRECTSOUNDBUFFER soundBuffer; 
+    dSoundResult = dSoundInterface->CreateSoundBuffer(&bufferDescription, &soundBuffer, 0);
+    Assert(dSoundResult == DS_OK);
 
-    return(SoundBuffer);
+    return(soundBuffer);
 }
 
-static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, WinSound *soundOut,
-                        u32 FrameUpdateHz, r32 FrameTargetSeconds, r32 FrameTimeElapsed)
+static void UpdateAudio(LPDIRECTSOUNDBUFFER soundBuffer, WinSound *soundOut,
+                        u32 frameUpdateHz, r32 frameTargetSeconds, r32 frameTimeElapsed)
 {
-    DWORD PlayCursor;
-    DWORD WriteCursor;                
-    if(SoundBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
+    DWORD playCursor;
+    DWORD writeCursor;                
+    if(soundBuffer->GetCurrentPosition(&playCursor, &writeCursor) == DS_OK)
     {
         if(!soundOut->valid)
         {
-			soundOut->sampleIndex = WriteCursor / soundOut->bytesPerSample;
+			soundOut->sampleIndex = writeCursor / soundOut->bytesPerSample;
 			soundOut->valid = true;
         }
                     
-        DWORD LockByte = ((soundOut->sampleIndex * soundOut->bytesPerSample) % soundOut->bufferSize);
+        DWORD lockByte = ((soundOut->sampleIndex * soundOut->bytesPerSample) % soundOut->bufferSize);
 
-        DWORD FrameExpectedSoundBytes = (int)((r32)(soundOut->samplesPerSecond * soundOut->bytesPerSample) /
-                                              FrameUpdateHz);
+        DWORD frameExpectedSoundBytes = (int)((r32)(soundOut->samplesPerSecond * soundOut->bytesPerSample) /
+                                              frameUpdateHz);
 
-        r32 FrameTimeLeft = (FrameTargetSeconds - FrameTimeElapsed);
-        DWORD FrameExpectedBytesLeft = (DWORD)((FrameTimeLeft / FrameTargetSeconds) * (r32)FrameExpectedSoundBytes);
+        r32 frameTimeLeft = (frameTargetSeconds - frameTimeElapsed);
+        DWORD frameExpectedBytesLeft = (DWORD)((frameTimeLeft / frameTargetSeconds) * (r32)frameExpectedSoundBytes);
 
-        DWORD ExpectedFrameBoundaryByte = PlayCursor + FrameExpectedBytesLeft;
+        DWORD expectedFrameBoundaryByte = playCursor + frameExpectedBytesLeft;
 
-        DWORD SafeWriteCursor = WriteCursor;
-        if(SafeWriteCursor < PlayCursor)
+        DWORD safeWriteCursor = writeCursor;
+        if(safeWriteCursor < playCursor)
         {
-            SafeWriteCursor += soundOut->bufferSize;
+            safeWriteCursor += soundOut->bufferSize;
         }
-        Assert(SafeWriteCursor >= PlayCursor);
-        SafeWriteCursor += soundOut->safetyBytes;
+        Assert(safeWriteCursor >= playCursor);
+        safeWriteCursor += soundOut->safetyBytes;
 
-        b32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
+        b32 audioCardIsLowLatency = (safeWriteCursor < expectedFrameBoundaryByte);
 
-        DWORD TargetCursor = 0;
-        if(AudioCardIsLowLatency)
+        DWORD targetCursor = 0;
+        if(audioCardIsLowLatency)
         {
             // From the start of next frame until the end of next frame, fill
-            TargetCursor = (ExpectedFrameBoundaryByte + FrameExpectedSoundBytes);
+            targetCursor = (expectedFrameBoundaryByte + frameExpectedSoundBytes);
         }
         else
         {
             // From the current write cursor, add a frames worth of audio plus saftey bytes
-            TargetCursor = (WriteCursor + FrameExpectedSoundBytes +
+            targetCursor = (writeCursor + frameExpectedSoundBytes +
 				soundOut->safetyBytes);
         }
 
         // Mod to reposition in ring buffer
-        TargetCursor = (TargetCursor % soundOut->bufferSize);
+        targetCursor = (targetCursor % soundOut->bufferSize);
 
-        DWORD BytesToWrite = 0;
-        if(LockByte > TargetCursor)
+        DWORD bytesToWrite = 0;
+        if(lockByte > targetCursor)
         {
-            BytesToWrite = (soundOut->bufferSize - LockByte);
-            BytesToWrite += TargetCursor;
+            bytesToWrite = (soundOut->bufferSize - lockByte);
+            bytesToWrite += targetCursor;
         }
         else
         {
-            BytesToWrite = TargetCursor - LockByte;
+            bytesToWrite = targetCursor - lockByte;
         }
 
 		NesSound nesSound = {};
 		nesSound.samplesPerSecond = soundOut->samplesPerSecond;
-		nesSound.sampleCount = Align8(BytesToWrite / soundOut->bytesPerSample);
+		nesSound.sampleCount = Align8(bytesToWrite / soundOut->bytesPerSample);
 		nesSound.bytesToWrite = nesSound.sampleCount * soundOut->bytesPerSample;
 		nesSound.samples = soundOut->samples;
 
@@ -502,7 +502,7 @@ static void UpdateAudio(LPDIRECTSOUNDBUFFER SoundBuffer, WinSound *soundOut,
         }
         */
 
-        FillSoundBuffer(SoundBuffer, soundOut->bytesPerSample, LockByte, BytesToWrite, soundOut->samples, &soundOut->sampleIndex);
+        FillSoundBuffer(soundBuffer, soundOut->bytesPerSample, lockByte, bytesToWrite, soundOut->samples, &soundOut->sampleIndex);
     }
 }
 
@@ -515,72 +515,72 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 */
 int main()
 {
-    LARGE_INTEGER WinPerfCountFrequency;
-    QueryPerformanceFrequency(&WinPerfCountFrequency); 
-    globalPerfCountFrequency = WinPerfCountFrequency.QuadPart;            
+    LARGE_INTEGER winPerfCountFrequency;
+    QueryPerformanceFrequency(&winPerfCountFrequency); 
+    globalPerfCountFrequency = winPerfCountFrequency.QuadPart;            
 
     printf("Test\n");
     
     /**************************************/
     /* NOTE : Screen back buffer creation */
     
-    u16 RenderScaleWidth = 256, RenderScaleHeight = 240;
-    u8 ResScale = 2;
-    u16 WindowWidth = RenderScaleWidth * ResScale, WindowHeight = RenderScaleHeight * ResScale;
+    u16 renderScaleWidth = 256, renderScaleHeight = 240;
+    u8 resScale = 2;
+    u16 windowWidth = renderScaleWidth * resScale, windowHeight = renderScaleHeight * resScale;
     globalScreenBackBuffer = {};
-    CreateBackBuffer(&globalScreenBackBuffer, RenderScaleWidth, RenderScaleHeight);
+    CreateBackBuffer(&globalScreenBackBuffer, renderScaleWidth, renderScaleHeight);
 
     /**************************/
     /* NOTE : Window creation */
     
-    WNDCLASSA WindowClass = {};
-    WindowClass.style = CS_HREDRAW | CS_VREDRAW;
-    WindowClass.lpfnWndProc = WinInputCallback;
-    WindowClass.hInstance = GetModuleHandle(NULL);//WindowInstance;
-    WindowClass.lpszClassName = "tuNES";
+    WNDCLASSA windowClass = {};
+    windowClass.style = CS_HREDRAW | CS_VREDRAW;
+    windowClass.lpfnWndProc = WinInputCallback;
+    windowClass.hInstance = GetModuleHandle(NULL);//WindowInstance;
+    windowClass.lpszClassName = "tuNES";
 
-    u16 InitialWindowPosX = 700;
-    u16 InitialWindowPosY = 400;
+    u16 initialWindowPosX = 700;
+    u16 initialWindowPosY = 400;
     
-    if(RegisterClassA(&WindowClass))
+    if(RegisterClassA(&windowClass))
     {        
-        HWND Window = CreateWindowExA(0, WindowClass.lpszClassName, "tuNES", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-                                      InitialWindowPosX, InitialWindowPosY, WindowWidth, WindowHeight,
-                                      0, 0, WindowClass.hInstance, 0);
+        HWND window = CreateWindowExA(0, windowClass.lpszClassName, "tuNES", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+                                      initialWindowPosX, initialWindowPosY, windowWidth, windowHeight,
+                                      0, 0, windowClass.hInstance, 0);
 
-        if(Window) // If window was created successfully
+        if(window) // If window was created successfully
         {
-            r32 FrameHz = 60.0988f; // aka fps. // TODO: Will be different for PAL
-            r32 FrameTargetSeconds = 1.0f / FrameHz;
+            r32 frameHz = 60.0988f; // aka fps. // TODO: Will be different for PAL
+            r32 frameTargetSeconds = 1.0f / frameHz;
             
             /********************************/
             /* NOTE : Window Menu Creation  */            
             
-            HMENU WindowMenu = CreateMenu();
-            HMENU SubMenu = CreatePopupMenu();
+            HMENU windowMenu = CreateMenu();
+            HMENU subMenu = CreatePopupMenu();
             
-            AppendMenu(SubMenu, MF_STRING, ID_OPEN_ROM_ITEM, "&Open Rom");
-            AppendMenu(SubMenu, MF_STRING, ID_CLOSE_ROM_ITEM, "&Close Rom");
-            AppendMenu(SubMenu, MF_STRING, ID_QUIT_ITEM, "&Quit");
-            AppendMenu(WindowMenu, MF_STRING | MF_POPUP, (u64)SubMenu, "&File");
+            AppendMenu(subMenu, MF_STRING, ID_OPEN_ROM_ITEM, "&Open Rom");
+            AppendMenu(subMenu, MF_STRING, ID_CLOSE_ROM_ITEM, "&Close Rom");
+            AppendMenu(subMenu, MF_STRING, ID_QUIT_ITEM, "&Quit");
+            AppendMenu(windowMenu, MF_STRING | MF_POPUP, (u64)subMenu, "&File");
 
-            SetMenu(Window, WindowMenu);
+            SetMenu(window, windowMenu);
 
             /********************************/
             /* NOTE : Sound Buffer Creation */
 
-            WinSound winSound = {};
+			WinSound winSound = {};
 			winSound.samplesPerSecond = 48000;
 			winSound.channels = 2; // Sterio
 			winSound.bitsPerSample = 16; // Bit depth
 			winSound.bytesPerSample = sizeof(s16) * winSound.channels;
 			winSound.bufferSize = winSound.samplesPerSecond * winSound.bytesPerSample;
 			winSound.safetyBytes = (int)(((r32)winSound.samplesPerSecond * (r32)winSound.bytesPerSample
-                                          / FrameHz) / 3.0f);
+                                          / frameHz) / 3.0f);
 
             winSound.samples = (s16 *)VirtualAlloc(0, (size_t)winSound.bufferSize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
             
-            LPDIRECTSOUNDBUFFER soundBuffer = CreateSoundBuffer(Window, winSound.bufferSize, winSound.channels,
+            LPDIRECTSOUNDBUFFER soundBuffer = CreateSoundBuffer(window, winSound.bufferSize, winSound.channels,
 				winSound.samplesPerSecond, winSound.bitsPerSample);
 
             ClearSoundBuffer(soundBuffer, winSound.bufferSize);
@@ -593,20 +593,20 @@ int main()
             // elapsed, we then reset the counters that tracks how
             // ticks have been. Repeat
             
-            nes Nes = createNes("../roms/Zelda.nes");
-            Nes.FrameClockTotal = Nes.CpuHz * FrameTargetSeconds; // TODO: Put in create nes?
+            Nes nes = CreateNes("../roms/Zelda.nes");
+            nes.FrameClockTotal = nes.CpuHz * frameTargetSeconds; // TODO: Put in create nes?
             
-            GlobalNes = &Nes;
+            globalNes = &nes;
 
             ////
             
-            r32 ElapsedTime = 0.0;
-            u32 ClocksRun = 0;
-            r32 FrameTime = 0.0;
+            r32 elapsedTime = 0.0;
+            u32 clocksRun = 0;
+            r32 frameTime = 0.0;
             
-            LARGE_INTEGER LastClock = GetClock();
-            LARGE_INTEGER FrameFlippedClock = GetClock();
-            LARGE_INTEGER FrameLastFlippedClock = GetClock();
+            LARGE_INTEGER lastClock = GetClock();
+            LARGE_INTEGER frameFlippedClock = GetClock();
+            LARGE_INTEGER frameLastFlippedClock = GetClock();
             
             /********************/
             /* NOTE : Main Loop */
@@ -614,16 +614,16 @@ int main()
             globalRunning = true; 
             while(globalRunning)
             {
-                MSG Message = {}; 
-                while (PeekMessage(&Message, Window, 0, 0, PM_REMOVE))
+                MSG msg = {}; 
+                while (PeekMessage(&msg, window, 0, 0, PM_REMOVE))
                 {
-                    TranslateMessage(&Message);
-                    DispatchMessage(&Message);
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
                 }
                 
-                if(Nes.FrameClocksElapsed < Nes.FrameClockTotal)
+                if(nes.frameClocksElapsed < nes.frameClockTotal)
                 {
-                    runNes(&Nes, &globalInput);
+                    RunNes(&nes, &globalInput);
                 }
                 else
                 {
@@ -645,26 +645,26 @@ int main()
                 {
 					globalDrawScreen = false;
                                                               
-                    GetWindowSize(Window, &WindowWidth, &WindowHeight);
+                    GetWindowSize(window, &windowWidth, &windowHeight);
                 
                     // NOTE: Drawing the backbuffer to the window 
-                    HDC DeviceContext = GetDC(Window);
-                    DrawScreenBuffer(&globalScreenBackBuffer, DeviceContext,
-                                     WindowWidth, WindowHeight);
-                    ReleaseDC(Window, DeviceContext);
+                    HDC deviceContext = GetDC(window);
+                    DrawScreenBuffer(&globalScreenBackBuffer, deviceContext,
+                                     windowWidth, windowHeight);
+                    ReleaseDC(window, deviceContext);
 
-                    FrameFlippedClock = GetClock();
+                    frameFlippedClock = GetClock();
 
-                    FrameTime = GetSecondsElapsed(FrameLastFlippedClock, FrameFlippedClock);
-                    FrameLastFlippedClock = GetClock();
+                    frameTime = GetSecondsElapsed(frameLastFlippedClock, frameFlippedClock);
+                    frameLastFlippedClock = GetClock();
                 }
 
-                LARGE_INTEGER EndClock = GetClock();
+                LARGE_INTEGER endClock = GetClock();
                 
-                r32 LoopTime = GetSecondsElapsed(LastClock, EndClock);
-                ElapsedTime += LoopTime;
+                r32 loopTime = GetSecondsElapsed(lastClock, endClock);
+                elapsedTime += loopTime;
                 
-                if(ElapsedTime >= FrameTargetSeconds)
+                if(elapsedTime >= frameTargetSeconds)
                 {
                     /*
                     char TextBuffer[256];
@@ -673,20 +673,20 @@ int main()
                     printf("%s\n", TextBuffer);
                     */
                     
-                    ElapsedTime -= FrameTargetSeconds;
+                    elapsedTime -= frameTargetSeconds;
 
                     // The extra clocks we need to add to the next frame. Is 0 or more
-                    if(Nes.FrameClocksElapsed >= Nes.FrameClockTotal)
+                    if(nes.frameClocksElapsed >= nes.frameClockTotal)
                     {
-                        Nes.FrameClocksElapsed = Nes.FrameClocksElapsed - Nes.FrameClockTotal;
+                        nes.frameClocksElapsed = nes.frameClocksElapsed - nes.frameClockTotal;
                     }
                     else
                     {
-                        Nes.FrameClocksElapsed = 0;
+                        nes.frameClocksElapsed = 0;
                     }
                 }
                 
-                LastClock = EndClock;
+                lastClock = endClock;
             }
      
 #if CPU_LOG

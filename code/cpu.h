@@ -24,7 +24,7 @@
 #define NMI_OP 0x02
 #define IRQ_OP 0x12
 
-enum addressType
+enum AddressType
 {
     ACM = 0, IMPL, IMED, REL,
     ZERO_R, ZERO_RW, ZERO_W,
@@ -38,52 +38,52 @@ enum addressType
     ABSJ, INDI
 };
 
-struct cpu
+struct Cpu
 {
-    uint8 A;
-    uint8 X;
-    uint8 Y; 
-    uint8 Flags;
-    uint8 StackPtr;
-    uint16 PrgCounter;
-    uint64 MemoryBase;
+    u8 A;
+    u8 X;
+    u8 Y; 
+    u8 flags;
+    u8 stackPtr;
+    u16 prgCounter;
+    u64 memoryBase;
 
     // TODO: Check if still needed
-    bool32 PadStrobe; 
+    b32 padStrobe; 
     
-    input InputPad1;
-    uint8 Pad1CurrentButton;
-    input InputPad2;
-    uint8 Pad2CurrentButton;
+    Input inputPad1;
+    u8 pad1CurrentButton;
+    Input inputPad2;
+    u8 pad2CurrentButton;
 
-    char *OpName;
-    uint8 OpCode;
-    uint8 OpClockTotal;
-    uint8 AddressType;
-    uint8 OpLowByte;
-    uint8 OpHighByte;
-    uint8 OpValue;
-    uint8 OpTemp;
+    char *opName;
+    u8 opCode;
+    u8 opClockTotal;
+    u8 addressType;
+    u8 opLowByte;
+    u8 opHighByte;
+    u8 opValue;
+    u8 opTemp;
 
     // Timing
-    uint16 CatchupClocks;
-    uint16 LastClocksIntoOp;
+    u16 catchupClocks;
+    u16 lastClocksIntoOp;
 };
 
 
 #if CPU_LOG    
     // TODO: Make platform independant. Hold the pointer?
-    uint8 LogA;
-    uint8 LogX;
-    uint8 LogY;
-    uint8 LogSP;
-    uint8 LogFlags;
-    uint16 LogPC;
-    uint8 LogOp;
-    char LogData1[8];
-    char LogData2[8];
-    char LogExtraInfo[32];
-    HANDLE LogHandle;
+    u8 logA;
+    u8 logX;
+    u8 logY;
+    u8 logSP;
+    u8 logFlags;
+    u16 logPC;
+    u8 logOp;
+    char logData1[8];
+    char logData2[8];
+    char logExtraInfo[32];
+    HANDLE logHandle;
 #endif
 
 #define CPU_H

@@ -4,173 +4,173 @@
 #include "ppu.h"
 #include "apu.h"
 
-static uint8 readPpuRegister(uint16 Address);
-static void writePpuRegister(uint8 Byte, uint16 Address);
-static uint8 readApuRegister(uint16 Address);
-static void writeApuRegister(uint8 Byte, uint16 Address);
+static u8 ReadPpuRegister(u16 address);
+static void WritePpuRegister(u8 Byte, u16 address);
+static u8 ReadApuRegister(u16 address);
+static void WriteApuRegister(u8 byte, u16 address);
 
 // TODO: Forward declarations, is this the best idea?
-static void runPpu(ppu *Ppu, uint16 ClocksToRun);
+static void RunPpu(Ppu *ppu, u16 clocksToRun);
 
-static void runPpuCatchup(uint8 ClocksIntoCurrentOp)
+static void RunPpuCatchup(u8 clocksIntoCurrentOp)
 {
     // TODO: Find a better way to get Global values?
-    cpu *Cpu = &GlobalNes->Cpu;
-    ppu *Ppu = &GlobalNes->Ppu;
+    Cpu *cpu = &globalNes->cpu;
+    Ppu *ppu = &globalNes->ppu;
     //ppu *Apu = &GlobalNes->Apu;
     
     // New ClocksInto Op should be minus 1. Because we send in what
     // cycle we want to catch up too. We don't want to run that cycle
     // yet. Just one behind it
-    uint16 NewClocks = (ClocksIntoCurrentOp - 1) - Cpu->LastClocksIntoOp;
+    u16 newClocks = (clocksIntoCurrentOp - 1) - cpu->lastClocksIntoOp;
     
     // Add the clocks already elapsed in Op.
-    uint16 ClocksToRun = Cpu->CatchupClocks + NewClocks;
+    u16 clocksToRun = cpu->catchupClocks + newClocks;
 
-    uint16 PpuClocksToRun = ClocksToRun * 3;
+    u16 ppuClocksToRun = clocksToRun * 3;
 
-    runPpu(Ppu, PpuClocksToRun);
+    RunPpu(ppu, ppuClocksToRun);
         
-    Cpu->CatchupClocks = 0;
-    Cpu->LastClocksIntoOp = (ClocksIntoCurrentOp - 1);
-    Assert((ClocksIntoCurrentOp-1) >= 0);
+    cpu->catchupClocks = 0;
+    cpu->lastClocksIntoOp = (clocksIntoCurrentOp - 1);
+    Assert((clocksIntoCurrentOp-1) >= 0);
 }
 
-static void write8(uint8 Byte, uint16 Address, uint64 MemoryOffset)
+static void Write8(u8 byte, u16 address, u64 memoryOffset)
 {   
-    uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
-    *NewAddress = Byte;
+    u8 *newAddress = (u8 *)(address + memoryOffset);
+    *newAddress = byte;
 }
 
-static uint8 read8(uint16 Address, uint64 MemoryOffset)
+static u8 Read8(u16 address, u64 memoryOffset)
 {
-    uint8 *NewAddress = (uint8 *)(Address + MemoryOffset);
-    uint8 Value = *NewAddress;
-    return(Value);
+    u8 *newAddress = (u8 *)(address + memoryOffset);
+    u8 value = *newAddress;
+    return(value);
 }
 
-static uint8 read8(uint16 Address, uint64 MemoryOffset, uint8 CurrentCycle)
+static u8 Read8(u16 address, u64 memoryOffset, u8 currentCycle)
 {
     /*
-    if((0x2000 <= Address && Address <= 0x2007) || Address == 0x4014)
+    if((0x2000 <= address && address <= 0x2007) || address == 0x4014)
     {
         runPpuCatchup(CurrentCycle);
     }
     */
 
-    return read8(Address, MemoryOffset);
+    return Read8(address, memoryOffset);
 }
 
-static uint16 cpuMemoryMirror(uint16 Address)
+static u16 CpuMemoryMirror(u16 address)
 {
     // NOTE: Mirrors the address for the 2kb ram 
-    if(0x0800 <= Address && Address < 0x2000)
-        Address = (Address % 0x0800);
+    if(0x0800 <= address && address < 0x2000)
+		address = (address % 0x0800);
     // NOTE: Mirror for PPU Registers
-    if(0x2008 <= Address && Address < 0x4000)
-        Address = (Address % (0x2008 - 0x2000)) + 0x2000;
-    return(Address);
+    if(0x2008 <= address && address < 0x4000)
+		address = (address % (0x2008 - 0x2000)) + 0x2000;
+    return(address);
 }
 
-static uint8 readCpu8(uint16 Address, cpu *Cpu)
+static u8 readCpu8(u16 address, Cpu *cpu)
 {
-    Address = cpuMemoryMirror(Address);
+	address = CpuMemoryMirror(address);
         
-    if((0x2000 <= Address && Address < 0x2008) ||
-       (Address == 0x4014))
+    if((0x2000 <= address && address < 0x2008) ||
+       (address == 0x4014))
     {
-        return readPpuRegister(Address);
+        return ReadPpuRegister(address);
     }
-    else if((0x4000 <= Address && Address <= 0x4013) ||
-            Address == 0x4015 || Address == 0x4017)
+    else if((0x4000 <= address && address <= 0x4013) ||
+		address == 0x4015 || address == 0x4017)
     {
-        return readApuRegister(Address);
+        return ReadApuRegister(address);
     }
    
-    uint8 Value = read8(Address, Cpu->MemoryBase);
+    u8 value = Read8(address, cpu->memoryBase);
     
     // Input
-    if(Address == 0x4016 || Address == 0x4017)
+    if(address == 0x4016 || address == 0x4017)
     {
-        if(!Cpu->PadStrobe)
-        {
-            if(Address == 0x4016)
+        if(!cpu->padStrobe)
+		{
+            if(address == 0x4016)
             {
-                Cpu->Pad1CurrentButton = ++(Cpu->Pad1CurrentButton);
+                cpu->pad1CurrentButton = ++(cpu->pad1CurrentButton);
             }
             else
             {
-                Cpu->Pad2CurrentButton = ++(Cpu->Pad2CurrentButton);
+                cpu->pad2CurrentButton = ++(cpu->pad2CurrentButton);
             }
         }
         
-        uint16 InputAddress;
-        uint8 BtnValue;
+        u16 inputAddress;
+        u8 btnValue;
 
-        if(Address == 0x4016)
+        if(address == 0x4016)
         {
-            InputAddress = 0x4016;
-            BtnValue = Cpu->InputPad1.Buttons[Cpu->Pad1CurrentButton] & 1;
+            inputAddress = 0x4016;
+            btnValue = cpu->inputPad1.buttons[cpu->pad1CurrentButton] & 1;
         }
         else
         {
-            InputAddress = 0x4017;
-            BtnValue = Cpu->InputPad2.Buttons[Cpu->Pad2CurrentButton] & 1;
+            inputAddress = 0x4017;
+            btnValue = cpu->inputPad2.buttons[cpu->pad2CurrentButton] & 1;
         }
 
-        uint8 CurrentValue = read8(InputAddress, Cpu->MemoryBase);
-        uint8 NewValue = (CurrentValue & 0xFE) | BtnValue;
-        write8(NewValue, InputAddress, Cpu->MemoryBase);
+        u8 currentValue = Read8(inputAddress, cpu->memoryBase);
+        u8 newValue = (currentValue & 0xFE) | btnValue;
+        Write8(newValue, inputAddress, cpu->memoryBase);
     }
     
-    return(Value);
+    return(value);
 }
 
-static uint8 readCpu8(uint16 Address, cpu *Cpu, uint8 CurrentCycle)
+static u8 ReadCpu8(u16 address, Cpu *cpu, u8 currentCycle)
 {
-    if((0x2000 <= Address && Address <= 0x2007) || Address == 0x4014)
+    if((0x2000 <= address && address <= 0x2007) || address == 0x4014)
     {
-        runPpuCatchup(CurrentCycle);
+        RunPpuCatchup(currentCycle);
     }
     
-    return readCpu8(Address, Cpu);
+    return ReadCpu8(address, cpu);
 }
 
-static uint16 readCpu16(uint16 Address, cpu * Cpu)
+static u16 ReadCpu16(u16 address, Cpu * cpu)
 {
     // NOTE: Little Endian
-    uint8 LowByte = readCpu8(Address, Cpu);
-    uint8 HighByte = readCpu8(Address+1, Cpu);
+    u8 lowByte = ReadCpu8(address, cpu);
+    u8 highByte = ReadCpu8(address +1, cpu);
         
-    uint16 NewAddress = (HighByte << 8) | LowByte;
-    return(NewAddress);
+    u16 newAddress = (highByte << 8) | lowByte;
+    return(newAddress);
 }
 
-static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
+static void WriteCpu8(u8 byte, u16 address, Cpu *cpu)
 {
-    Address = cpuMemoryMirror(Address);
+	address = cpuMemoryMirror(address);
 
-    if((0x2000 <= Address && Address < 0x2008) ||
-       (Address == 0x4014))
+    if((0x2000 <= address && address < 0x2008) ||
+       (address == 0x4014))
     {
-        writePpuRegister(Byte, Address);
+        writePpuRegister(Byte, address);
     }
-    else if((0x4000 <= Address && Address <= 0x4013) ||
-            Address == 0x4015 || Address == 0x4017)
+    else if((0x4000 <= address && address <= 0x4013) ||
+            address == 0x4015 || address == 0x4017)
     {
-        writeApuRegister(Byte, Address);
+        writeApuRegister(Byte, address);
     }
     
     
-    write8(Byte, Address, Cpu->MemoryBase);
+    write8(Byte, address, Cpu->MemoryBase);
     
     // Input
-    if(Address == 0x4016 || Address == 0x4017)
+    if(address == 0x4016 || address == 0x4017)
     {
-        uint8 Reg1Value = read8(0x4016, Cpu->MemoryBase);
-        uint8 Reg2Value = read8(0x4017, Cpu->MemoryBase);
+        u8 Reg1Value = read8(0x4016, Cpu->MemoryBase);
+        u8 Reg2Value = read8(0x4017, Cpu->MemoryBase);
 
-        uint8 Bit0 = (Reg1Value | Reg2Value) & 1;
+        u8 Bit0 = (Reg1Value | Reg2Value) & 1;
 
         if(Bit0 == 0)
         {
@@ -185,7 +185,7 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
             Cpu->PadStrobe = true;
         }        
 
-        uint8 BtnValue = Cpu->InputPad1.Buttons[Cpu->Pad1CurrentButton] & 1;
+        u8 BtnValue = Cpu->InputPad1.Buttons[Cpu->Pad1CurrentButton] & 1;
         write8(BtnValue, 0x4016, Cpu->MemoryBase);
 
         BtnValue = Cpu->InputPad2.Buttons[Cpu->Pad2CurrentButton] & 1;
@@ -193,24 +193,24 @@ static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu)
     }
 
     // Mapper
-    if(Address >= 0x8000)
+    if(address >= 0x8000)
     {
-        mapperUpdate[GlobalNes->Cartridge.MapperNum](GlobalNes, Byte, Address);
+        mapperUpdate[GlobalNes->Cartridge.MapperNum](GlobalNes, Byte, address);
     }
 }
 
-static void writeCpu8(uint8 Byte, uint16 Address, cpu *Cpu, uint8 CurrentCycle)
+static void writeCpu8(u8 Byte, u16 address, cpu *Cpu, u8 CurrentCycle)
 {
-    if((0x2000 <= Address && Address <= 0x2007) || Address == 0x4014)
+    if((0x2000 <= address && address <= 0x2007) || address == 0x4014)
     {
         runPpuCatchup(CurrentCycle);
     }
-    writeCpu8(Byte, Address, Cpu);
+    writeCpu8(Byte, address, Cpu);
 }
 
-static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
+static u8 * getNametableBank(u16 address, ppu *Ppu)
 {
-    uint8 * Result = 0;
+    u8 * Result = 0;
 
     switch(Ppu->mirrorType)
     {
@@ -226,7 +226,7 @@ static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
         }
         case VERTICAL_MIRROR:
         {
-            if(Address < 0x2400 || (0x2800 <= Address && Address < 0x2C00) )
+            if(address < 0x2400 || (0x2800 <= address && address < 0x2C00) )
             {
                 Result = Ppu->NametableBankA;
             }
@@ -238,7 +238,7 @@ static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
         }
         case HORIZONTAL_MIRROR:
         {
-            if(Address < 0x2800)
+            if(address < 0x2800)
             {
                 Result = Ppu->NametableBankA;
             }
@@ -251,15 +251,15 @@ static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
         case FOUR_SCREEN_MIRROR:
         {
             Assert(0);
-            if(Address < 0x2400)
+            if(address < 0x2400)
             {
                 Result = Ppu->NametableBankA;
             }
-            else if(Address < 0x2800)
+            else if(address < 0x2800)
             {
                 Result = Ppu->NametableBankB;
             }
-            else if(Address < 0x2C00)
+            else if(address < 0x2C00)
             {
                 Result = Ppu->NametableBankC;
             }
@@ -274,96 +274,96 @@ static uint8 * getNametableBank(uint16 Address, ppu *Ppu)
     return Result;
 }
 
-static uint8 readNametable(uint16 Address, ppu *Ppu)
+static u8 readNametable(u16 address, ppu *Ppu)
 {
-    uint8 Result = 0;
+    u8 Result = 0;
     
-    uint8 *Nametable = getNametableBank(Address, Ppu);
-    Result = Nametable[Address % 0x400];
+    u8 *Nametable = getNametableBank(address, Ppu);
+    Result = Nametable[address % 0x400];
     
     return Result;
 }
 
-static void writeNametable(uint8 Byte, uint16 Address, ppu *Ppu)
+static void writeNametable(u8 Byte, u16 address, ppu *Ppu)
 {
-    uint8 *Nametable = getNametableBank(Address, Ppu);
-    Nametable[Address % 0x400] = Byte;
+    u8 *Nametable = getNametableBank(address, Ppu);
+    Nametable[address % 0x400] = Byte;
 }
 
-static uint16 ppuMemoryMirror(uint16 Address)
+static u16 ppuMemoryMirror(u16 address)
 {
     ppu * Ppu = &GlobalNes->Ppu;
     
-    if(Address >= 0x4000) // Over half of the memory map is mirrored
-        Address = Address % 0x4000; 
+    if(address >= 0x4000) // Over half of the memory map is mirrored
+        address = address % 0x4000; 
 
-    if(0x3F20 <= Address && Address < 0x4000)
-        Address = (Address % 0x20) + 0x3F00;
+    if(0x3F20 <= address && address < 0x4000)
+        address = (address % 0x20) + 0x3F00;
         
-    if(0x3F00 <= Address && Address < 0x3F20) // Palette
+    if(0x3F00 <= address && address < 0x3F20) // Palette
     {
-        if(Address == 0x3F10)
-            Address = 0x3F00;
-        if(Address == 0x3F14)
-            Address = 0x3F04;
-        if(Address == 0x3F18)
-            Address = 0x3F08;
-        if(Address == 0x3F1C)
-            Address = 0x3F0C;
+        if(address == 0x3F10)
+            address = 0x3F00;
+        if(address == 0x3F14)
+            address = 0x3F04;
+        if(address == 0x3F18)
+            address = 0x3F08;
+        if(address == 0x3F1C)
+            address = 0x3F0C;
     }
    
     // NOTE: Nametable Mirroring. Controlled by Cartridge
-    if(0x3000 <= Address && Address < 0x3F00) // This first as it maps to the nametable range
-        Address -= 0x1000;
+    if(0x3000 <= address && address < 0x3F00) // This first as it maps to the nametable range
+        address -= 0x1000;
 
-    return Address;
+    return address;
 }
 
-static uint8 readPpu8(uint16 Address, ppu *Ppu)
+static u8 readPpu8(u16 address, ppu *Ppu)
 {
-    uint8 Result;
+    u8 Result;
     
-    Address = ppuMemoryMirror(Address);
+    address = ppuMemoryMirror(address);
             
     if((Ppu->ShowBackground || Ppu->ShowSprites) &&
-       (Address == 0x3F04 || Address == 0x3F08 || Address == 0x3F0C))
+       (address == 0x3F04 || address == 0x3F08 || address == 0x3F0C))
     {
-        Address = 0x3F00;
+        address = 0x3F00;
     }
     
     // If address in nametable range. Then map to the current mirror state and return
-    if(0x2000 <= Address && Address < 0x3000)
+    if(0x2000 <= address && address < 0x3000)
     {
-        Result = readNametable(Address, Ppu);
+        Result = readNametable(address, Ppu);
     }
     else
     {
-        Result = read8(Address, Ppu->MemoryBase);
+        Result = read8(address, Ppu->MemoryBase);
     }
     return(Result);
 }
 
-static void writePpu8(uint8 Byte, uint16 Address, ppu *Ppu)
+static void writePpu8(u8 Byte, u16 address, ppu *Ppu)
 {    
-    Address = ppuMemoryMirror(Address);
+    address = ppuMemoryMirror(address);
     
-    if(0x2000 <= Address && Address < 0x3000)
+    if(0x2000 <= address && address < 0x3000)
     {
-        writeNametable(Byte, Address, Ppu);
+        writeNametable(Byte, address, Ppu);
     }
     else
     {
-        write8(Byte, Address, Ppu->MemoryBase);
+        write8(Byte, address, Ppu->MemoryBase);
     }
 }
 
-static void writePpuRegister(uint8 Byte, uint16 Address)
+static void writePpuRegister(u8 Byte, u16 address)
 {
     ppu * Ppu = &GlobalNes->Ppu;
     
     GlobalOpenBus = Byte;
     
-    switch(Address)
+    switch(address)
     {
         case 0x2000:
         {
@@ -431,14 +431,14 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             {
                 Ppu->FineX = Byte & 7; // Bit 0,1, and 2 are fine X
                 Ppu->TempVRamAdrs &= ~(0x001F); // Clear Bits
-                Ppu->TempVRamAdrs |= ((uint16)Byte) >> 3;
+                Ppu->TempVRamAdrs |= ((u16)Byte) >> 3;
                 Ppu->LatchWrite = 1;
             }
             else
             {
                 Ppu->TempVRamAdrs &= ~(0x73E0); // Clear Bits
-                Ppu->TempVRamAdrs |= ((uint16)(Byte & 0x7)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
-                Ppu->TempVRamAdrs |= ((uint16)(Byte & 0xF8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
+                Ppu->TempVRamAdrs |= ((u16)(Byte & 0x7)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
+                Ppu->TempVRamAdrs |= ((u16)(Byte & 0xF8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
                 Ppu->LatchWrite = 0;
             }
                 
@@ -449,14 +449,14 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
             if(Ppu->LatchWrite == 0)
             {
                 Ppu->TempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
-                Ppu->TempVRamAdrs |= ((uint16)(Byte & 0x003F)) << 8;
+                Ppu->TempVRamAdrs |= ((u16)(Byte & 0x003F)) << 8;
                 Ppu->TempVRamAdrs &= 0x3FFF; // Clear 14th bit 
                 Ppu->LatchWrite = 1;
             }
             else
             { 
                 Ppu->TempVRamAdrs &= 0x7F00; // Clear low byte
-                Ppu->TempVRamAdrs |= (uint16)(Byte & 0x00FF); 
+                Ppu->TempVRamAdrs |= (u16)(Byte & 0x00FF); 
                 Ppu->VRamAdrs = Ppu->TempVRamAdrs;
                 Ppu->LatchWrite = 0;
             }
@@ -478,11 +478,11 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
         {
             // NOTE: OAM DMA Write
             // TODO: Happens over time!
-            for(uint16 ByteCount = 0; ByteCount < 256; ++ByteCount)
+            for(u16 ByteCount = 0; ByteCount < 256; ++ByteCount)
             {
-                uint16 NewAddress = (Byte << 8) | ByteCount;
+                u16 NewAddress = (Byte << 8) | ByteCount;
 
-                uint8 Index = (Ppu->OamAddress + ByteCount);
+                u8 Index = (Ppu->OamAddress + ByteCount);
                 Ppu->Oam[Index] = read8(NewAddress, GlobalNes->Cpu.MemoryBase);
             }            
             break;
@@ -490,13 +490,13 @@ static void writePpuRegister(uint8 Byte, uint16 Address)
     }
 }
 
-static uint8 readPpuRegister(uint16 Address)
+static u8 readPpuRegister(u16 address)
 {
     ppu * Ppu = &GlobalNes->Ppu;
     
-    uint8 Byte = 0;
+    u8 Byte = 0;
     
-    switch(Address)
+    switch(address)
     {
         case 0x2002:
         {
@@ -540,7 +540,7 @@ static uint8 readPpuRegister(uint16 Address)
         }
         case 0x2007:
         {
-            bool32 OnPalette = !((Ppu->VRamAdrs & 0x3FFF) < 0x3F00);
+            b32 OnPalette = !((Ppu->VRamAdrs & 0x3FFF) < 0x3F00);
 
             if(OnPalette)
             {
@@ -580,23 +580,23 @@ static uint8 readPpuRegister(uint16 Address)
 }
 
 
-uint8 LengthCounterTable[] = {0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06,
+u8 LengthCounterTable[] = {0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06,
                               0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E,
                               0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16,
                               0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E };
 
-static void writeApuRegister(uint8 Byte, uint16 Address)
+static void writeApuRegister(u8 Byte, u16 address)
 {
     apu * Apu = &GlobalNes->Apu;
     
     GlobalOpenBus = Byte;
     
-    switch(Address)
+    switch(address)
     {
         case 0x4000:
         case 0x4004:
         {
-            square *Square = (0x4000 <= Address && Address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+            square *Square = (0x4000 <= address && address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
 
             Square->DutyCycle         = ((Byte & 0xC0) >> 6);
             Square->LengthCounterHalt = ((Byte & 0x20) != 0);
@@ -607,7 +607,7 @@ static void writeApuRegister(uint8 Byte, uint16 Address)
         case 0x4001:
         case 0x4005:
         {
-            square *Square = (0x4000 <= Address && Address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+            square *Square = (0x4000 <= address && address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
 
             Square->EnableSweep = ((Byte & 0x80) != 0);
             Square->SweepPeriod = ((Byte & 0x70) >> 4);
@@ -620,7 +620,7 @@ static void writeApuRegister(uint8 Byte, uint16 Address)
         case 0x4002:
         case 0x4006:
         {
-            square *Square = (0x4000 <= Address && Address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+            square *Square = (0x4000 <= address && address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
             Square->PeriodLow = Byte;
             break;
         }
@@ -758,38 +758,38 @@ static void writeApuRegister(uint8 Byte, uint16 Address)
     }
 }
 
-static uint8 readApuRegister(uint16 Address)
+static u8 ReadApuRegister(u16 address)
 {
-    apu * Apu = &GlobalNes->Apu;
+    Apu * apu = &globalNes->apu;
     
-    uint8 Byte = 0;
+    u8 byte = 0;
     
-    switch(Address)
+    switch(address)
     {
         case 0x4015:
         {
-            Byte |= (Apu->DmcInterrupt != 0) ? 0x80 : 0;
-            Byte |= (Apu->FrameInterrupt != 0) ? 0x40 : 0;
+            byte |= (apu->dmcInterrupt != 0) ? 0x80 : 0;
+            byte |= (apu->frameInterrupt != 0) ? 0x40 : 0;
+					 
+            byte |= (apu->dmc.sampleLength > 0) ? 0x10 : 0;
+            byte |= (apu->noise.lengthCounter > 0) ? 0x08 : 0;
+            byte |= (apu->triangle.lengthCounter > 0) ? 0x4 : 0;
+            byte |= (apu->square2.lengthCounter > 0) ? 0x2 : 0;
+            byte |= (apu->square1.lengthCounter > 0) ? 0x1 : 0;
 
-            Byte |= (Apu->Dmc.SampleLength > 0) ? 0x10 : 0;
-            Byte |= (Apu->Noise.LengthCounter > 0) ? 0x08 : 0;
-            Byte |= (Apu->Triangle.LengthCounter > 0) ? 0x4 : 0;
-            Byte |= (Apu->Square2.LengthCounter > 0) ? 0x2 : 0;
-            Byte |= (Apu->Square1.LengthCounter > 0) ? 0x1 : 0;
-
-            Apu->FrameInterrupt = false;
+            apu->frameInterrupt = false;
             
             // TODO: If an interrupt Flag was set the same moment as read,
             // it will be read as set and not be cleared
             /*if(0)
                 ;
             */
-            GlobalOpenBus = Byte;
+            globalOpenBus = byte;
             break;
         }
     }
     
-    return(GlobalOpenBus);
+    return(globalOpenBus);
 }
 
 

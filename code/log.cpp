@@ -16,7 +16,7 @@ static void closeLog(HANDLE handle)
     CloseHandle(handle);
 }
 
-static bool32 writeLog(char *str, uint32 byteCount, uint32 *bytesWritten, HANDLE fileHandle)
+static b32 writeLog(char *str, u32 byteCount, u32 *bytesWritten, HANDLE fileHandle)
 {
     return(WriteFile(fileHandle, str, byteCount, (LPDWORD)bytesWritten, 0));
 }

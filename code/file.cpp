@@ -7,7 +7,7 @@
 
 // TODO: Check: Is memory allocation a good idea here?
 
-static void * readFileData(char * Filename, uint32 *Size)
+static void * readFileData(char * Filename, u32 *Size)
 {
     void *FileData = 0;
     
@@ -25,7 +25,7 @@ static void * readFileData(char * Filename, uint32 *Size)
                 if(ReadFile(FileHandle, FileData, Filesize.LowPart, &BytesRead, 0) &&
                    (Filesize.LowPart == BytesRead))
                 {
-                    *Size = (uint32)BytesRead;
+                    *Size = (u32)BytesRead;
                     // It worked!
                 }
                 else

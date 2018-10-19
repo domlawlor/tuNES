@@ -18,41 +18,41 @@ inline void decrementStack(cpu *Cpu)
     --Cpu->StackPtr;  
 }
 
-inline void writeStack(uint8 Byte, cpu *Cpu)
+inline void writeStack(u8 Byte, cpu *Cpu)
 {
-    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);    
+    writeCpu8(Byte, (u16)Cpu->StackPtr | STACK_ADDRESS, Cpu);    
 }
-inline uint8 readStack(cpu *Cpu)
+inline u8 readStack(cpu *Cpu)
 {
-    uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
+    u8 Value = readCpu8((u16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
     return(Value);
 }
 
 // Status flag functions
-inline void setCarry(uint8 *Flags)       { *Flags = *Flags | CARRY_BIT; }
-inline void clearCarry(uint8 *Flags)     { *Flags = *Flags & ~CARRY_BIT; }
-inline void setInterrupt(uint8 *Flags)   { *Flags = *Flags | INTERRUPT_BIT; }
-inline void clearInterrupt(uint8 *Flags) { *Flags = *Flags & ~INTERRUPT_BIT; }
-inline void setDecimal(uint8 *Flags)     { *Flags = *Flags | DECIMAL_BIT; }
-inline void clearDecimal(uint8 *Flags)   { *Flags = *Flags & ~DECIMAL_BIT; }
-inline void setBreak(uint8 *Flags)       { *Flags = *Flags | BREAK_BIT; }
-inline void clearBreak(uint8 *Flags)     { *Flags = *Flags & ~BREAK_BIT; }
-inline void setBlank(uint8 *Flags)       { *Flags = *Flags | BLANK_BIT; }
-inline void clearBlank(uint8 *Flags)     { *Flags = *Flags & ~BLANK_BIT; }
-inline void setOverflow(uint8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
-inline void clearOverflow(uint8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
-inline void setZero(uint8 Value, uint8 *Flags)
+inline void setCarry(u8 *Flags)       { *Flags = *Flags | CARRY_BIT; }
+inline void clearCarry(u8 *Flags)     { *Flags = *Flags & ~CARRY_BIT; }
+inline void setInterrupt(u8 *Flags)   { *Flags = *Flags | INTERRUPT_BIT; }
+inline void clearInterrupt(u8 *Flags) { *Flags = *Flags & ~INTERRUPT_BIT; }
+inline void setDecimal(u8 *Flags)     { *Flags = *Flags | DECIMAL_BIT; }
+inline void clearDecimal(u8 *Flags)   { *Flags = *Flags & ~DECIMAL_BIT; }
+inline void setBreak(u8 *Flags)       { *Flags = *Flags | BREAK_BIT; }
+inline void clearBreak(u8 *Flags)     { *Flags = *Flags & ~BREAK_BIT; }
+inline void setBlank(u8 *Flags)       { *Flags = *Flags | BLANK_BIT; }
+inline void clearBlank(u8 *Flags)     { *Flags = *Flags & ~BLANK_BIT; }
+inline void setOverflow(u8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
+inline void clearOverflow(u8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
+inline void setZero(u8 Value, u8 *Flags)
 {
     *Flags = (Value == 0x00) ?
         (*Flags | ZERO_BIT) : (*Flags & ~ZERO_BIT);
 }
-inline void setNegative(uint8 Value, uint8 *Flags)
+inline void setNegative(u8 Value, u8 *Flags)
 {  
     *Flags = (Value >= 0x00 && Value <= 0x7F) ?
         (*Flags & ~NEGATIVE_BIT) : (*Flags | NEGATIVE_BIT);  
 }
 
-inline bool32 isBitSet(uint8 Bit, uint8 Flags)
+inline b32 isBitSet(u8 Bit, u8 Flags)
 {
     return((Bit & Flags) != 0);
 }
@@ -78,7 +78,7 @@ static void logCpu(cpu* Cpu)
             }
         }
         
-        uint32 byteCount = sprintf(logString,
+        u32 byteCount = sprintf(logString,
                                    "A:%02X X:%02X Y:%02X S:%02X P:%s  $%04X:%02X %2s %2s  %s%s\n",
                                    Cpu->LogA, Cpu->LogX, Cpu->LogY,
                                    Cpu->LogSP, flagString, 
@@ -87,7 +87,7 @@ static void logCpu(cpu* Cpu)
                                    opName[Cpu->LogOp],
                                    Cpu->LogExtraInfo);
 
-        uint32 bytesWritten;
+        u32 bytesWritten;
         
         if(!writeLog(logString, byteCount, &bytesWritten, Cpu->LogHandle))
         {
@@ -133,14 +133,14 @@ static void fetchOpcode(cpu *Cpu)
 #endif
 }
 
-static uint8 cpuTick(cpu *Cpu, input *NewInput)
+static u8 cpuTick(cpu *Cpu, input *NewInput)
 {    
     Cpu->NextCycle = Cpu->Cycle + 1;
     
     // Input read
     if(Cpu->PadStrobe)
     {
-        for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
+        for(u8 idx = 0; idx < input::BUTTON_NUM; ++idx)
             Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
     }
 
@@ -171,23 +171,23 @@ static uint8 cpuTick(cpu *Cpu, input *NewInput)
 
     
 static void
-initCpu(cpu *Cpu, uint64 MemoryBase)
+initCpu(cpu *Cpu, u64 MemoryBase)
 {
-    ZeroMemory((uint8 *)MemoryBase, Kilobytes(64));
+    ZeroMemory((u8 *)MemoryBase, Kilobytes(64));
 
     // DEBUG at moment. Matching FCEUX initial cpu memory state
-    for(uint16 index = 0; index < 0x2000; ++index)
+    for(u16 index = 0; index < 0x2000; ++index)
     {
         if(index % 8 >= 4)
         {
-            uint8 *NewAddress = (uint8 *)(index + MemoryBase);
+            u8 *NewAddress = (u8 *)(index + MemoryBase);
             *NewAddress = 0xFF;
         }
     }
 
-    for(uint16 index = 0x4008; index < 0x5000; ++index)
+    for(u16 index = 0x4008; index < 0x5000; ++index)
     {
-        uint8 *NewAddress = (uint8 *)(index + MemoryBase);
+        u8 *NewAddress = (u8 *)(index + MemoryBase);
         *NewAddress = 0xFF;
     }
 

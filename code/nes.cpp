@@ -15,24 +15,24 @@
 #include "ppu.cpp"
 #include "cpu.cpp"
 
-static void runNes(nes *Nes, input *NewInput)
+static void RunNes(Nes *nes, Input *newInput)
 {
     // TODO: If power is off, could we just run the nes on an empty cartridge?
     //       Or is this the best check to stop extra work being done
-    if(!Nes->PowerOn)
+    if(!nes->powerOn)
     {
         return;
     }
 
-    cpu *Cpu = &Nes->Cpu;
+    Cpu *cpu = &nes->cpu;
     
     // Input read // TODO: Only run when reading input??
     // TODO: Move this to where it happens in memory read.
-    if(Cpu->PadStrobe)
+    if(cpu->padStrobe)
     {
-        for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
+        for(u8 idx = 0; idx < Input::BUTTON_NUM; ++idx)
         {
-            Cpu->InputPad1.Buttons[idx] = NewInput->Buttons[idx];
+            cpu->inputPad1.buttons[idx] = newInput->buttons[idx];
         }
     }
 
@@ -48,7 +48,7 @@ static void loadCartridge(nes *Nes, char * FileName)
     // Reading rom file
     Cartridge->FileName = FileName;
     Cartridge->FileSize;
-    Cartridge->Data = (uint8 *)readFileData(FileName, &Cartridge->FileSize);
+    Cartridge->Data = (u8 *)readFileData(FileName, &Cartridge->FileSize);
 
     if(Cartridge->FileSize == 0)
     {
@@ -59,7 +59,7 @@ static void loadCartridge(nes *Nes, char * FileName)
     {
         Nes->PowerOn = true;
     
-        uint8 * RomData = Cartridge->Data;
+        u8 * RomData = Cartridge->Data;
         
         // NOTE: Check for correct header
         Assert(RomData[0] == 'N' && RomData[1] == 'E' && RomData[2] == 'S' && RomData[3] == 0x1A);
@@ -67,8 +67,8 @@ static void loadCartridge(nes *Nes, char * FileName)
         // NOTE: Read header
         Cartridge->PrgBankCount = RomData[4];
         Cartridge->ChrBankCount = RomData[5];
-        uint8 Flags6            = RomData[6];        
-        uint8 Flags7            = RomData[7];
+        u8 Flags6            = RomData[6];        
+        u8 Flags7            = RomData[7];
         Cartridge->PrgRamSize   = RomData[8];
         
         Cartridge->UseVertMirror       = (Flags6 & (1)) != 0;
@@ -107,19 +107,19 @@ power(nes *Nes)
     if(Nes->PowerOn)
     {
         initCpu(&Nes->Cpu, Nes->CpuMemoryBase);
-        initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
+        initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (u32 *)GlobalScreenBackBuffer.Memory);
            
         loadCartridge(Nes, RomFileName);
         Nes->Cpu.PrgCounter = (read8(RESET_VEC+1, Nes->Cpu.MemoryBase) << 8) | read8(RESET_VEC, Nes->Cpu.MemoryBase);
     }
     else
     {
-        uint64 MemoryBase = Nes->Cpu.MemoryBase;
+        u64 MemoryBase = Nes->Cpu.MemoryBase;
         Nes->Cpu = {};
         Nes->Cpu.MemoryBase = MemoryBase;
 
         MemoryBase = Nes->Ppu.MemoryBase;
-        uint32 *BasePixel = Nes->Ppu.BasePixel;
+        u32 *BasePixel = Nes->Ppu.BasePixel;
         Nes->Ppu = {};
         Nes->Ppu.MemoryBase = MemoryBase;
         Nes->Ppu.BasePixel = BasePixel;
@@ -132,7 +132,7 @@ static void
 reset(nes *Nes)
 {
     initCpu(&Nes->Cpu, Nes->CpuMemoryBase);
-    initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
+    initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (u32 *)GlobalScreenBackBuffer.Memory);
 
     loadCartridge(Nes, RomFileName);
     
@@ -154,15 +154,15 @@ static nes createNes(char *RomName)
     nes Nes = {};
     
     // Memory allocation for the Cpu and Ppu. TODO: Different Allocation in the future?
-    uint32 CpuMemorySize = Kilobytes(64);
-    uint32 PpuMemorySize = Kilobytes(64);
-    uint8 * Memory = (uint8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+    u32 CpuMemorySize = Kilobytes(64);
+    u32 PpuMemorySize = Kilobytes(64);
+    u8 * Memory = (u8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
     
-    Nes.CpuMemoryBase = (uint64)Memory;
-    Nes.PpuMemoryBase = (uint64)Memory + CpuMemorySize;
+    Nes.CpuMemoryBase = (u64)Memory;
+    Nes.PpuMemoryBase = (u64)Memory + CpuMemorySize;
 
     initCpu(&Nes.Cpu, Nes.CpuMemoryBase);
-    initPpu(&Nes.Ppu, Nes.PpuMemoryBase, (uint32 *)GlobalScreenBackBuffer.Memory);
+    initPpu(&Nes.Ppu, Nes.PpuMemoryBase, (u32 *)GlobalScreenBackBuffer.Memory);
     initApu(&Nes.Apu);
 
     // TODO: Check ref?

@@ -7,70 +7,67 @@
 
 #include "apu.h"
 
-static void
-clockLengthCounters(apu *Apu)
+static void ClockLengthCounters(Apu *apu)
 {
-    if(!Apu->Square1.LengthCounterHalt && Apu->Square1.LengthCounter > 0)
-        --Apu->Square1.LengthCounter;
+    if(!apu->square1.lengthCounterHalt && apu->square1.lengthCounter > 0)
+        --apu->square1.lengthCounter;
 
-    if(!Apu->Square2.LengthCounterHalt && Apu->Square2.LengthCounter > 0)
-        --Apu->Square2.LengthCounter;
-    if(!Apu->Triangle.LinearCtrl && Apu->Triangle.LengthCounter > 0)
-        --Apu->Triangle.LengthCounter;
-    if(!Apu->Noise.LengthCounterHalt && Apu->Noise.LengthCounter > 0)
-        --Apu->Noise.LengthCounter;
+    if(!apu->square2.lengthCounterHalt && apu->square2.lengthCounter > 0)
+        --apu->square2.lengthCounter;
+    if(!apu->triangle.linearCtrl && apu->triangle.lengthCounter > 0)
+        --apu->triangle.lengthCounter;
+    if(!apu->noise.lengthCounterHalt && apu->noise.lengthCounter > 0)
+        --apu->noise.lengthCounter;
 }
 
-static void
-clockSweep(apu *Apu)
+static void ClockSweep(Apu *apu)
 {
-    --Apu->Square1.SweepDivider;
+    --apu->square1.sweepDivider;
     
     // Output clock
-    if(Apu->Square1.EnableSweep && Apu->Square1.SweepDivider == 0)
+    if(apu->square1.enableSweep && apu->square1.sweepDivider == 0)
     {
-        uint16 Period = ((uint16)Apu->Square1.PeriodHigh << 8) | Apu->Square1.PeriodLow; 
+        u16 period = ((u16)apu->square1.periodHigh << 8) | apu->square1.periodLow;
 
-        uint16 Shift = Period >> Apu->Square1.ShiftCount;
+        u16 shift = period >> apu->square1.shiftCount;
 
-        uint16 ResultPeriod;
+        u16 resultPeriod;
         
-        if(Apu->Square1.Negative)
+        if(apu->square1.negative)
         {
-            ResultPeriod = Period - Shift;            
+            resultPeriod = period - shift;            
             // NOTE: TODO: Only on the square two, the shift is subtracted then incremented by 1.
             //   See all the details, not completely sure yet
         }
         else
         {
-            ResultPeriod = Period + Shift;            
+            resultPeriod = period + shift;            
         }
 
         // TODO: MORE WORK ON MUTING IS REQUIRED. Something about it happening even when disabled??
         
         // Mute
-        if(Period < 8 || ResultPeriod > 0x7FF)
+        if(period < 8 || resultPeriod > 0x7FF)
         {
             // Channel DAC receives 0 and sweep unit doesn't change channel period.
         }
-        else if(Apu->Square1.ShiftCount > 0)
+        else if(apu->square1.shiftCount > 0)
         {
-            Apu->Square1.PeriodHigh = (ResultPeriod >> 8) & 0x7;
-            Apu->Square1.PeriodLow = (uint8)ResultPeriod; 
+			apu->square1.periodHigh = (resultPeriod >> 8) & 0x7;
+			apu->square1.periodLow = (u8)resultPeriod;
         }
         
         
     }
 
-    if(Apu->Square1.SweepReset || Apu->Square1.SweepDivider == 0)
+    if(apu->square1.sweepReset || apu->square1.sweepDivider == 0)
     {
-        Apu->Square1.SweepReset = false;
-        Apu->Square1.SweepDivider = Apu->Square1.SweepPeriod + 1;
+		apu->square1.sweepReset = false;
+		apu->square1.sweepDivider = apu->square1.sweepPeriod + 1;
     }    
 }
 
-static void
-clockSequencer(apu *Apu)
+static void ClockSequencer(Apu *apu)
 {
     /*
     d = 0
@@ -96,105 +93,103 @@ clockSequencer(apu *Apu)
 */  
 }
 
-static void
-clockEnvelope(apu *Apu)
+static void ClockEnvelope(Apu *apu)
 {
-    if(Apu->Square1.RestartEnv)
+    if(apu->square1.restartEnv)
     {
-        Apu->Square1.RestartEnv = false;
-        Apu->Square1.EnvDivider = Apu->Square1.VolumePeriod + 1;
-        Apu->Square1.EnvCounter = 15;
+        apu->square1.restartEnv = false;
+        apu->square1.envDivider = apu->square1.volumePeriod + 1;
+        apu->square1.envCounter = 15;
     }
     else
     {
-        --Apu->Square1.EnvDivider;
+        --apu->square1.envDivider;
 
-        if(Apu->Square1.EnvDivider == 0)
+        if(apu->square1.envDivider == 0)
         {
-            Apu->Square1.EnvDivider = Apu->Square1.VolumePeriod + 1;
+            apu->square1.envDivider = apu->square1.volumePeriod + 1;
 
             // TODO:
-            if(Apu->Square1.EnvCounter > 0)
-                --Apu->Square1.EnvCounter;
-            else if(Apu->Square1.LengthCounterHalt)
-                Apu->Square1.EnvCounter = 15;
+            if(apu->square1.envCounter > 0)
+                --apu->square1.envCounter;
+            else if(apu->square1.lengthCounterHalt)
+                apu->square1.envCounter = 15;
 
             // NOTE TODO: Output CLOCK here!!
         }
     }
 }
 
-static void
-apuTick(apu *Apu)
+static void ApuTick(Apu *apu)
 {    
     // Frame Sequencer clocks everything
-    if(!Apu->Mode)
+    if(!apu->mode)
     {
-        switch(Apu->FrameCounter)
+        switch(apu->frameCounter)
         {
             case 0:
             {
-                clockEnvelope(Apu);
+                ClockEnvelope(apu);
                 break;
             }
             case 1:
             {
-                clockLengthCounters(Apu);
-                clockSweep(Apu);
-                clockEnvelope(Apu);
+                ClockLengthCounters(apu);
+                ClockSweep(apu);
+                ClockEnvelope(apu);
                 break;
             } 
             case 2:
             {
-                clockEnvelope(Apu);
+                ClockEnvelope(apu);
                 break;
             }
             case 3:
             {
-                clockLengthCounters(Apu);
-                clockSweep(Apu);
-                clockEnvelope(Apu);
+                ClockLengthCounters(apu);
+                ClockSweep(apu);
+                ClockEnvelope(apu);
 
-                if(!Apu->IRQInhibit)
+                if(!apu->irqInhibit)
                 {
-                    TriggerIRQ = true;
+                    triggerIRQ = true;
                 }
 
                 break;
             }
         }
 
-        ++Apu->FrameCounter;
+        ++apu->frameCounter;
         
-        if(Apu->FrameCounter > 3)
-            Apu->FrameCounter = 0;
+        if(apu->frameCounter > 3)
+            apu->frameCounter = 0;
     }
     else
     {
-        switch(Apu->FrameCounter)
+        switch(apu->frameCounter)
         {
             case 0:
             {
-                clockLengthCounters(Apu);
-                clockSweep(Apu);
-                clockEnvelope(Apu);
+                ClockLengthCounters(apu);
+                ClockSweep(apu);
+                ClockEnvelope(apu);
                 break;
             }
             case 1:
             {
-                clockEnvelope(Apu);
+                ClockEnvelope(apu);
                 break;
             } 
             case 2:
             {
-                clockLengthCounters(Apu);
-                clockSweep(Apu);
-                clockEnvelope(Apu);
+                ClockLengthCounters(apu);
+                ClockSweep(apu);
+                ClockEnvelope(apu);
                 break;
             }
             case 3:
             {
-                clockEnvelope(Apu);
+                ClockEnvelope(apu);
                 break;
             }
             case 4:
@@ -204,40 +199,39 @@ apuTick(apu *Apu)
             }
         }
 
-        ++Apu->FrameCounter;
+        ++apu->frameCounter;
         
-        if(Apu->FrameCounter > 4)
-            Apu->FrameCounter = 0;
+        if(apu->frameCounter > 4)
+            apu->frameCounter = 0;
     }
     
 // Square 1
     // Envelop picks volume
         
-    uint8 Square1Out = 0; 
+    u8 square1Out = 0; 
     
     // Square 2
-    uint8 Square2Out = 0;
+    u8 square2Out = 0;
     
     // Triangle
-    uint8 TriangleOut = 0;
+    u8 triangleOut = 0;
     
     // Noise
-    uint8 NoiseOut = 0;
+    u8 noiseOut = 0;
     
     // DMC
-    uint8 DmcOut = 0;
+    u8 dmcOut = 0;
     
     // Mixing
-    Apu->FinalOutput = ((0.00752f * (Square1Out + Square2Out)) +
-                        (0.00851f * TriangleOut) +
-                        (0.00494f * NoiseOut) +
-                        (0.00335f * DmcOut));
+    apu->finalOutput = ((0.00752f * (square1Out + square2Out)) +
+                        (0.00851f * triangleOut) +
+                        (0.00494f * noiseOut) +
+                        (0.00335f * dmcOut));
 }    
 
 
-static void
-initApu(apu *Apu)
+static void InitApu(Apu *apu)
 {
-    *Apu = {};
+    *apu = {};
     // All registers are clear
 }

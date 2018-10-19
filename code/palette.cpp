@@ -9,9 +9,9 @@
 
 struct colour
 {
-    uint8 R;
-    uint8 G;
-    uint8 B;
+    u8 R;
+    u8 G;
+    u8 B;
 };
 
 colour Palette[PALETTE_ENTRIES] =

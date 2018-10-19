@@ -7,19 +7,19 @@
 
 #include "cpu.h"
 
-bool32 NmiFlag = false;
-bool32 LastNmiFlag = false;
-bool32 TriggerNmi = false;
-bool32 NmiInterruptSet = false;
+b32 NmiFlag = false;
+b32 LastNmiFlag = false;
+b32 TriggerNmi = false;
+b32 NmiInterruptSet = false;
 
-bool32 IRQFlag = false;
-bool32 LastIRQFlag = false;
-bool32 TriggerIRQ = false;
-bool32 IRQInterruptSet = false;
+b32 IRQFlag = false;
+b32 LastIRQFlag = false;
+b32 TriggerIRQ = false;
+b32 IRQInterruptSet = false;
 
-static void runPpuCatchup(uint8 ClocksIntoCurrentOp);
+static void runPpuCatchup(u8 ClocksIntoCurrentOp);
 
-static void setNmi(bool32 newNmiFlag)
+static void setNmi(b32 newNmiFlag)
 {
     NmiFlag = newNmiFlag;
 
@@ -44,7 +44,7 @@ static void pollInterrupts(cpu *Cpu)
         NmiInterruptSet = true;
     }
 
-    bool32 InterruptFlag = (INTERRUPT_BIT & Cpu->Flags) != 0;
+    b32 InterruptFlag = (INTERRUPT_BIT & Cpu->Flags) != 0;
     
     if(TriggerIRQ && !InterruptFlag)
     {
@@ -54,7 +54,7 @@ static void pollInterrupts(cpu *Cpu)
 
 }
 
-static void pollInterrupts(cpu *Cpu, uint8 CurrentCycle)
+static void pollInterrupts(cpu *Cpu, u8 CurrentCycle)
 {
     runPpuCatchup(CurrentCycle);
     pollInterrupts(Cpu);

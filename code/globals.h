@@ -24,10 +24,10 @@ typedef int32_t s32;
 typedef int64_t s64;
 typedef s32 b32;
 
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
+typedef u8_t u8;
+typedef u16_t u16;
+typedef u32_t u32;
+typedef u64_t u64;
 
 typedef float  r32;
 typedef double r64;

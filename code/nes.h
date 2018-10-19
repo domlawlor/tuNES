@@ -10,56 +10,56 @@
 #include "ppu.h"
 #include "apu.h"
 
-#define MAPPER_TOTAL 8
+static const u8 MapperTotal = 8;
 
-struct cartridge
+struct Cartridge
 {
-    char * FileName;
-    uint32 FileSize;
-    uint8 * Data;
+    u8 * fileName;
+    u32 fileSize;
+    u8 * data;
 
-    uint8 PrgBankCount;
-    uint8 * PrgData;
+    u8 prgBankCount;
+	u8 chrBankCount;
 
-    uint8 ChrBankCount;
-    uint8 * ChrData;
+    u8 * prgData;
+    u8 * chrData;
     
-    uint8 PrgRamSize;
+    u8 prgRamSize;
 
-    uint8 MapperNum;
+    u8 mapperNum;
 
-    uint16 ExtRegister;
+    u16 extRegister;
     
-    bool32 UseVertMirror;
-    bool32 HasBatteryRam;
-    bool32 HasTrainer;
-    bool32 UseFourScreenMirror;
+    b32 useVertMirror;
+    b32 hasBatteryRam;
+    b32 hasTrainer;
+    b32 useFourScreenMirror;
 
-    uint8 MapperInternalReg;
-    uint8 MapperWriteCount;
+    u8 mapperInternalReg;
+    u8 mapperWriteCount;
 };
 
-struct nes
+struct Nes
 {
-    cpu Cpu;
-    ppu Ppu;
-    apu Apu;
-    cartridge Cartridge;
+    Cpu cpu;
+    Ppu ppu;
+    Apu apu;
+    Cartridge cartridge;
 
-    uint64 CpuMemoryBase;
-    uint64 PpuMemoryBase;
+    u64 cpuMemoryBase;
+    u64 ppuMemoryBase;
     
-    bool32 PowerOn;
+    b32 powerOn;
 
-    real32 CpuHz;
+    r32 cpuHz;
     
-    real32 FrameClocksElapsed;
-    real32 FrameClockTotal;
+    r32 frameClocksElapsed;
+    r32 frameClockTotal;
 };
 
-global nes *GlobalNes;
+global Nes *globalNes;
 
-global uint8 GlobalOpenBus;
+global u8 globalOpenBus;
 
 
 
