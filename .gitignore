@@ -262,6 +262,8 @@ paket-files/
 misc/
 misc/emacs.bat
 misc/shell.bat
-*.sln
+build/
+Debug/
+x64/
 screenshots/
 roms/
