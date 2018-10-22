@@ -8,8 +8,8 @@
 /*
   262 Scanlines a frame
   341 Clocks Per scanline
-  1 Cpu Cycle = 3 Ppu Cycles
-  Each Ppu Cycle produces a pixel output
+  1 Cpu Cycle = 3 ppu Cycles
+  Each ppu Cycle produces a pixel output
 
  */
 
@@ -24,53 +24,53 @@ TODO LIST
 
 #include "palette.cpp"
 
-static void drawPixel(ppu *Ppu, u16 X, u16 Y, colour Colour)
+static void DrawPixel(Ppu *ppu, u16 X, u16 Y, Colour colour)
 {
-    u32 *CurrentPixel = (Ppu->BasePixel + (Y * PIXEL_WIDTH)) + X;
-    *CurrentPixel  = ((Colour.R << 16) | (Colour.G << 8) | Colour.B);
+    u32 *CurrentPixel = (ppu->basePixel + (Y * ppuPixelWidth)) + X;
+    *CurrentPixel  = ((colour.R << 16) | (colour.G << 8) | colour.B);
 }
 
-static void resetScrollHorz(ppu *Ppu)
+static void ResetScrollHorz(Ppu *ppu)
 {   
-    Ppu->VRamAdrs &= ~(0x041F);
-    Ppu->VRamAdrs |= (Ppu->TempVRamAdrs & 0x041F);
+    ppu->vRamAdrs &= ~(0x041F);
+    ppu->vRamAdrs |= (ppu->tempVRamAdrs & 0x041F);
 }
 
-static void resetScrollVert(ppu *Ppu)
+static void ResetScrollVert(Ppu *ppu)
 {
-    Ppu->VRamAdrs = Ppu->TempVRamAdrs;
+    ppu->vRamAdrs = ppu->tempVRamAdrs;
 }
 
-static void scrollIncHorz(ppu *Ppu)
+static void ScrollIncHorz(Ppu *ppu)
 {
     //NOTE: Code take from nesdev wiki. Could be quicker??
-    if ((Ppu->VRamAdrs & 0x001F) == 31) // if coarse X == 31
+    if ((ppu->vRamAdrs & 0x001F) == 31) // if coarse X == 31
     {
-        Ppu->VRamAdrs &= ~0x001F;  // coarse X = 0
-        Ppu->VRamAdrs ^= 0x0400;   // switch horizontal nametable
+        ppu->vRamAdrs &= ~0x001F;  // coarse X = 0
+        ppu->vRamAdrs ^= 0x0400;   // switch horizontal nametable
     }
     else
     {
-        Ppu->VRamAdrs += 1; // increment coarse X
+        ppu->vRamAdrs += 1; // increment coarse X
     }
 }
 
-static void scrollIncVert(ppu *Ppu)
+static void ScrollIncVert(Ppu *ppu)
 {
     // NOTE: Code take from nesdev wiki. Could be quicker??
-    if ((Ppu->VRamAdrs & 0x7000) != 0x7000) // if fine Y < 7
+    if ((ppu->vRamAdrs & 0x7000) != 0x7000) // if fine Y < 7
     {
-        Ppu->VRamAdrs += 0x1000; // increment fine Y
+        ppu->vRamAdrs += 0x1000; // increment fine Y
     }
     else
     {
-        Ppu->VRamAdrs &= ~0x7000; // fine Y = 0        
-        u16 y = (Ppu->VRamAdrs & 0x03E0) >> 5 ; // let y = coarse Y
+        ppu->vRamAdrs &= ~0x7000; // fine Y = 0        
+        u16 y = (ppu->vRamAdrs & 0x03E0) >> 5 ; // let y = coarse Y
     
         if (y == 29)
         {
             y = 0; // coarse Y = 0
-            Ppu->VRamAdrs ^= 0x0800; // switch vertical nametable
+            ppu->vRamAdrs ^= 0x0800; // switch vertical nametable
         }
         else if (y == 31)
         {
@@ -80,56 +80,56 @@ static void scrollIncVert(ppu *Ppu)
         {
             y += 1; // increment coarse Y
         }
-        Ppu->VRamAdrs = (Ppu->VRamAdrs & ~0x03E0) | (y << 5); // put coarse Y back into v
+        ppu->vRamAdrs = (ppu->vRamAdrs & ~0x03E0) | (y << 5); // put coarse Y back into v
     }
 }
 
-static void loadFutureData(ppu *Ppu)
+static void LoadFutureData(Ppu *ppu)
 {    
-    if((1 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 255) ||
-       (321 <= Ppu->ScanlineCycle && Ppu->ScanlineCycle <= 336))
+    if((1 <= ppu->scanlineCycle && ppu->scanlineCycle <= 255) ||
+       (321 <= ppu->scanlineCycle && ppu->scanlineCycle <= 336))
     {
-        u8 Cycle = (Ppu->ScanlineCycle) % 8;
+        u8 Cycle = (ppu->scanlineCycle) % 8;
         if(Cycle == 1) 
         {
-            Ppu->LowPatternShiftReg = (Ppu->LowPatternShiftReg << 8) | Ppu->NextLowPattern;
-            Ppu->HighPatternShiftReg = (Ppu->HighPatternShiftReg << 8) | Ppu->NextHighPattern;
-            Ppu->PaletteLatchOld = Ppu->PaletteLatchNew;
-            Ppu->PaletteLatchNew = Ppu->NextAtrbByte << 2;               
+            ppu->lowPatternShiftReg = (ppu->lowPatternShiftReg << 8) | ppu->nextLowPattern;
+            ppu->highPatternShiftReg = (ppu->highPatternShiftReg << 8) | ppu->nextHighPattern;
+            ppu->paletteLatchOld = ppu->paletteLatchNew;
+            ppu->paletteLatchNew = ppu->nextAtrbByte << 2;               
         }
         else if(Cycle == 2)
         {
-            u16 NametableAddress = 0x2000 | (Ppu->VRamAdrs & 0x0FFF);
-            Ppu->NextNametableAdrs = readPpu8(NametableAddress, Ppu) << 4;
-            Ppu->NextNametableAdrs += Ppu->BGPatternBase;
+            u16 nametableAddress = 0x2000 | (ppu->vRamAdrs & 0x0FFF);
+            ppu->nextNametableAdrs = ReadPpu8(nametableAddress, ppu) << 4;
+            ppu->nextNametableAdrs += ppu->bGPatternBase;
         }
         else if(Cycle == 4)
         {
-            u16 AtrbAddress = 0x23C0 | (Ppu->VRamAdrs & 0x0C00) |
-                ((Ppu->VRamAdrs >> 4) & 0x38) | ((Ppu->VRamAdrs >> 2) & 0x07);   
-            u8 Atrb = readPpu8(AtrbAddress, Ppu);
-            int QuadrantSelect = ((Ppu->VRamAdrs & 2) >> 1) | ((Ppu->VRamAdrs & 0x40) >> 5);
+            u16 AtrbAddress = 0x23C0 | (ppu->vRamAdrs & 0x0C00) |
+                ((ppu->vRamAdrs >> 4) & 0x38) | ((ppu->vRamAdrs >> 2) & 0x07);   
+            u8 Atrb = ReadPpu8(AtrbAddress, ppu);
+            int QuadrantSelect = ((ppu->vRamAdrs & 2) >> 1) | ((ppu->vRamAdrs & 0x40) >> 5);
         
-            Ppu->NextAtrbByte = ((0xFF & Atrb) >> (QuadrantSelect*2)) & 3;       
+            ppu->nextAtrbByte = ((0xFF & Atrb) >> (QuadrantSelect*2)) & 3;       
         }   
         else if(Cycle == 6)
         {        
-            Ppu->NextNametableAdrs = Ppu->NextNametableAdrs + ((Ppu->VRamAdrs & 0x7000) >> 12);
-            Ppu->NextLowPattern = readPpu8(Ppu->NextNametableAdrs, Ppu);
+            ppu->nextNametableAdrs = ppu->nextNametableAdrs + ((ppu->vRamAdrs & 0x7000) >> 12);
+            ppu->nextLowPattern = ReadPpu8(ppu->nextNametableAdrs, ppu);
         }
         else if(Cycle == 0)
         {
-            Ppu->NextHighPattern = readPpu8(Ppu->NextNametableAdrs+8, Ppu);
-            scrollIncHorz(Ppu);
+            ppu->nextHighPattern = ReadPpu8(ppu->nextNametableAdrs+8, ppu);
+            ScrollIncHorz(ppu);
         }
     }
-    else if(Ppu->ScanlineCycle == 256)
+    else if(ppu->scanlineCycle == 256)
     {
-        scrollIncVert(Ppu);
+        ScrollIncVert(ppu);
     }
-    else if(Ppu->ScanlineCycle == 257)
+    else if(ppu->scanlineCycle == 257)
     {
-        resetScrollHorz(Ppu);
+        ResetScrollHorz(ppu);
     }    
 }
 
@@ -145,204 +145,204 @@ inline u8 byteReverse(u8 byte)
 }
 
 /* Loops through the OAM and find the sprites one the next scanline */
-static void evaluateSecondaryOam(ppu *Ppu)
+static void EvaluateSecondaryOam(Ppu *ppu)
 {
-    u8 *Oam = Ppu->Oam;
-    sprite *SecondaryOam = Ppu->SecondaryOam;
-    Ppu->SecondarySpriteCount = 0;
+    u8 *oam = ppu->oam;
+    Sprite *secondaryOam = ppu->secondaryOam;
+    ppu->secondarySpriteCount = 0;
     
-    u8 SpriteHeight = (Ppu->SpriteSize8x16 != 0) ? 16: 8;
+    u8 spriteHeight = (ppu->spriteSize8x16 != 0) ? 16: 8;
                 
-    for(u8 OamSpriteCount = 0;
-        OamSpriteCount < OamSpriteTotal && Ppu->SecondarySpriteCount != SecondaryOamSpriteMax;
-        ++OamSpriteCount)
+    for(u8 oamSpriteCount = 0;
+        oamSpriteCount < oamSpriteTotal && ppu->secondarySpriteCount != secondaryOamSpriteMax;
+        ++oamSpriteCount)
     {
-        oam_sprite *OamSprite = (oam_sprite *)Oam + OamSpriteCount;
+        OamSprite *oamSprite = (OamSprite *)oam + oamSpriteCount;
         
-        if(OamSprite->Y <= Ppu->Scanline && Ppu->Scanline < (OamSprite->Y + SpriteHeight))
+        if(oamSprite->Y <= ppu->scanline && ppu->scanline < (oamSprite->Y + spriteHeight))
         {
-            sprite Sprite = {};
-            Sprite.OamData = *OamSprite;
-            Sprite.Priority = !(Sprite.OamData.Atrb & (1 << 5));
+            Sprite sprite = {};
+			sprite.oamData = *oamSprite;
+			sprite.priority = !(sprite.oamData.atrb & (1 << 5));
 
-            if(OamSpriteCount == 0)
+            if(oamSpriteCount == 0)
             {
-                Sprite.SpriteZero = true;
+                sprite.spriteZero = true;
             }
 
             // Palette
-            Sprite.PaletteValue = Sprite.OamData.Atrb & 3;
+            sprite.paletteValue = sprite.oamData.atrb & 3;
 
             // Chr Pattern Select
-            u8 TileRelY = (u8)(Ppu->Scanline - Sprite.OamData.Y ) % SpriteHeight;
-            u8 YOffset = (Sprite.OamData.Atrb & (1 << 7)) ? ((SpriteHeight-1) - TileRelY) : TileRelY;
+            u8 tileRelY = (u8)(ppu->scanline - sprite.oamData.Y ) % spriteHeight;
+            u8 yOffset = (sprite.oamData.atrb & (1 << 7)) ? ((spriteHeight-1) - tileRelY) : tileRelY;
 
-            u8 TileIndex;
-            u16 SpritePatternBase;
+            u8 tileIndex;
+            u16 spritePatternBase;
             
-            if(!Ppu->SpriteSize8x16)
+            if(!ppu->spriteSize8x16)
             {
-                TileIndex = Sprite.OamData.Tile; 
-                SpritePatternBase = Ppu->SPRTPattenBase;
+                tileIndex = sprite.oamData.tile; 
+                spritePatternBase = ppu->sPRTPattenBase;
             }
             else
             {
-                TileIndex = Sprite.OamData.Tile & ~0x1; // Bit 0 is ignored in 8x16 mode 
-                SpritePatternBase = (Sprite.OamData.Tile & 1) ? 0x1000 : 0;
+                tileIndex = sprite.oamData.tile & ~0x1; // Bit 0 is ignored in 8x16 mode 
+                spritePatternBase = (sprite.oamData.tile & 1) ? 0x1000 : 0;
 
-                if(YOffset >= 8)
+                if(yOffset >= 8)
                 {
-                    YOffset -= 8;
-                    TileIndex += 1;
+                    yOffset -= 8;
+                    tileIndex += 1;
                 }
             }
 
-            u16 LowAddress  = (SpritePatternBase + (TileIndex * 16)) + YOffset;
-            u16 HighAddress = (SpritePatternBase + (TileIndex * 16) + 8) + YOffset;
+            u16 lowAddress  = (spritePatternBase + (tileIndex * 16)) + yOffset;
+            u16 highAddress = (spritePatternBase + (tileIndex * 16) + 8) + yOffset;
             
-            Sprite.PatternLow  = readPpu8(LowAddress, Ppu);
-            Sprite.PatternHigh = readPpu8(HighAddress, Ppu);
+            sprite.patternLow  = ReadPpu8(lowAddress, ppu);
+            sprite.patternHigh = ReadPpu8(highAddress, ppu);
             
-            if(Sprite.OamData.Atrb & (1 << 6))
+            if(sprite.oamData.atrb & (1 << 6))
             {
-                Sprite.PatternLow = byteReverse(Sprite.PatternLow);
-                Sprite.PatternHigh = byteReverse(Sprite.PatternHigh);
+                sprite.patternLow = byteReverse(sprite.patternLow);
+                sprite.patternHigh = byteReverse(sprite.patternHigh);
             }
             
-            SecondaryOam[Ppu->SecondarySpriteCount++] = Sprite;
+            secondaryOam[ppu->secondarySpriteCount++] = sprite;
         }
     }
 }
 
-static void visibleLine(ppu *Ppu)
+static void VisibleLine(Ppu *ppu)
 {
-    u16 Scanline = Ppu->Scanline;
-    u16 Cycle = Ppu->ScanlineCycle;
+    u16 scanline = ppu->scanline;
+    u16 cycle = ppu->scanlineCycle;
 
-    if(Ppu->RenderingEnabled)
+    if(ppu->renderingEnabled)
     {
-        loadFutureData(Ppu);
+        LoadFutureData(ppu);
 
-        if(Cycle == 64) // NOTE: Clearing takes 64 cycles. Running on very last one
+        if(cycle == 64) // NOTE: Clearing takes 64 cycles. Running on very last one
         {
             // Secondary Oam Clear
-            Ppu->SecondarySpriteCount = 0;
-            for(u8 SpriteCount = 0; SpriteCount < SecondaryOamSpriteMax; ++SpriteCount)
+            ppu->secondarySpriteCount = 0;
+            for(u8 spriteCount = 0; spriteCount < secondaryOamSpriteMax; ++spriteCount)
             {
-                sprite *Sprite = Ppu->SecondaryOam + SpriteCount;
-                Sprite->OamData.Y    = 0xFF;
-                Sprite->OamData.Tile = 0xFF;
-                Sprite->OamData.Atrb = 0xFF;
-                Sprite->OamData.X    = 0xFF;
-
-                Sprite->Priority = false;
-                Sprite->SpriteZero = false;
-
-                Sprite->PaletteValue = 0;
-                Sprite->PatternLow = 0;
-                Sprite->PatternHigh = 0;
+                Sprite *sprite = ppu->secondaryOam + spriteCount;
+                sprite->oamData.Y    = 0xFF;
+                sprite->oamData.tile = 0xFF;
+                sprite->oamData.atrb = 0xFF;
+                sprite->oamData.X    = 0xFF;
+				
+                sprite->priority = false;
+                sprite->spriteZero = false;
+				
+                sprite->paletteValue = 0;
+                sprite->patternLow = 0;
+                sprite->patternHigh = 0;
             }
             // TODO: attempting to read $2004 will return $FF
         }
-        else if(Cycle == 256) // Sprite Evaluation happens from cycle 65 to 256
+        else if(cycle == 256) // Sprite Evaluation happens from cycle 65 to 256
         {
-            evaluateSecondaryOam(Ppu);
+            EvaluateSecondaryOam(ppu);
         }
-        else if(Cycle == 257)
+        else if(cycle == 257)
         {
             // Clear prepared sprites
-            Ppu->PreparedSpriteCount = 0;
-            for(u8 SpriteCount = 0; SpriteCount < SecondaryOamSpriteMax; ++SpriteCount)
+            ppu->preparedSpriteCount = 0;
+            for(u8 spriteCount = 0; spriteCount < secondaryOamSpriteMax; ++spriteCount)
             {
-                sprite *Sprite = Ppu->PreparedSprites + SpriteCount;
-                Sprite->OamData.Y    = 0xFF;
-                Sprite->OamData.Tile = 0xFF;
-                Sprite->OamData.Atrb = 0xFF;
-                Sprite->OamData.X    = 0xFF;
-
-                Sprite->Priority = false;
-                Sprite->SpriteZero = false;
-
-                Sprite->PaletteValue = 0;
-                Sprite->PatternLow = 0;
-                Sprite->PatternHigh = 0;
+                Sprite *sprite = ppu->preparedSprites + spriteCount;
+                sprite->oamData.Y    = 0xFF;
+                sprite->oamData.tile = 0xFF;
+                sprite->oamData.atrb = 0xFF;
+                sprite->oamData.X    = 0xFF;
+				
+                sprite->priority = false;
+                sprite->spriteZero = false;
+				
+                sprite->paletteValue = 0;
+                sprite->patternLow = 0;
+                sprite->patternHigh = 0;
             }
             
             // Copy to prepared sprites to secondary buffer can evaluate the next scanline
-            Ppu->PreparedSpriteCount = Ppu->SecondarySpriteCount;
+            ppu->preparedSpriteCount = ppu->secondarySpriteCount;
         
-            for(int8 SpriteIdx = 0; SpriteIdx < Ppu->SecondarySpriteCount; ++SpriteIdx)
+            for(u8 spriteIdx = 0; spriteIdx < ppu->secondarySpriteCount; ++spriteIdx)
             {
-                Ppu->PreparedSprites[SpriteIdx] = Ppu->SecondaryOam[SpriteIdx];
+                ppu->preparedSprites[spriteIdx] = ppu->secondaryOam[spriteIdx];
             }
             // TODO: First empty slot has sprite 64s y coord followed by 3 0xFF bytes. Other empty slots are all 0xFF
         }
     }
     
-    if(1 <= Cycle && Cycle <= 256)
+    if(1 <= cycle && cycle <= 256)
     {
-        u16 PixelX = Cycle - 1;
-        u16 PixelY = Scanline;
+        u16 pixelX = cycle - 1;
+        u16 pixelY = scanline;
 
-        colour PixelColour = {};
+        Colour pixelColour = {};
 
         // Get the default colour
-        u8 BlankPaletteIndex = readPpu8(BackgroundPaletteAddress, Ppu);
-        PixelColour = Palette[BlankPaletteIndex];
+        u8 blankPaletteIndex = ReadPpu8(backgroundPaletteAddress, ppu);
+        pixelColour = Palette[blankPaletteIndex];
                 
         /* *********************** */
         /* Background Calculations */
                 
-        u8 BackgroundResult = 0;
+        u8 backgroundResult = 0;
         
-        if(Ppu->ShowBackground && !(PixelX < 8 && !Ppu->ShowBGLeft8Pixels) )
+        if(ppu->showBackground && !(pixelX < 8 && !ppu->showBGLeft8Pixels) )
         {
-            u8 XOffset = 15 - (Ppu->FineX + ((PixelX) % 8));
+            u8 xOffset = 15 - (ppu->fineX + ((pixelX) % 8));
                         
-            u8 PatternPixelValue = (((Ppu->HighPatternShiftReg >> (XOffset-1) ) & 2) |
-                                       (Ppu->LowPatternShiftReg >> XOffset) & 1);
+			u8 patternPixelValue = (((ppu->highPatternShiftReg >> (xOffset - 1)) & 2) |
+									(ppu->lowPatternShiftReg >> xOffset) & 1);
 
-            if(PatternPixelValue != 0) // NOTE: If Value is zero, then it is a background/transparent
+            if(patternPixelValue != 0) // NOTE: If Value is zero, then it is a background/transparent
             {
-                u8 AtrbPixelValue = (XOffset >= 8) ? Ppu->PaletteLatchOld : Ppu->PaletteLatchNew;
-                BackgroundResult = AtrbPixelValue | PatternPixelValue;
+                u8 atrbPixelValue = (xOffset >= 8) ? ppu->paletteLatchOld : ppu->paletteLatchNew;
+                backgroundResult = atrbPixelValue | patternPixelValue;
             }
                             
-            u8 BgrdPaletteIndex = readPpu8(BackgroundPaletteAddress + BackgroundResult, Ppu);
-            PixelColour = Palette[BgrdPaletteIndex];
+            u8 bgrdPaletteIndex = ReadPpu8(backgroundPaletteAddress + backgroundResult, ppu);
+            pixelColour = Palette[bgrdPaletteIndex];
         }
                 
         /* ******************* */
         /* Sprite Calculations */
                         
-        if(Ppu->ShowSprites && !(PixelX < 8 && !Ppu->ShowSPRTLeft8Pixels) )
+        if(ppu->showSprites && !(pixelX < 8 && !ppu->showSPRTLeft8Pixels) )
         {
-            for(int16 SpriteIdx = Ppu->PreparedSpriteCount - 1; SpriteIdx >= 0; --SpriteIdx)
+            for(s16 spriteIdx = ppu->preparedSpriteCount - 1; spriteIdx >= 0; --spriteIdx)
             {
-                sprite *Sprite = Ppu->PreparedSprites + SpriteIdx;
-                u8 SpriteX = Sprite->OamData.X;
+                Sprite *sprite = ppu->preparedSprites + spriteIdx;
+                u8 spriteX = sprite->oamData.X;
                             
-                if(PixelX != 0xFF && SpriteX <= PixelX && PixelX < (SpriteX + PixelsPerTile)) 
+                if(pixelX != 0xFF && spriteX <= pixelX && pixelX < (spriteX + pixelsPerTile)) 
                 {
-                    u8 RelX = ((PixelX - (SpriteX)) % 8);                                    
-                    u8 PatternValue = (((Sprite->PatternHigh >> (7 - RelX)) & 1) << 1) |
-                        ((Sprite->PatternLow >> (7 - RelX)) & 1);
+                    u8 relX = ((pixelX - (spriteX)) % 8);                                    
+                    u8 patternValue = (((sprite->patternHigh >> (7 - relX)) & 1) << 1) |
+                        ((sprite->patternLow >> (7 - relX)) & 1);
                                     
-                    if(PatternValue != 0) // If bottom two bits is 0, then is multiple of 4.
+                    if(patternValue != 0) // If bottom two bits is 0, then is multiple of 4.
                     {
-                        u8 SpriteColour = (Sprite->PaletteValue << 2) | PatternValue;
+                        u8 spriteColour = (sprite->paletteValue << 2) | patternValue;
 
-                        if(Sprite->SpriteZero && !Ppu->SpriteZeroHit &&
-                           Ppu->ShowBackground && BackgroundResult != 0 &&
-                           Ppu->Scanline <= 239 /*&& Sprite->OamData.Y != 255*/ && Ppu->ScanlineCycle != 256)
+                        if(sprite->spriteZero && !ppu->spriteZeroHit &&
+                           ppu->showBackground && backgroundResult != 0 &&
+                           ppu->scanline <= 239 /*&& Sprite->OamData.Y != 255*/ && ppu->scanlineCycle != 256)
                         {
-                            Ppu->SpriteZeroHit = true;
+                            ppu->spriteZeroHit = true;
                         }
 
-                        if( Sprite->Priority || BackgroundResult == 0 )
+                        if( sprite->priority || backgroundResult == 0 )
                         {
-                            u8 SprtPaletteIndex = readPpu8(SpritePaletteAddress + SpriteColour, Ppu);                       
-                            PixelColour = Palette[SprtPaletteIndex];                        
+                            u8 sprtPaletteIndex = ReadPpu8(spritePaletteAddress + spriteColour, ppu);                       
+                            pixelColour = Palette[sprtPaletteIndex];                        
                         }
                     }
                 }
@@ -350,111 +350,113 @@ static void visibleLine(ppu *Ppu)
         }
         
         // PIXEL OUTPUT - using the resulting colour
-        drawPixel(Ppu, PixelX, PixelY, PixelColour);                        
+        DrawPixel(ppu, pixelX, pixelY, pixelColour);                        
     }
 
 }
 
-static void vblankLine(ppu *Ppu)
+static void VblankLine(Ppu *ppu)
 {
-    u16 Scanline = Ppu->Scanline;
-    u16 Cycle = Ppu->ScanlineCycle;
+    u16 scanline = ppu->scanline;
+    u16 cycle = ppu->scanlineCycle;
 
-    if(Scanline == 241 && Cycle == 1)
+    if(scanline == 241 && cycle == 1)
     {
         // TODO TODO Check over
-        if(!Ppu->SupressVbl)
+        if(!ppu->supressVbl)
         {
-            Ppu->VerticalBlank = true;
+            ppu->verticalBlank = true;
         }
 
-        NmiFlag = Ppu->GenerateNMI && Ppu->VerticalBlank && !Ppu->SupressNmiSet;
+        nmiFlag = ppu->generateNMI && ppu->verticalBlank && !ppu->supressNmiSet;
 
-        if(Ppu->SupressNmiSet)
+        if(ppu->supressNmiSet)
         {
-            Ppu->SupressNmiSet = false;
+            ppu->supressNmiSet = false;
         }
         
-        GlobalDrawScreen = true;
+        globalDrawScreen = true;
     }
 }
 
-static void preRenderLine(ppu *Ppu)
+static void PreRenderLine(Ppu *ppu)
 {
-    u16 Cycle = Ppu->ScanlineCycle;
+    u16 cycle = ppu->scanlineCycle;
 
-    if(Cycle == 1)
+    if(cycle == 1)
     {
-        Ppu->SpriteOverflow = false;
-        Ppu->SpriteZeroHit = false;
-        Ppu->VerticalBlank = false;
-        setNmi(false);
+        ppu->spriteOverflow = false;
+        ppu->spriteZeroHit = false;
+        ppu->verticalBlank = false;
+        SetNmi(false);
     }
 
-    if(Ppu->RenderingEnabled)
+    if(ppu->renderingEnabled)
     {
 
-        if(Cycle == 64) // NOTE: Clearing takes 64 cycles. Running on very last one
+        if(cycle == 64) // NOTE: Clearing takes 64 cycles. Running on very last one
         {
             // Secondary Oam Clear
-            u8 *Data = (u8 *)Ppu->SecondaryOam;
+            u8 *data = (u8 *)ppu->secondaryOam;
     
-            for(u16 Byte = 0; Byte < (SecondaryOamSpriteMax * sizeof(sprite)); ++Byte)
+            for(u16 byte = 0; byte < (secondaryOamSpriteMax * sizeof(Sprite)); ++byte)
             {
-                Data[Byte] = 0xFF;
+                data[byte] = 0xFF;
             }
         }
-        else if(Cycle == 257)
+        else if(cycle == 257)
         {
             // Clear prepared sprites
-            u8 *Data = (u8 *)Ppu->PreparedSprites;
+            u8 *data = (u8 *)ppu->preparedSprites;
     
-            for(u16 Byte = 0; Byte < (SecondaryOamSpriteMax * sizeof(sprite)); ++Byte)
+            for(u16 byte = 0; byte < (secondaryOamSpriteMax * sizeof(Sprite)); ++byte)
             {
-                Data[Byte] = 0xFF;
+                data[byte] = 0xFF;
             }
         }
         
-        loadFutureData(Ppu);
+        LoadFutureData(ppu);
 
-        if(280 <= Cycle && Cycle <= 304)
+        if(280 <= cycle && cycle <= 304)
         {
-            resetScrollVert(Ppu);
+            ResetScrollVert(ppu);
         }
     }
 }
 
-static void postRenderLine(ppu *Ppu)
+static void PostRenderLine(Ppu *ppu)
 {
     // Does nothing
 }
 
-static void runPpu(ppu *Ppu, u16 ClocksToRun)
+static void RunPpu(Ppu *ppu, u16 clocksToRun)
 {
-    while(ClocksToRun > 0)
+    while(clocksToRun > 0)
     {
-        --ClocksToRun;
+		ppu->clocksHit++;
+
+        --clocksToRun;
         
-        switch(Ppu->ScanlineType)
+        switch(ppu->scanlineType)
         {
             case VISIBLE:
             {
-                visibleLine(Ppu);
+                VisibleLine(ppu);
                 break;
             }
             case POST_RENDER:
             {
-                postRenderLine(Ppu);
+                PostRenderLine(ppu);
                 break;
             }
             case VBLANK:
             {
-                vblankLine(Ppu);
+                VblankLine(ppu);
                 break;
             }
             case PRE_RENDER:
             {
-                preRenderLine(Ppu);
+                PreRenderLine(ppu);
                 break;
             }
             default:
@@ -464,60 +466,59 @@ static void runPpu(ppu *Ppu, u16 ClocksToRun)
         }
     
         // Once finished, update the cycle and scanline if on new one
-        ++Ppu->ScanlineCycle;
+        ++ppu->scanlineCycle;
 
-        Assert(Ppu->ScanlineCycle <= 341);
+        Assert(ppu->scanlineCycle <= 341);
 
         // New Scanline
-        if(Ppu->ScanlineCycle == 341)
+        if(ppu->scanlineCycle == 341)
         {
-            Ppu->ScanlineCycle = 0;
-            ++Ppu->Scanline;
+            ppu->scanlineCycle = 0;
+            ++ppu->scanline;
 
-            Assert(Ppu->Scanline <= 262);
+            Assert(ppu->scanline <= 262);
             
             // If reached new Frame
-            if(Ppu->Scanline == 262)
+            if(ppu->scanline == 262)
             {
-                Ppu->Scanline = 0;
-                Ppu->OddFrame = !Ppu->OddFrame;
+                ppu->scanline = 0;
+                ppu->oddFrame = !ppu->oddFrame;
 
-                Ppu->ScanlineType = VISIBLE;
+                ppu->scanlineType = VISIBLE;
 
                 // On oddframe, when rendering is enabled, the first cycle of frame is skipped
-                if(Ppu->OddFrame && Ppu->RenderingEnabled)
+                if(ppu->oddFrame && ppu->renderingEnabled)
                 {
-                    ++Ppu->ScanlineCycle;
+                    ++ppu->scanlineCycle;
                 }
             }
-            else if(Ppu->Scanline == 261)
+            else if(ppu->scanline == 261)
             {
-                Ppu->ScanlineType = PRE_RENDER;
+                ppu->scanlineType = PRE_RENDER;
             }
-            else if(241 <= Ppu->Scanline)
+            else if(241 <= ppu->scanline)
             {
-                Ppu->ScanlineType = VBLANK;
+                ppu->scanlineType = VBLANK;
             }            
-            else if(Ppu->Scanline == 240)
+            else if(ppu->scanline == 240)
             {
-                Ppu->ScanlineType = POST_RENDER;
+                ppu->scanlineType = POST_RENDER;
             }
         }
     }
 }
 
 
-static void
-initPpu(ppu *Ppu, u64 MemoryBase, u32 * BasePixel)
+static void InitPpu(Ppu *ppu, u64 memoryBase, u32 * basePixel)
 {
-    ZeroMemory((u8 *)MemoryBase, Kilobytes(64));
+    ZeroMemory((u8 *)memoryBase, Kilobytes(64));
     
-    *Ppu = {};
+    *ppu = {};
 
-    Ppu->MemoryBase = MemoryBase;
-    Ppu->BasePixel = BasePixel;
+    ppu->memoryBase = memoryBase;
+    ppu->basePixel = basePixel;
 
-    // TODO: This is to test if oam is initialised differently.
+    // TODO: This is to test if oam is initialized differently.
     
     
     // TODO: Check over OAM code
@@ -525,8 +526,8 @@ initPpu(ppu *Ppu, u64 MemoryBase, u32 * BasePixel)
     
     
     // Palette at startup according to Blargg
-    u8 PaletteSize = 32;
-    u8 PaletteStartup[] = {0x09, 0x01, 0x00, 0x01,
+    u8 paletteSize = 32;
+    u8 paletteStartup[] = {0x09, 0x01, 0x00, 0x01,
                               0x00, 0x02, 0x02, 0x0D,
                               0x08, 0x10, 0x08, 0x24,
                               0x00, 0x00, 0x04, 0x2C,
@@ -535,8 +536,8 @@ initPpu(ppu *Ppu, u64 MemoryBase, u32 * BasePixel)
                               0x08, 0x3A, 0x00, 0x02,
                               0x00, 0x20, 0x2C, 0x08};
 
-    for(u8 Idx = 0; Idx < PaletteSize; ++Idx)
+    for(u8 idx = 0; idx < paletteSize; ++idx)
     {
-        write8(PaletteStartup[Idx], 0x3F00 + Idx, Ppu->MemoryBase);
+        Write8(paletteStartup[idx], 0x3F00 + idx, ppu->memoryBase);
     }
 }

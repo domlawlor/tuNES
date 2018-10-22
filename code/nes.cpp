@@ -36,142 +36,139 @@ static void RunNes(Nes *nes, Input *newInput)
         }
     }
 
-    Nes->FrameClocksElapsed += runCpu(Cpu, NewInput);
+    nes->frameClocksElapsed += RunCpu(cpu, newInput);
 }
 
-static void loadCartridge(nes *Nes, char * FileName)
+static void LoadCartridge(Nes *nes, u8 *fileName)
 {
-    cartridge *Cartridge = &Nes->Cartridge;
-    cpu *Cpu = &Nes->Cpu;
-    ppu *Ppu = &Nes->Ppu;
+    Cartridge *cartridge = &nes->cartridge;
+    Cpu *cpu = &nes->cpu;
+    Ppu *ppu = &nes->ppu;
         
     // Reading rom file
-    Cartridge->FileName = FileName;
-    Cartridge->FileSize;
-    Cartridge->Data = (u8 *)readFileData(FileName, &Cartridge->FileSize);
+    cartridge->fileName = fileName;
+    cartridge->fileSize;
+    cartridge->data = (u8 *)ReadFileData(fileName, &cartridge->fileSize);
 
-    if(Cartridge->FileSize == 0)
+    if(cartridge->fileSize == 0)
     {
-        Nes->PowerOn = false;
+        nes->powerOn = false;
         return;
     }
     else
     {
-        Nes->PowerOn = true;
+        nes->powerOn = true;
     
-        u8 * RomData = Cartridge->Data;
+        u8 * romData = cartridge->data;
         
         // NOTE: Check for correct header
-        Assert(RomData[0] == 'N' && RomData[1] == 'E' && RomData[2] == 'S' && RomData[3] == 0x1A);
+        Assert(romData[0] == 'N' && romData[1] == 'E' && romData[2] == 'S' && romData[3] == 0x1A);
         
         // NOTE: Read header
-        Cartridge->PrgBankCount = RomData[4];
-        Cartridge->ChrBankCount = RomData[5];
-        u8 Flags6            = RomData[6];        
-        u8 Flags7            = RomData[7];
-        Cartridge->PrgRamSize   = RomData[8];
+        cartridge->prgBankCount = romData[4];
+        cartridge->chrBankCount = romData[5];
+        u8 flags6            = romData[6];        
+        u8 flags7            = romData[7];
+        cartridge->prgRamSize   = romData[8];
         
-        Cartridge->UseVertMirror       = (Flags6 & (1)) != 0;
-        Cartridge->HasBatteryRam       = (Flags6 & (1 << 1)) != 0;
-        Cartridge->HasTrainer          = (Flags6 & (1 << 2)) != 0;
-        Cartridge->UseFourScreenMirror = (Flags6 & (1 << 3)) != 0;
-        Cartridge->MapperNum           = (Flags7 & 0xF0) | (Flags6 >> 4);
+        cartridge->useVertMirror       = (flags6 & (1)) != 0;
+        cartridge->hasBatteryRam       = (flags6 & (1 << 1)) != 0;
+        cartridge->hasTrainer          = (flags6 & (1 << 2)) != 0;
+        cartridge->useFourScreenMirror = (flags6 & (1 << 3)) != 0;
+        cartridge->mapperNum           = (flags7 & 0xF0) | (flags6 >> 4);
 
-        Assert(Cartridge->UseFourScreenMirror == 0);
+        Assert(cartridge->useFourScreenMirror == 0);
         
-        if(Cartridge->UseFourScreenMirror)
-            Nes->Ppu.mirrorType = FOUR_SCREEN_MIRROR;
-        else if(Cartridge->UseVertMirror)
-            Nes->Ppu.mirrorType = VERTICAL_MIRROR;
+        if(cartridge->useFourScreenMirror)
+            nes->ppu.mirrorType = FOUR_SCREEN_MIRROR;
+        else if(cartridge->useVertMirror)
+            nes->ppu.mirrorType = VERTICAL_MIRROR;
         else
-            Nes->Ppu.mirrorType = HORIZONTAL_MIRROR;      
+            nes->ppu.mirrorType = HORIZONTAL_MIRROR;      
         
-        Cartridge->PrgData = RomData + 16; // PrgData starts after the header info(16 bytes)
+        cartridge->prgData = romData + 16; // PrgData starts after the header info(16 bytes)
 
-        if(Cartridge->HasTrainer)
+        if(cartridge->hasTrainer)
         {
-            Cartridge->PrgData += 512; // Trainer size 512 bytes
+            cartridge->prgData += 512; // Trainer size 512 bytes
         }
 
-        Cartridge->ChrData = Cartridge->PrgData + (Cartridge->PrgBankCount * Kilobytes(16));
+        cartridge->chrData = cartridge->prgData + (cartridge->prgBankCount * Kilobytes(16));
 
-        mapperInit[Cartridge->MapperNum](Cartridge, Cpu, Ppu);
+        MapperInit[cartridge->mapperNum](cartridge, cpu, ppu);
     }
 }
 
-static void
-power(nes *Nes)
+static void Power(Nes *nes)
 {
-    Nes->PowerOn = !(Nes->PowerOn);
+    nes->powerOn = !(nes->powerOn);
 
-    if(Nes->PowerOn)
+    if(nes->powerOn)
     {
-        initCpu(&Nes->Cpu, Nes->CpuMemoryBase);
-        initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (u32 *)GlobalScreenBackBuffer.Memory);
+        InitCpu(&nes->cpu, nes->cpuMemoryBase);
+        InitPpu(&nes->ppu, nes->ppuMemoryBase, (u32 *)globalScreenBackBuffer.memory);
            
-        loadCartridge(Nes, RomFileName);
-        Nes->Cpu.PrgCounter = (read8(RESET_VEC+1, Nes->Cpu.MemoryBase) << 8) | read8(RESET_VEC, Nes->Cpu.MemoryBase);
+        LoadCartridge(nes, romFileName);
+        nes->cpu.prgCounter = (Read8(RESET_VEC+1, nes->cpu.memoryBase) << 8) | Read8(RESET_VEC, nes->cpu.memoryBase);
     }
     else
     {
-        u64 MemoryBase = Nes->Cpu.MemoryBase;
-        Nes->Cpu = {};
-        Nes->Cpu.MemoryBase = MemoryBase;
+        u64 memoryBase = nes->cpu.memoryBase;
+        nes->cpu = {};
+        nes->cpu.memoryBase = memoryBase;
 
-        MemoryBase = Nes->Ppu.MemoryBase;
-        u32 *BasePixel = Nes->Ppu.BasePixel;
-        Nes->Ppu = {};
-        Nes->Ppu.MemoryBase = MemoryBase;
-        Nes->Ppu.BasePixel = BasePixel;
+        memoryBase = nes->ppu.memoryBase;
+        u32 *basePixel = nes->ppu.basePixel;
+        nes->ppu = {};
+        nes->ppu.memoryBase = memoryBase;
+        nes->ppu.basePixel = basePixel;
     }
 
-    Nes->Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes->Cpu);
+    nes->cpu.prgCounter = ReadCpu16(RESET_VEC, &nes->cpu);
 }
 
-static void
-reset(nes *Nes)
+static void Reset(Nes *nes)
 {
-    initCpu(&Nes->Cpu, Nes->CpuMemoryBase);
-    initPpu(&Nes->Ppu, Nes->PpuMemoryBase, (u32 *)GlobalScreenBackBuffer.Memory);
+    InitCpu(&nes->cpu, nes->cpuMemoryBase);
+    InitPpu(&nes->ppu, nes->ppuMemoryBase, (u32 *)globalScreenBackBuffer.memory);
 
-    loadCartridge(Nes, RomFileName);
+    LoadCartridge(nes, romFileName);
     
-    Nes->Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes->Cpu);
+    nes->cpu.prgCounter = ReadCpu16(RESET_VEC, &nes->cpu);
 
     // NOTE: The status after reset was taken from nesdev
-    Nes->Cpu.StackPtr -= 3;
-    setInterrupt(&Nes->Cpu.Flags);
+    nes->cpu.stackPtr -= 3;
+    SetInterrupt(&nes->cpu.flags);
 
-    Nes->Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes->Cpu);
+    nes->cpu.prgCounter = ReadCpu16(RESET_VEC, &nes->cpu);
 }
 
 
 /****************************************************************/
-/* NOTE : Initialization of Cpu, Ppu, and Cartridge structures */
-static nes createNes(char *RomName)
+/* NOTE : Initialization of cpu, Ppu, and cartridge structures */
+static Nes CreateNes(u8 *romName)
 {    
-    //nes *Nes = (nes *)VirtualAlloc(0, sizeof(nes), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-    nes Nes = {};
+    Nes nes = {};
     
-    // Memory allocation for the Cpu and Ppu. TODO: Different Allocation in the future?
-    u32 CpuMemorySize = Kilobytes(64);
-    u32 PpuMemorySize = Kilobytes(64);
-    u8 * Memory = (u8 *)VirtualAlloc(0, (size_t)(CpuMemorySize + PpuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+    // Memory allocation for the cpu and Ppu
+    u32 cpuMemorySize = Kilobytes(64);
+    u32 ppuMemorySize = Kilobytes(64);
+    u8 * memory = (u8 *)VirtualAlloc(0, (size_t)(cpuMemorySize + ppuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
     
-    Nes.CpuMemoryBase = (u64)Memory;
-    Nes.PpuMemoryBase = (u64)Memory + CpuMemorySize;
+    nes.cpuMemoryBase = (u64)memory;
+    nes.ppuMemoryBase = (u64)memory + cpuMemorySize;
 
-    initCpu(&Nes.Cpu, Nes.CpuMemoryBase);
-    initPpu(&Nes.Ppu, Nes.PpuMemoryBase, (u32 *)GlobalScreenBackBuffer.Memory);
-    initApu(&Nes.Apu);
+    InitCpu(&nes.cpu, nes.cpuMemoryBase);
+    InitPpu(&nes.ppu, nes.ppuMemoryBase, (u32 *)globalScreenBackBuffer.memory);
+    InitApu(&nes.apu);
 
     // TODO: Check ref?
-    loadCartridge(&Nes, RomName);
+    LoadCartridge(&nes, romName);
 
     // NOTE: Load the program counter with the reset vector
-    Nes.Cpu.PrgCounter = readCpu16(RESET_VEC, &Nes.Cpu);
+    nes.cpu.prgCounter = ReadCpu16(RESET_VEC, &nes.cpu);
 
-    Nes.CpuHz = 1789772.727272728f;            
+    nes.cpuHz = 1789772.727272728f;            
     
-    return(Nes);
+    return(nes);
 }

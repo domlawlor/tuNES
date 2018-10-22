@@ -7,55 +7,55 @@
 
 #include "cpu.h"
 
-b32 NmiFlag = false;
-b32 LastNmiFlag = false;
-b32 TriggerNmi = false;
-b32 NmiInterruptSet = false;
+b32 nmiFlag = false;
+b32 lastNmiFlag = false;
+b32 triggerNmi = false;
+b32 nmiInterruptSet = false;
 
-b32 IRQFlag = false;
-b32 LastIRQFlag = false;
-b32 TriggerIRQ = false;
-b32 IRQInterruptSet = false;
+b32 irqFlag = false;
+b32 lastIRQFlag = false;
+b32 triggerIRQ = false;
+b32 irqInterruptSet = false;
 
-static void runPpuCatchup(u8 ClocksIntoCurrentOp);
+static void RunPpuCatchup(u8 clocksIntoCurrentOp);
 
-static void setNmi(b32 newNmiFlag)
+static void SetNmi(b32 newNmiFlag)
 {
-    NmiFlag = newNmiFlag;
+    nmiFlag = newNmiFlag;
 
-    if(NmiFlag && !LastNmiFlag)
-        TriggerNmi = true;
+    if(nmiFlag && !lastNmiFlag)
+        triggerNmi = true;
 
-    LastNmiFlag = NmiFlag;
+    lastNmiFlag = nmiFlag;
 }
 
-static void pollInterrupts(cpu *Cpu)
+static void PollInterrupts(Cpu *cpu)
 {
     // NMI
-    if(NmiFlag && !LastNmiFlag)
+    if(nmiFlag && !lastNmiFlag)
     {
-        TriggerNmi = true;
+        triggerNmi = true;
     }
-    LastNmiFlag = NmiFlag;
+    lastNmiFlag = nmiFlag;
     
-    if(TriggerNmi)
+    if(triggerNmi)
     {
-        TriggerNmi = false;
-        NmiInterruptSet = true;
+        triggerNmi = false;
+        nmiInterruptSet = true;
     }
 
-    b32 InterruptFlag = (INTERRUPT_BIT & Cpu->Flags) != 0;
+    b32 interruptFlag = (INTERRUPT_BIT & cpu->flags) != 0;
     
-    if(TriggerIRQ && !InterruptFlag)
+    if(triggerIRQ && !interruptFlag)
     {
-        IRQInterruptSet = true;
+        irqInterruptSet = true;
     }
-    TriggerIRQ = false;
+    triggerIRQ = false;
 
 }
 
-static void pollInterrupts(cpu *Cpu, u8 CurrentCycle)
+static void PollInterrupts(Cpu *cpu, u8 currentCycle)
 {
-    runPpuCatchup(CurrentCycle);
-    pollInterrupts(Cpu);
+    RunPpuCatchup(currentCycle);
+    PollInterrupts(cpu);
 }

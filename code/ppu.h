@@ -31,8 +31,8 @@ enum NameTableMirrorType
 struct OamSprite
 {
     u8 Y;
-    u8 Tile;
-    u8 Atrb;
+    u8 tile;
+    u8 atrb;
     u8 X;
 };
 
@@ -58,6 +58,8 @@ enum ScanlineType
 
 struct Ppu
 {
+	u64 clocksHit;
+
     u64 memoryBase;
     u32 *basePixel;
 

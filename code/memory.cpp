@@ -5,7 +5,7 @@
 #include "apu.h"
 
 static u8 ReadPpuRegister(u16 address);
-static void WritePpuRegister(u8 Byte, u16 address);
+static void WritePpuRegister(u8 bte, u16 address);
 static u8 ReadApuRegister(u16 address);
 static void WriteApuRegister(u8 byte, u16 address);
 
@@ -72,7 +72,7 @@ static u16 CpuMemoryMirror(u16 address)
     return(address);
 }
 
-static u8 readCpu8(u16 address, Cpu *cpu)
+static u8 ReadCpu8(u16 address, Cpu *cpu)
 {
 	address = CpuMemoryMirror(address);
         
@@ -148,91 +148,91 @@ static u16 ReadCpu16(u16 address, Cpu * cpu)
 
 static void WriteCpu8(u8 byte, u16 address, Cpu *cpu)
 {
-	address = cpuMemoryMirror(address);
+	address = CpuMemoryMirror(address);
 
     if((0x2000 <= address && address < 0x2008) ||
        (address == 0x4014))
     {
-        writePpuRegister(Byte, address);
+        WritePpuRegister(byte, address);
     }
     else if((0x4000 <= address && address <= 0x4013) ||
             address == 0x4015 || address == 0x4017)
     {
-        writeApuRegister(Byte, address);
+        WriteApuRegister(byte, address);
     }
     
     
-    write8(Byte, address, Cpu->MemoryBase);
+    Write8(byte, address, cpu->memoryBase);
     
     // Input
     if(address == 0x4016 || address == 0x4017)
     {
-        u8 Reg1Value = read8(0x4016, Cpu->MemoryBase);
-        u8 Reg2Value = read8(0x4017, Cpu->MemoryBase);
+        u8 reg1Value = Read8(0x4016, cpu->memoryBase);
+        u8 reg2Value = Read8(0x4017, cpu->memoryBase);
 
-        u8 Bit0 = (Reg1Value | Reg2Value) & 1;
+        u8 bit0 = (reg1Value | reg2Value) & 1;
 
-        if(Bit0 == 0)
+        if(bit0 == 0)
         {
-            if(Cpu->PadStrobe)
+            if(cpu->padStrobe)
             {
-                Cpu->Pad1CurrentButton = Cpu->Pad2CurrentButton = input::B_A;
+                cpu->pad1CurrentButton = cpu->pad2CurrentButton = Input::B_A;
             }
-            Cpu->PadStrobe = false;
+            cpu->padStrobe = false;
         }
-        else if(Bit0 == 1)
+        else if(bit0 == 1)
         {
-            Cpu->PadStrobe = true;
+            cpu->padStrobe = true;
         }        
 
-        u8 BtnValue = Cpu->InputPad1.Buttons[Cpu->Pad1CurrentButton] & 1;
-        write8(BtnValue, 0x4016, Cpu->MemoryBase);
+        u8 btnValue = cpu->inputPad1.buttons[cpu->pad1CurrentButton] & 1;
+        Write8(btnValue, 0x4016, cpu->memoryBase);
 
-        BtnValue = Cpu->InputPad2.Buttons[Cpu->Pad2CurrentButton] & 1;
-        write8(BtnValue, 0x4017, Cpu->MemoryBase);
+        btnValue = cpu->inputPad2.buttons[cpu->pad2CurrentButton] & 1;
+        Write8(btnValue, 0x4017, cpu->memoryBase);
     }
 
     // Mapper
     if(address >= 0x8000)
     {
-        mapperUpdate[GlobalNes->Cartridge.MapperNum](GlobalNes, Byte, address);
+        MapperUpdate[globalNes->cartridge.mapperNum](globalNes, byte, address);
     }
 }
 
-static void writeCpu8(u8 Byte, u16 address, cpu *Cpu, u8 CurrentCycle)
+static void WriteCpu8(u8 byte, u16 address, Cpu *cpu, u8 currentCycle)
 {
     if((0x2000 <= address && address <= 0x2007) || address == 0x4014)
     {
-        runPpuCatchup(CurrentCycle);
+        RunPpuCatchup(currentCycle);
     }
-    writeCpu8(Byte, address, Cpu);
+    WriteCpu8(byte, address, cpu);
 }
 
-static u8 * getNametableBank(u16 address, ppu *Ppu)
+static u8 * GetNametableBank(u16 address, Ppu *ppu)
 {
-    u8 * Result = 0;
+    u8 * result = 0;
 
-    switch(Ppu->mirrorType)
+    switch(ppu->mirrorType)
     {
         case SINGLE_SCREEN_BANK_A:
         {
-            Result = Ppu->NametableBankA;
+            result = ppu->nametableBankA;
             break;
         }
         case SINGLE_SCREEN_BANK_B:
         {
-            Result = Ppu->NametableBankB;
+            result = ppu->nametableBankB;
             break;
         }
         case VERTICAL_MIRROR:
         {
             if(address < 0x2400 || (0x2800 <= address && address < 0x2C00) )
             {
-                Result = Ppu->NametableBankA;
+                result = ppu->nametableBankA;
             }
             else
             {
-                Result = Ppu->NametableBankB;
+                result = ppu->nametableBankB;
             }
             break;
         }
@@ -240,11 +240,11 @@ static u8 * getNametableBank(u16 address, ppu *Ppu)
         {
             if(address < 0x2800)
             {
-                Result = Ppu->NametableBankA;
+                result = ppu->nametableBankA;
             }
             else
             {
-                Result = Ppu->NametableBankB;
+                result = ppu->nametableBankB;
             } 
             break;
         }
@@ -253,46 +253,46 @@ static u8 * getNametableBank(u16 address, ppu *Ppu)
             Assert(0);
             if(address < 0x2400)
             {
-                Result = Ppu->NametableBankA;
+                result = ppu->nametableBankA;
             }
             else if(address < 0x2800)
             {
-                Result = Ppu->NametableBankB;
+                result = ppu->nametableBankB;
             }
             else if(address < 0x2C00)
             {
-                Result = Ppu->NametableBankC;
+                result = ppu->nametableBankC;
             }
             else
             {
-                Result = Ppu->NametableBankD;
+                result = ppu->nametableBankD;
             }
             break;
         }
     }
     
-    return Result;
+    return result;
 }
 
-static u8 readNametable(u16 address, ppu *Ppu)
+static u8 ReadNametable(u16 address, Ppu *ppu)
 {
-    u8 Result = 0;
+    u8 result = 0;
     
-    u8 *Nametable = getNametableBank(address, Ppu);
-    Result = Nametable[address % 0x400];
+    u8 *nametable = GetNametableBank(address, ppu);
+    result = nametable[address % 0x400];
     
-    return Result;
+    return result;
 }
 
-static void writeNametable(u8 Byte, u16 address, ppu *Ppu)
+static void WriteNametable(u8 byte, u16 address, Ppu *ppu)
 {
-    u8 *Nametable = getNametableBank(address, Ppu);
-    Nametable[address % 0x400] = Byte;
+    u8 *nametable = GetNametableBank(address, ppu);
+    nametable[address % 0x400] = byte;
 }
 
-static u16 ppuMemoryMirror(u16 address)
+static u16 PpuMemoryMirror(u16 address)
 {
-    ppu * Ppu = &GlobalNes->Ppu;
+    Ppu * ppu = &globalNes->ppu;
     
     if(address >= 0x4000) // Over half of the memory map is mirrored
         address = address % 0x4000; 
@@ -319,13 +319,13 @@ static u16 ppuMemoryMirror(u16 address)
     return address;
 }
 
-static u8 readPpu8(u16 address, ppu *Ppu)
+static u8 ReadPpu8(u16 address, Ppu *ppu)
 {
-    u8 Result;
+    u8 result;
     
-    address = ppuMemoryMirror(address);
+    address = PpuMemoryMirror(address);
             
-    if((Ppu->ShowBackground || Ppu->ShowSprites) &&
+    if((ppu->showBackground || ppu->showSprites) &&
        (address == 0x3F04 || address == 0x3F08 || address == 0x3F0C))
     {
         address = 0x3F00;
@@ -334,143 +334,143 @@ static u8 readPpu8(u16 address, ppu *Ppu)
     // If address in nametable range. Then map to the current mirror state and return
     if(0x2000 <= address && address < 0x3000)
     {
-        Result = readNametable(address, Ppu);
+        result = ReadNametable(address, ppu);
     }
     else
     {
-        Result = read8(address, Ppu->MemoryBase);
+        result = Read8(address, ppu->memoryBase);
     }
-    return(Result);
+    return(result);
 }
 
-static void writePpu8(u8 Byte, u16 address, ppu *Ppu)
+static void WritePpu8(u8 byte, u16 address, Ppu *ppu)
 {    
-    address = ppuMemoryMirror(address);
+    address = PpuMemoryMirror(address);
     
     if(0x2000 <= address && address < 0x3000)
     {
-        writeNametable(Byte, address, Ppu);
+        WriteNametable(byte, address, ppu);
     }
     else
     {
-        write8(Byte, address, Ppu->MemoryBase);
+        Write8(byte, address, ppu->memoryBase);
     }
 }
 
-static void writePpuRegister(u8 Byte, u16 address)
+static void WritePpuRegister(u8 byte, u16 address)
 {
-    ppu * Ppu = &GlobalNes->Ppu;
+    Ppu * ppu = &globalNes->ppu;
     
-    GlobalOpenBus = Byte;
+    globalOpenBus = byte;
     
     switch(address)
     {
         case 0x2000:
         {
-            Ppu->NametableBase  = Byte & 3;            
-            Ppu->VRamIncrement  = ((Byte & 4) != 0) ? 32 : 1;
-            Ppu->SPRTPattenBase = ((Byte & 8) != 0) ? 0x1000 : 0;
-            Ppu->BGPatternBase  = ((Byte & 16) != 0) ? 0x1000 : 0;
-            Ppu->SpriteSize8x16 = ((Byte & 32) != 0);
-            Ppu->PpuSlave       = ((Byte & 64) != 0);
-            Ppu->GenerateNMI    = ((Byte & 128) != 0);
+            ppu->nametableBase  = byte & 3;            
+            ppu->vRamIncrement  = ((byte & 4) != 0) ? 32 : 1;
+            ppu->sPRTPattenBase = ((byte & 8) != 0) ? 0x1000 : 0;
+            ppu->bGPatternBase  = ((byte & 16) != 0) ? 0x1000 : 0;
+            ppu->spriteSize8x16 = ((byte & 32) != 0);
+            ppu->ppuSlave       = ((byte & 64) != 0);
+            ppu->generateNMI    = ((byte & 128) != 0);
 
-            Ppu->TempVRamAdrs &= ~0xC00;
-            Ppu->TempVRamAdrs |= (Ppu->NametableBase) << 10;
+            ppu->tempVRamAdrs &= ~0xC00;
+            ppu->tempVRamAdrs |= (ppu->nametableBase) << 10;
             
             // Nmi On Timing
-            if( !(Ppu->Scanline == 261 && Ppu->ScanlineCycle == 1) )
+            if( !(ppu->scanline == 261 && ppu->scanlineCycle == 1) )
             {
-                setNmi(Ppu->GenerateNMI && Ppu->VerticalBlank);
+                SetNmi(ppu->generateNMI && ppu->verticalBlank);
             }
 
             // Nmi off timing test
-            if(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 4))
+            if(ppu->scanline == 241 && (ppu->scanlineCycle == 4))
             {
-                setNmi(true);
+                SetNmi(true);
             }
 
             break;
         }
         case 0x2001:
         {
-            Ppu->GreyScale           = ((Byte & 1) != 0);
-            Ppu->ShowBGLeft8Pixels   = ((Byte & 2) != 0);
-            Ppu->ShowSPRTLeft8Pixels = ((Byte & 4) != 0);
-            Ppu->ShowBackground      = ((Byte & 8) != 0);
-            Ppu->ShowSprites         = ((Byte & 16) != 0);
-            Ppu->EmphasizeRed        = ((Byte & 32) != 0);
-            Ppu->EmphasizeGreen      = ((Byte & 64) != 0);
-            Ppu->EmphasizeBlue       = ((Byte & 128) != 0);
+            ppu->greyScale           = ((byte & 1) != 0);
+            ppu->showBGLeft8Pixels   = ((byte & 2) != 0);
+            ppu->showSPRTLeft8Pixels = ((byte & 4) != 0);
+            ppu->showBackground      = ((byte & 8) != 0);
+            ppu->showSprites         = ((byte & 16) != 0);
+            ppu->emphasizeRed        = ((byte & 32) != 0);
+            ppu->emphasizeGreen      = ((byte & 64) != 0);
+            ppu->emphasizeBlue       = ((byte & 128) != 0);
 
-            Ppu->RenderingEnabled = (Ppu->ShowBackground || Ppu->ShowSprites);
+            ppu->renderingEnabled = (ppu->showBackground || ppu->showSprites);
             break;
         }
         case 0x2003:
         {
-            Ppu->OamAddress = Byte;
+            ppu->oamAddress = byte;
             break;
         }
         case 0x2004:
         {
             // If Writing OAM Data while rendering, then a glitch increments it by 4 instead
-            if(Ppu->Scanline < 240 || Ppu->Scanline == 261 || Ppu->ShowBackground || Ppu->ShowSprites)
+            if(ppu->scanline < 240 || ppu->scanline == 261 || ppu->showBackground || ppu->showSprites)
             {
-                Ppu->OamAddress += 4;
+                ppu->oamAddress += 4;
             }
             else
             {
-                Ppu->Oam[Ppu->OamAddress] = Byte;
-                Ppu->OamAddress++;
+                ppu->oam[ppu->oamAddress] = byte;
+                ppu->oamAddress++;
             }
             break;
         }
         case 0x2005:
         {
-            if(Ppu->LatchWrite == 0)
+            if(ppu->latchWrite == 0)
             {
-                Ppu->FineX = Byte & 7; // Bit 0,1, and 2 are fine X
-                Ppu->TempVRamAdrs &= ~(0x001F); // Clear Bits
-                Ppu->TempVRamAdrs |= ((u16)Byte) >> 3;
-                Ppu->LatchWrite = 1;
+                ppu->fineX = byte & 7; // Bit 0,1, and 2 are fine X
+                ppu->tempVRamAdrs &= ~(0x001F); // Clear Bits
+                ppu->tempVRamAdrs |= ((u16)byte) >> 3;
+                ppu->latchWrite = 1;
             }
             else
             {
-                Ppu->TempVRamAdrs &= ~(0x73E0); // Clear Bits
-                Ppu->TempVRamAdrs |= ((u16)(Byte & 0x7)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
-                Ppu->TempVRamAdrs |= ((u16)(Byte & 0xF8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
-                Ppu->LatchWrite = 0;
+                ppu->tempVRamAdrs &= ~(0x73E0); // Clear Bits
+                ppu->tempVRamAdrs |= ((u16)(byte & 0x7)) << 12; // Set fine scroll Y, bits 0-2 set bit 12-14
+                ppu->tempVRamAdrs |= ((u16)(byte & 0xF8)) << 2; // Set coarse Y, bits 3-7 set bit 5-9
+                ppu->latchWrite = 0;
             }
                 
             break;
         }
         case 0x2006:
         {
-            if(Ppu->LatchWrite == 0)
+            if(ppu->latchWrite == 0)
             {
-                Ppu->TempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
-                Ppu->TempVRamAdrs |= ((u16)(Byte & 0x003F)) << 8;
-                Ppu->TempVRamAdrs &= 0x3FFF; // Clear 14th bit 
-                Ppu->LatchWrite = 1;
+                ppu->tempVRamAdrs &= 0xC0FF; // Clear Bits About to be set 
+                ppu->tempVRamAdrs |= ((u16)(byte & 0x003F)) << 8;
+                ppu->tempVRamAdrs &= 0x3FFF; // Clear 14th bit 
+                ppu->latchWrite = 1;
             }
             else
             { 
-                Ppu->TempVRamAdrs &= 0x7F00; // Clear low byte
-                Ppu->TempVRamAdrs |= (u16)(Byte & 0x00FF); 
-                Ppu->VRamAdrs = Ppu->TempVRamAdrs;
-                Ppu->LatchWrite = 0;
+                ppu->tempVRamAdrs &= 0x7F00; // Clear low byte
+                ppu->tempVRamAdrs |= (u16)(byte & 0x00FF); 
+                ppu->vRamAdrs = ppu->tempVRamAdrs;
+                ppu->latchWrite = 0;
             }
             
             break;
         }
         case 0x2007:
         {
-            writePpu8(Byte, Ppu->VRamAdrs, Ppu);
+            WritePpu8(byte, ppu->vRamAdrs, ppu);
 
-            if( !(Ppu->ShowBackground || Ppu->ShowSprites) ||
-                (Ppu->Scanline > 240 && Ppu->Scanline <= 260) )
+            if( !(ppu->showBackground || ppu->showSprites) ||
+                (ppu->scanline > 240 && ppu->scanline <= 260) )
             {            
-                Ppu->VRamAdrs += Ppu->VRamIncrement;
+                ppu->vRamAdrs += ppu->vRamIncrement;
             }
             break;
         }
@@ -478,96 +478,96 @@ static void writePpuRegister(u8 Byte, u16 address)
         {
             // NOTE: OAM DMA Write
             // TODO: Happens over time!
-            for(u16 ByteCount = 0; ByteCount < 256; ++ByteCount)
+            for(u16 byteCount = 0; byteCount < 256; ++byteCount)
             {
-                u16 NewAddress = (Byte << 8) | ByteCount;
+                u16 newAddress = (byte << 8) | byteCount;
 
-                u8 Index = (Ppu->OamAddress + ByteCount);
-                Ppu->Oam[Index] = read8(NewAddress, GlobalNes->Cpu.MemoryBase);
+                u8 index = (ppu->oamAddress + byteCount);
+                ppu->oam[index] = Read8(newAddress, globalNes->cpu.memoryBase);
             }            
             break;
         }
     }
 }
 
-static u8 readPpuRegister(u16 address)
+static u8 ReadPpuRegister(u16 address)
 {
-    ppu * Ppu = &GlobalNes->Ppu;
+    Ppu * ppu = &globalNes->ppu;
     
-    u8 Byte = 0;
+    u8 byte = 0;
     
     switch(address)
     {
         case 0x2002:
         {
-            // NOTE: Reading VBL one cycle before it is set, returns clear and supresses vbl
-            if( !(Ppu->Scanline == 241 && (Ppu->ScanlineCycle == 1) ) )
+            // NOTE: Reading VBL one cycle before it is set, returns clear and suppresses vbl
+            if( !(ppu->scanline == 241 && (ppu->scanlineCycle == 1) ) )
                    
             {
-                Byte |= Ppu->VerticalBlank ? 0x80 : 0;
-                Ppu->SupressVbl = false;
+                byte |= ppu->verticalBlank ? 0x80 : 0;
+                ppu->supressVbl = false;
             }
             else
             {
-                Ppu->SupressVbl = true;
+                ppu->supressVbl = true;
             }
 
-            // NMI Supression
-            if(Ppu->Scanline == 241 &&
-               (Ppu->ScanlineCycle == 1 || Ppu->ScanlineCycle == 2 || Ppu->ScanlineCycle == 3))
+            // NMI Suppression
+            if(ppu->scanline == 241 &&
+               (ppu->scanlineCycle == 1 || ppu->scanlineCycle == 2 || ppu->scanlineCycle == 3))
             {
-                setNmi(false);
-                TriggerNmi = false;
+                SetNmi(false);
+                triggerNmi = false;
 
-                if(Ppu->ScanlineCycle == 1)
-                    Ppu->SupressNmiSet = true;
+                if(ppu->scanlineCycle == 1)
+                    ppu->supressNmiSet = true;
             }
             
-            Ppu->VerticalBlank = false;
+            ppu->verticalBlank = false;
 
-            Byte |= Ppu->SpriteZeroHit ? 0x40 : 0;
-            Byte |= Ppu->SpriteOverflow ? 0x20 : 0;
-            Byte |= (GlobalOpenBus & 0x1F); // Low 5 bits is the open bus
+            byte |= ppu->spriteZeroHit ? 0x40 : 0;
+            byte |= ppu->spriteOverflow ? 0x20 : 0;
+            byte |= (globalOpenBus & 0x1F); // Low 5 bits is the open bus
 
-            Ppu->LatchWrite = 0; // VRAM latch reset
-            GlobalOpenBus = Byte;
+            ppu->latchWrite = 0; // VRAM latch reset
+            globalOpenBus = byte;
             break;
         }
         case 0x2004:
         {
-            GlobalOpenBus = Ppu->Oam[Ppu->OamAddress];
+            globalOpenBus = ppu->oam[ppu->oamAddress];
             break;
         }
         case 0x2007:
         {
-            b32 OnPalette = !((Ppu->VRamAdrs & 0x3FFF) < 0x3F00);
+            b32 onPalette = !((ppu->vRamAdrs & 0x3FFF) < 0x3F00);
 
-            if(OnPalette)
+            if(onPalette)
             {
-                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamAdrs-0x1000, Ppu);
-                Byte = readPpu8(Ppu->VRamAdrs, Ppu);
+                ppu->vRamDataBuffer = ReadPpu8(ppu->vRamAdrs-0x1000, ppu);
+                byte = ReadPpu8(ppu->vRamAdrs, ppu);
 
                 // Pulled from nes dev forum
-                Byte &= 0x3F;
-                Byte |= GlobalOpenBus & 0xC0;
+                byte &= 0x3F;
+                byte |= globalOpenBus & 0xC0;
             }
             else
             {
-                Byte = Ppu->VRamDataBuffer;
-                Ppu->VRamDataBuffer = readPpu8(Ppu->VRamAdrs, Ppu);
+                byte = ppu->vRamDataBuffer;
+                ppu->vRamDataBuffer = ReadPpu8(ppu->vRamAdrs, ppu);
             }
 
-            if( !(Ppu->RenderingEnabled) ||
-                (Ppu->Scanline > 240 && Ppu->Scanline <= 260) )
+            if( !(ppu->renderingEnabled) ||
+                (ppu->scanline > 240 && ppu->scanline <= 260) )
             {            
-                Ppu->VRamAdrs += Ppu->VRamIncrement;
+                ppu->vRamAdrs += ppu->vRamIncrement;
             }
             else
             {
-                // TODO: Weird update of Vram, check ppu_scrolling on wiki
+                // TODO: Weird update of vRam, check ppu_scrolling on wiki
             }
                         
-            GlobalOpenBus = Byte;
+            globalOpenBus = byte;
             break;
         }
         case 0x4014:
@@ -576,7 +576,7 @@ static u8 readPpuRegister(u16 address)
         }
     }
 
-    return(GlobalOpenBus);
+    return(globalOpenBus);
 }
 
 
@@ -585,153 +585,153 @@ u8 LengthCounterTable[] = {0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06,
                               0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16,
                               0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E };
 
-static void writeApuRegister(u8 Byte, u16 address)
+static void WriteApuRegister(u8 byte, u16 address)
 {
-    apu * Apu = &GlobalNes->Apu;
+    Apu * apu = &globalNes->apu;
     
-    GlobalOpenBus = Byte;
+    globalOpenBus = byte;
     
     switch(address)
     {
         case 0x4000:
         case 0x4004:
         {
-            square *Square = (0x4000 <= address && address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+            Square *square = (0x4000 <= address && address < 0x4004) ? &apu->square1 : &apu->square2;
 
-            Square->DutyCycle         = ((Byte & 0xC0) >> 6);
-            Square->LengthCounterHalt = ((Byte & 0x20) != 0);
-            Square->EnvelopeDisable   = ((Byte & 0x10) != 0);
-            Square->VolumePeriod      = (Byte & 0xF);
+            square->dutyCycle         = ((byte & 0xC0) >> 6);
+            square->lengthCounterHalt = ((byte & 0x20) != 0);
+            square->envelopeDisable   = ((byte & 0x10) != 0);
+            square->volumePeriod      = (byte & 0xF);
             break;
         }
         case 0x4001:
         case 0x4005:
         {
-            square *Square = (0x4000 <= address && address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
+            Square *square = (0x4000 <= address && address < 0x4004) ? &apu->square1 : &apu->square2;
 
-            Square->EnableSweep = ((Byte & 0x80) != 0);
-            Square->SweepPeriod = ((Byte & 0x70) >> 4);
-            Square->Negative    = ((Byte & 0x8) != 0);
-            Square->ShiftCount  = (Byte & 0x7);
-
-            Square->SweepReset = true;
+            square->enableSweep = ((byte & 0x80) != 0);
+            square->sweepPeriod = ((byte & 0x70) >> 4);
+            square->negative    = ((byte & 0x8) != 0);
+            square->shiftCount  = (byte & 0x7);
+			
+            square->sweepReset = true;
             break;
         }
         case 0x4002:
         case 0x4006:
         {
-            square *Square = (0x4000 <= address && address < 0x4004) ? &Apu->Square1 : &Apu->Square2;
-            Square->PeriodLow = Byte;
+            Square *square = (0x4000 <= address && address < 0x4004) ? &apu->square1 : &apu->square2;
+            square->periodLow = byte;
             break;
         }
         case 0x4003:
         {
-            if(Apu->Square1Enabled)
-                Apu->Square1.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
-            Apu->Square1.PeriodHigh = (Byte & 0x7);
+            if(apu->square1Enabled)
+                apu->square1.lengthCounter = LengthCounterTable[((byte & 0xF8) >> 3)];
+            apu->square1.periodHigh = (byte & 0x7);
 
-            Apu->Square1.RestartEnv = true;
+            apu->square1.restartEnv = true;
             break;
         }
         case 0x4007:
         {
-            if(Apu->Square2Enabled)
-                Apu->Square2.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
-            Apu->Square2.PeriodHigh = (Byte & 0x7);
+            if(apu->square2Enabled)
+                apu->square2.lengthCounter = LengthCounterTable[((byte & 0xF8) >> 3)];
+            apu->square2.periodHigh = (byte & 0x7);
 
-            Apu->Square2.RestartEnv = true;
+            apu->square2.restartEnv = true;
             break;
         }
         case 0x4008:
         {
-            Apu->Triangle.LinearCtrl    = ((Byte & 0x80) != 0);
-            Apu->Triangle.LinearCounter = (Byte & 0x7F);
+            apu->triangle.linearCtrl    = ((byte & 0x80) != 0);
+            apu->triangle.linearCounter = (byte & 0x7F);
             break;
         }
         case 0x400A:
         {
-            Apu->Triangle.PeriodLow = Byte;
+            apu->triangle.periodLow = byte;
             break;
         }
         case 0x400B:
         {
-            if(Apu->TriangleEnabled)
-                Apu->Triangle.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
-            Apu->Triangle.PeriodHigh    = (Byte & 0x7);
+            if(apu->triangleEnabled)
+                apu->triangle.lengthCounter = LengthCounterTable[((byte & 0xF8) >> 3)];
+            apu->triangle.periodHigh    = (byte & 0x7);
             break;
         }
         case 0x400C:
         {
-            Apu->Noise.LengthCounterHalt = ((Byte & 0x20) != 0);
-            Apu->Noise.EnvelopeDisable   = ((Byte & 0x10) != 0);
-            Apu->Noise.VolumePeriod      = (Byte & 0xF);
+            apu->noise.lengthCounterHalt = ((byte & 0x20) != 0);
+            apu->noise.envelopeDisable   = ((byte & 0x10) != 0);
+            apu->noise.volumePeriod      = (byte & 0xF);
             break;
         }
         case 0x400E:
         {
-            Apu->Noise.LoopNoise  = ((Byte & 0x80) != 0);
-            Apu->Noise.LoopPeriod = (Byte & 0xF);
+            apu->noise.loopNoise  = ((byte & 0x80) != 0);
+            apu->noise.loopPeriod = (byte & 0xF);
             break;
         }
         case 0x400F:
         {
-            if(!Apu->NoiseEnabled)
-                Apu->Noise.LengthCounter = LengthCounterTable[((Byte & 0xF8) >> 3)];
-            Apu->Noise.RestartEnv = true; // TODO: Unsure if noise envelope is reset
+            if(!apu->noiseEnabled)
+                apu->noise.lengthCounter = LengthCounterTable[((byte & 0xF8) >> 3)];
+            apu->noise.restartEnv = true; // TODO: Unsure if noise envelope is reset
             break;
         }
         case 0x4010:
         {
-            Apu->Dmc.IRQEnable = ((Byte & 0x80) != 0);
-            Apu->Dmc.Loop      = ((Byte & 0x40) != 0);
-            Apu->Dmc.FreqIndex = (Byte & 0xF);
+            apu->dmc.irqEnable = ((byte & 0x80) != 0);
+            apu->dmc.loop      = ((byte & 0x40) != 0);
+            apu->dmc.freqIndex = (byte & 0xF);
             break;
         }
         case 0x4011:
         {
-            Apu->Dmc.LoadCounter = (Byte & 0x7F);
+            apu->dmc.loadCounter = (byte & 0x7F);
             break;
         }
         case 0x4012:
         {
-            Apu->Dmc.SampleAddress = Byte;
+            apu->dmc.sampleAddress = byte;
             break;
         }
         case 0x4013:
         {
-            Apu->Dmc.SampleLength = Byte;
+            apu->dmc.sampleLength = byte;
             break;
         }
         case 0x4015:
         {
-            Apu->DmcEnabled = ((Byte & 0x10) != 0);
-            Apu->NoiseEnabled = ((Byte & 0x8) != 0);
-            Apu->TriangleEnabled = ((Byte & 0x4) != 0);            
-            Apu->Square2Enabled = ((Byte & 0x2) != 0);
-            Apu->Square1Enabled = ((Byte & 0x1) != 0);
+            apu->dmcEnabled = ((byte & 0x10) != 0);
+            apu->noiseEnabled = ((byte & 0x8) != 0);
+            apu->triangleEnabled = ((byte & 0x4) != 0);            
+            apu->square2Enabled = ((byte & 0x2) != 0);
+            apu->square1Enabled = ((byte & 0x1) != 0);
                         
-            if(!Apu->DmcEnabled)
+            if(!apu->dmcEnabled)
             {
-                Apu->Dmc.SampleLength = 0;
+                apu->dmc.sampleLength = 0;
             }
-            if(!Apu->Square1Enabled)
+            if(!apu->square1Enabled)
             {
-                Apu->Square1.LengthCounter = 0;
+                apu->square1.lengthCounter = 0;
             }
-            if(!Apu->Square2Enabled)
+            if(!apu->square2Enabled)
             {
-                Apu->Square2.LengthCounter = 0;
+                apu->square2.lengthCounter = 0;
             }
-            if(!Apu->TriangleEnabled)
+            if(!apu->triangleEnabled)
             {
-                Apu->Triangle.LengthCounter = 0;
+                apu->triangle.lengthCounter = 0;
             }
-            if(!Apu->NoiseEnabled)
+            if(!apu->noiseEnabled)
             {
-                Apu->Noise.LengthCounter = 0;
+                apu->noise.lengthCounter = 0;
             }
 
-            Apu->DmcInterrupt = false;
+            apu->dmcInterrupt = false;
             
             // TODO: If DMC Bit is set, sample will only be restarted it bytes is 0. Else
             //       the remaining bytes will finish before the next sample is fetched
@@ -740,10 +740,10 @@ static void writeApuRegister(u8 Byte, u16 address)
         }
         case 0x4017:
         {
-            Apu->Mode       = ((Byte & 0x80) != 0);
-            Apu->IRQInhibit = ((Byte & 0x40) != 0);
+            apu->mode       = ((byte & 0x80) != 0);
+            apu->irqInhibit = ((byte & 0x40) != 0);
 
-            Apu->FrameCounter = 0;
+            apu->frameCounter = 0;
 
             // NOTE/TODO Writing to $4017 resets the frame counter and the quarter/half frame
             // triggers happen simultaneously, but only on "odd" cycles (and only after the

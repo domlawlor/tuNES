@@ -48,15 +48,6 @@
     <ClCompile Include="code\nes.cpp">
       <Filter>code</Filter>
     </ClCompile>
-    <ClCompile Include="code\old_cpu.cpp">
-      <Filter>code</Filter>
-    </ClCompile>
-    <ClCompile Include="code\old_operations.cpp">
-      <Filter>code</Filter>
-    </ClCompile>
-    <ClCompile Include="code\old_ppu.cpp">
-      <Filter>code</Filter>
-    </ClCompile>
     <ClCompile Include="code\operations.cpp">
       <Filter>code</Filter>
     </ClCompile>

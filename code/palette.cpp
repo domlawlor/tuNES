@@ -5,16 +5,16 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
-#define PALETTE_ENTRIES 64
+static const u8 PaletteEntries = 64;
 
-struct colour
+struct Colour
 {
     u8 R;
     u8 G;
     u8 B;
 };
 
-colour Palette[PALETTE_ENTRIES] =
+Colour Palette[PaletteEntries] =
 {
     {0x75, 0x75, 0x75}, {0x27, 0x1B, 0x8F}, {0x00, 0x00, 0xAB}, {0x47, 0x00, 0x9F}, //0x00
     {0x8F, 0x00, 0x77}, {0xAB, 0x00, 0x13}, {0xA7, 0x00, 0x00}, {0x7F, 0x0B, 0x00}, //0x04

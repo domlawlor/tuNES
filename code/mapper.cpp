@@ -5,247 +5,247 @@
    $Creator: Dom Lawlor $
    ======================================================================== */
 
-void nromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+void NromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 MemPrgBank1 = 0x8000;
-    u16 MemPrgBank2 = 0xC000;
+    u16 memPrgBank1 = 0x8000;
+    u16 memPrgBank2 = 0xC000;
 
-    u8 * BankToCpy1;
-    u8 * BankToCpy2;
+    u8 * bankToCpy1;
+    u8 * bankToCpy2;
         
-    if(Cartridge->PrgBankCount == 1)
+    if(cartridge->prgBankCount == 1)
     {
-        BankToCpy1 = Cartridge->PrgData;
-        BankToCpy2 = Cartridge->PrgData;
+        bankToCpy1 = cartridge->prgData;
+        bankToCpy2 = cartridge->prgData;
     }
-    else if(Cartridge->PrgBankCount == 2)
+    else if(cartridge->prgBankCount == 2)
     {
-        BankToCpy1 = Cartridge->PrgData;
-        BankToCpy2 = Cartridge->PrgData + Kilobytes(16);
+        bankToCpy1 = cartridge->prgData;
+        bankToCpy2 = cartridge->prgData + Kilobytes(16);
     }
         
-    copyMemory((u8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    copyMemory((u8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy1, Kilobytes(16));
+    MemoryCopy((u8 *)memPrgBank2 + cpu->memoryBase, bankToCpy2, Kilobytes(16));
 
-    // Map CHR Data to Ppu
-    if(Cartridge->ChrBankCount == 1)
+    // Map CHR Data to ppu
+    if(cartridge->chrBankCount == 1)
     {
-        copyMemory((u8 *)Ppu->MemoryBase, Cartridge->ChrData, Kilobytes(8));
+        MemoryCopy((u8 *)ppu->memoryBase, cartridge->chrData, Kilobytes(8));
     }
 }
 
-void mmc1Init(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+void Mmc1Init(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 MemPrgBank1 = 0x8000;
-    u16 MemPrgBank2 = 0xC000;
+    u16 memPrgBank1 = 0x8000;
+    u16 memPrgBank2 = 0xC000;
 
-    u8 * BankToCpy1 = Cartridge->PrgData;
-    u8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
+    u8 * bankToCpy1 = cartridge->prgData;
+    u8 * bankToCpy2 = cartridge->prgData + ((cartridge->prgBankCount - 1) * Kilobytes(16));
            
-    copyMemory((u8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    copyMemory((u8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy1, Kilobytes(16));
+    MemoryCopy((u8 *)memPrgBank2 + cpu->memoryBase, bankToCpy2, Kilobytes(16));
  }
 
-void unromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+void UnromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 MemPrgBank1 = 0x8000;
-    u16 MemPrgBank2 = 0xC000;
+    u16 memPrgBank1 = 0x8000;
+    u16 memPrgBank2 = 0xC000;
 
-    u8 * BankToCpy1 = Cartridge->PrgData;
-    u8 * BankToCpy2 = Cartridge->PrgData + ((Cartridge->PrgBankCount - 1) * Kilobytes(16));
+    u8 * bankToCpy1 = cartridge->prgData;
+    u8 * bankToCpy2 = cartridge->prgData + ((cartridge->prgBankCount - 1) * Kilobytes(16));
            
-    copyMemory((u8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy1, Kilobytes(16));
-    copyMemory((u8 *)MemPrgBank2 + Cpu->MemoryBase, BankToCpy2, Kilobytes(16));
+    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy1, Kilobytes(16));
+    MemoryCopy((u8 *)memPrgBank2 + cpu->memoryBase, bankToCpy2, Kilobytes(16));
 }
 
-void axromInit(cartridge *Cartridge, cpu *Cpu, ppu *Ppu)
+void AxromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 MemoryPrgBank = 0x8000;
-    u8 *BankToCpy = Cartridge->PrgData + ((Cartridge->PrgBankCount) * Kilobytes(16)) - Kilobytes(32);
-    copyMemory((u8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
+    u16 memoryPrgBank = 0x8000;
+    u8 *bankToCpy = cartridge->prgData + ((cartridge->prgBankCount) * Kilobytes(16)) - Kilobytes(32);
+    MemoryCopy((u8 *)memoryPrgBank + cpu->memoryBase, bankToCpy, Kilobytes(32));
 
-    Ppu->mirrorType = SINGLE_SCREEN_BANK_A;
+    ppu->mirrorType = SINGLE_SCREEN_BANK_A;
 }
 
-void (*mapperInit[MAPPER_TOTAL])(cartridge *Cartridge, cpu *Cpu, ppu *Ppu) =
+void (*MapperInit[MapperTotal])(Cartridge *cartridge, Cpu *cpu, Ppu *ppu) =
 {
-    nromInit, mmc1Init, unromInit, 0, 0, 0, 0, axromInit 
+    NromInit, Mmc1Init, UnromInit, 0, 0, 0, 0, AxromInit 
 };
 
-void nromUpdate(nes *Nes, u8 ByteWritten, u16 Address)
+void NromUpdate(Nes *nes, u8 byteWritten, u16 address)
 {
 //    Assert(0);
 }
 
-void mmc1Update(nes *Nes, u8 ByteWritten, u16 Address)
+void Mmc1Update(Nes *nes, u8 byteWritten, u16 address)
 {
-    cartridge *Cartridge = &Nes->Cartridge;
-    cpu *Cpu = &Nes->Cpu;
-    ppu *Ppu = &Nes->Ppu;
+    Cartridge *cartridge = &nes->cartridge;
+    Cpu *cpu = &nes->cpu;
+    Ppu *ppu = &nes->ppu;
     
-    u16 PrgRomBank1 = 0x8000;
-    u16 PrgRomBank2 = 0xC000;
+    u16 prgRomBank1 = 0x8000;
+    u16 prgRomBank2 = 0xC000;
 
-    b32 IsLargePrg = (Cartridge->PrgBankCount > 16);
-    b32 IsLargeChr = (Cartridge->ChrBankCount > 1);
+    b32 isLargePrg = (cartridge->prgBankCount > 16);
+    b32 isLargeChr = (cartridge->chrBankCount > 1);
 
     // TODO: Figure a way to deal with these static values
-    static u8 PrgRomMode = 0x3; // Initially starts here(control register is 0xC)
-    static b32 Chr8KbMode;
+    static u8 prgRomMode = 0x3; // Initially starts here(control register is 0xC)
+    static b32 chr8KbMode;
     
-    b32 IsClearBitSet = (ByteWritten & (1 << 7)) != 0;
-    if(IsClearBitSet)
+    b32 isClearBitSet = (byteWritten & (1 << 7)) != 0;
+    if(isClearBitSet)
     {
-        Cartridge->MapperWriteCount = 0;
-        ByteWritten = 0;
-        Cartridge->MapperInternalReg = 0;
+        cartridge->mapperWriteCount = 0;
+        byteWritten = 0;
+        cartridge->mapperInternalReg = 0;
 
-        u8 PrevPrgRomMode = PrgRomMode;
-        PrgRomMode = 0x3;
+        u8 prevprgRomMode = prgRomMode;
+        prgRomMode = 0x3;
 
-        if(PrevPrgRomMode != PrgRomMode) // TODO: Update the banks
+        if(prevprgRomMode != prgRomMode) // TODO: Update the banks
         {
             Assert(0);
         }
     }
     else
     {
-        ++Cartridge->MapperWriteCount;
+        ++cartridge->mapperWriteCount;
 
         // Shifted where the first write is the least significant, last write is most significant
-        Cartridge->MapperInternalReg = (Cartridge->MapperInternalReg >> 1);
-        Cartridge->MapperInternalReg = (Cartridge->MapperInternalReg & 0xF); // clear 5-bit
-        Cartridge->MapperInternalReg |= ((ByteWritten & 1) << 4); 
+        cartridge->mapperInternalReg = (cartridge->mapperInternalReg >> 1);
+        cartridge->mapperInternalReg = (cartridge->mapperInternalReg & 0xF); // clear 5-bit
+        cartridge->mapperInternalReg |= ((byteWritten & 1) << 4); 
                 
-        if(Cartridge->MapperWriteCount == 5) // On 5th write
+        if(cartridge->mapperWriteCount == 5) // On 5th write
         {
-            u8 DataReg = Cartridge->MapperInternalReg;
+            u8 dataReg = cartridge->mapperInternalReg;
 
             // TODO: Potentially change all address bounds checks to this style?
-            b32 bit13Set = (Address & (1 << 13)) != 0;
-            b32 bit14Set = (Address & (1 << 14)) != 0;
+            b32 bit13Set = (address & (1 << 13)) != 0;
+            b32 bit14Set = (address & (1 << 14)) != 0;
 
             if(!bit13Set && !bit14Set)     // Control Reg
             {
-                u8 Mirror = DataReg & 3;
-                if(Mirror == 0)
-                    Ppu->mirrorType = SINGLE_SCREEN_BANK_A;
-                if(Mirror == 1)
-                    Ppu->mirrorType = SINGLE_SCREEN_BANK_B;
-                if(Mirror == 2)
-                    Ppu->mirrorType = VERTICAL_MIRROR;
-                if(Mirror == 3)
-                    Ppu->mirrorType = HORIZONTAL_MIRROR;
+                u8 mirror = dataReg & 3;
+                if(mirror == 0)
+                    ppu->mirrorType = SINGLE_SCREEN_BANK_A;
+                if(mirror == 1)
+                    ppu->mirrorType = SINGLE_SCREEN_BANK_B;
+                if(mirror == 2)
+                    ppu->mirrorType = VERTICAL_MIRROR;
+                if(mirror == 3)
+                    ppu->mirrorType = HORIZONTAL_MIRROR;
 
-                u8 PrevPrgRomMode = PrgRomMode;
-                PrgRomMode = (DataReg & 0xC) >> 2;
+                u8 PrevprgRomMode = prgRomMode;
+                prgRomMode = (dataReg & 0xC) >> 2;
 
-                if(PrevPrgRomMode != PrgRomMode) // TODO: Update the banks
+                if(PrevprgRomMode != prgRomMode) // TODO: Update the banks
                 {
                     Assert(0);
                 }
                     
-                Chr8KbMode = ((DataReg & 0x10) != 0);
+                chr8KbMode = ((dataReg & 0x10) != 0);
             }
             else if(bit13Set && !bit14Set) // CHR Bank 0
             {
-                u8 SizeToCpy = 0;
+                u8 sizeToCpy = 0;
                     
-                if(Chr8KbMode) // 8kb mode Low bit ignored
+                if(chr8KbMode) // 8kb mode Low bit ignored
                 {
-                    DataReg = DataReg >> 1;
-                    SizeToCpy = (u8)Kilobytes(8);
+					dataReg = dataReg >> 1;
+					sizeToCpy = (u8)Kilobytes(8);
                 }
-                else
-                {
-                    SizeToCpy = (u8)Kilobytes(4);
-                }
+				else
+				{
+					sizeToCpy = (u8)Kilobytes(4);
+				}
 
                 // TODO: We shouldn't need to copy the memory to another place.
                 //       Bank switch is a direct line to memory, so it should just change a pointer
                     
                 // If CHR bank count is 0, then it uses RAM?? TODO: Check
-                if(Cartridge->ChrBankCount > 0) {
-                    u8 * BankToCpy = Cartridge->ChrData + (DataReg * SizeToCpy);              
-                    copyMemory((u8 *)Ppu->MemoryBase, BankToCpy, SizeToCpy);
+                if(cartridge->chrBankCount > 0) {
+                    u8 * bankToCpy = cartridge->chrData + (dataReg * sizeToCpy);
+                    MemoryCopy((u8 *)ppu->memoryBase, bankToCpy, sizeToCpy);
                 }
             }
             else if(!bit13Set && bit14Set) // CHR Bank 1
             {
-                if(!Chr8KbMode && Cartridge->ChrBankCount > 0)
+                if(!chr8KbMode && cartridge->chrBankCount > 0)
                 {
-                    u8 * BankToCpy = Cartridge->ChrData + (DataReg * Kilobytes(4));              
-                    copyMemory((u8 *)Ppu->MemoryBase + 0x1000, BankToCpy, Kilobytes(4));
+                    u8 * bankToCpy = cartridge->chrData + (dataReg * Kilobytes(4));              
+                    MemoryCopy((u8 *)ppu->memoryBase + 0x1000, bankToCpy, Kilobytes(4));
                 }
             }
             else if(bit13Set && bit14Set) // PRG bank
             {
-                u8 * BankToCpy;
-                if(PrgRomMode == 0 || PrgRomMode == 1) // 32kib Mode
+                u8 * bankToCpy;
+                if(prgRomMode == 0 || prgRomMode == 1) // 32kib Mode
                 {
-                    DataReg = DataReg >> 1;
-                    BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(32));              
-                    copyMemory((u8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(32));
+                    dataReg = dataReg >> 1;
+                    bankToCpy = cartridge->prgData + (dataReg * Kilobytes(32));              
+                    MemoryCopy((u8 *)cpu->memoryBase + 0x8000, bankToCpy, Kilobytes(32));
                 }
-                else if(PrgRomMode == 2) // 16kb fixed low bank - swap highbank
+                else if(prgRomMode == 2) // 16kb fixed low bank - swap high bank
                 {
-                    BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(16));              
-                    copyMemory((u8 *)Cpu->MemoryBase + 0xC000, BankToCpy, Kilobytes(16));
+                    bankToCpy = cartridge->prgData + (dataReg * Kilobytes(16));              
+                    MemoryCopy((u8 *)cpu->memoryBase + 0xC000, bankToCpy, Kilobytes(16));
                         
                 }
-                else if(PrgRomMode == 3) // 16kb fixed high bank - swap lowbank
+                else if(prgRomMode == 3) // 16kb fixed high bank - swap low bank
                 {
-                    DataReg &= 0xF;
-                    Assert(DataReg < Cartridge->PrgBankCount);
+                    dataReg &= 0xF;
+                    Assert(dataReg < cartridge->prgBankCount);
                         
-                    BankToCpy = Cartridge->PrgData + (DataReg * Kilobytes(16));              
-                    copyMemory((u8 *)Cpu->MemoryBase + 0x8000, BankToCpy, Kilobytes(16));
+                    bankToCpy = cartridge->prgData + (dataReg * Kilobytes(16));              
+                    MemoryCopy((u8 *)cpu->memoryBase + 0x8000, bankToCpy, Kilobytes(16));
                 }
             }
                 
-            Cartridge->MapperWriteCount = 0;
-            Cartridge->MapperInternalReg = 0;
+            cartridge->mapperWriteCount = 0;
+            cartridge->mapperInternalReg = 0;
         }
     }
 }
 
-void unromUpdate(nes *Nes, u8 ByteWritten, u16 Address)
+void UnromUpdate(Nes *nes, u8 byteWritten, u16 address)
 {
-    cartridge *Cartridge = &Nes->Cartridge;
-    cpu *Cpu = &Nes->Cpu;
+    Cartridge *cartridge = &nes->cartridge;
+    Cpu *cpu = &nes->cpu;
     
-    u16 MemPrgBank1 = 0x8000;
-    u8 BankNumber = ByteWritten;
+    u16 memPrgBank1 = 0x8000;
+    u8 bankNumber = byteWritten;
     
-    u8 * BankToCpy = Cartridge->PrgData + (BankNumber * Kilobytes(16));
-    copyMemory((u8 *)MemPrgBank1 + Cpu->MemoryBase, BankToCpy, Kilobytes(16));
+    u8 * bankToCpy = cartridge->prgData + (bankNumber * Kilobytes(16));
+    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy, Kilobytes(16));
 }
 
-void axromUpdate(nes *Nes, u8 ByteWritten, u16 Address)
+void AxromUpdate(Nes *nes, u8 byteWritten, u16 address)
 {
-    cartridge *Cartridge = &Nes->Cartridge;
-    cpu *Cpu = &Nes->Cpu;
-    ppu *Ppu = &Nes->Ppu;
+    Cartridge *cartridge = &nes->cartridge;
+    Cpu *cpu = &nes->cpu;
+    Ppu *ppu = &nes->ppu;
         
-    u16 MemoryPrgBank = 0x8000;
+    u16 memoryPrgBank = 0x8000;
     
-    u8 SelectedBank = ByteWritten & 7;
-    u8 *BankToCpy = Cartridge->PrgData + (SelectedBank * Kilobytes(32));
+    u8 selectedBank = byteWritten & 7;
+    u8 *bankToCpy = cartridge->prgData + (selectedBank * Kilobytes(32));
     
-    copyMemory((u8 *)MemoryPrgBank + Cpu->MemoryBase, BankToCpy, Kilobytes(32));
+    MemoryCopy((u8 *)memoryPrgBank + cpu->memoryBase, bankToCpy, Kilobytes(32));
 
     // Nametable Single Screen bank select
-    if(ByteWritten & 0x10)
+    if(byteWritten & 0x10)
     {
-        Ppu->mirrorType = SINGLE_SCREEN_BANK_B;   
+        ppu->mirrorType = SINGLE_SCREEN_BANK_B;   
     }
     else
     {
-        Ppu->mirrorType = SINGLE_SCREEN_BANK_A;
+        ppu->mirrorType = SINGLE_SCREEN_BANK_A;
     }
 }
 
-void (*mapperUpdate[MAPPER_TOTAL])(nes *Nes, u8 ByteWritten, u16 Address) =
+void (*MapperUpdate[MapperTotal])(Nes *nes, u8 byteWritten, u16 address) =
 {
-    nromUpdate, mmc1Update, unromUpdate, 0, 0, 0, 0, axromUpdate 
+    NromUpdate, Mmc1Update, UnromUpdate, 0, 0, 0, 0, AxromUpdate 
 };

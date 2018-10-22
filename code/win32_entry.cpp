@@ -8,6 +8,11 @@
 #include <stdio.h>
 #include <DSound.h>
 
+r64 lowCpuClocks = 21470;
+r64 highCpuClocks = 21470;
+u64 lowPpuClocks = 89341;
+u64 highPpuClocks = 89341;
+
 // A, B, Select, Start, Up, Down, Left, Right
 struct Input
 {
@@ -515,12 +520,13 @@ WinMain(HINSTANCE WindowInstance, HINSTANCE PrevWindowInstance,
 */
 int main()
 {
+	r32 frameHz = 60.0988f; // aka fps. // TODO: Will be different for PAL
+	r32 frameTargetSeconds = 1.0f / frameHz;
+
     LARGE_INTEGER winPerfCountFrequency;
     QueryPerformanceFrequency(&winPerfCountFrequency); 
     globalPerfCountFrequency = winPerfCountFrequency.QuadPart;            
 
-    printf("Test\n");
-    
     /**************************************/
     /* NOTE : Screen back buffer creation */
     
@@ -542,170 +548,191 @@ int main()
     u16 initialWindowPosX = 700;
     u16 initialWindowPosY = 400;
     
-    if(RegisterClassA(&windowClass))
-    {        
-        HWND window = CreateWindowExA(0, windowClass.lpszClassName, "tuNES", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
-                                      initialWindowPosX, initialWindowPosY, windowWidth, windowHeight,
-                                      0, 0, windowClass.hInstance, 0);
+    if(!RegisterClassA(&windowClass))
+	{
+		// NOTE: Failed to register window
+		// TODO: Handle this in a better way
+		Assert(0);
+		return(-1);
+	}
 
-        if(window) // If window was created successfully
-        {
-            r32 frameHz = 60.0988f; // aka fps. // TODO: Will be different for PAL
-            r32 frameTargetSeconds = 1.0f / frameHz;
+    HWND window = CreateWindowExA(0, windowClass.lpszClassName, "tuNES", WS_OVERLAPPEDWINDOW|WS_VISIBLE,
+                                    initialWindowPosX, initialWindowPosY, windowWidth, windowHeight,
+                                    0, 0, windowClass.hInstance, 0);
+
+	if (!window) // If window was created successfully
+	{
+		// NOTE: Window failed to create
+		// TODO: Handle this in a better way
+		Assert(0);
+		return(-1);
+	}
+ 
+    /********************************/
+    /* NOTE : Window Menu Creation  */            
             
-            /********************************/
-            /* NOTE : Window Menu Creation  */            
+    HMENU windowMenu = CreateMenu();
+    HMENU subMenu = CreatePopupMenu();
             
-            HMENU windowMenu = CreateMenu();
-            HMENU subMenu = CreatePopupMenu();
+    AppendMenu(subMenu, MF_STRING, ID_OPEN_ROM_ITEM, "&Open Rom");
+    AppendMenu(subMenu, MF_STRING, ID_CLOSE_ROM_ITEM, "&Close Rom");
+    AppendMenu(subMenu, MF_STRING, ID_QUIT_ITEM, "&Quit");
+    AppendMenu(windowMenu, MF_STRING | MF_POPUP, (u64)subMenu, "&File");
+
+    SetMenu(window, windowMenu);
+
+    /********************************/
+    /* NOTE : Sound Buffer Creation */
+
+	WinSound winSound = {};
+	winSound.samplesPerSecond = 48000;
+	winSound.channels = 2; // Sterio
+	winSound.bitsPerSample = 16; // Bit depth
+	winSound.bytesPerSample = sizeof(s16) * winSound.channels;
+	winSound.bufferSize = winSound.samplesPerSecond * winSound.bytesPerSample;
+	winSound.safetyBytes = (int)(((r32)winSound.samplesPerSecond * (r32)winSound.bytesPerSample
+                                    / frameHz) / 3.0f);
+
+    winSound.samples = (s16 *)VirtualAlloc(0, (size_t)winSound.bufferSize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
             
-            AppendMenu(subMenu, MF_STRING, ID_OPEN_ROM_ITEM, "&Open Rom");
-            AppendMenu(subMenu, MF_STRING, ID_CLOSE_ROM_ITEM, "&Close Rom");
-            AppendMenu(subMenu, MF_STRING, ID_QUIT_ITEM, "&Quit");
-            AppendMenu(windowMenu, MF_STRING | MF_POPUP, (u64)subMenu, "&File");
+    LPDIRECTSOUNDBUFFER soundBuffer = CreateSoundBuffer(window, winSound.bufferSize, winSound.channels,
+		winSound.samplesPerSecond, winSound.bitsPerSample);
 
-            SetMenu(window, windowMenu);
-
-            /********************************/
-            /* NOTE : Sound Buffer Creation */
-
-			WinSound winSound = {};
-			winSound.samplesPerSecond = 48000;
-			winSound.channels = 2; // Sterio
-			winSound.bitsPerSample = 16; // Bit depth
-			winSound.bytesPerSample = sizeof(s16) * winSound.channels;
-			winSound.bufferSize = winSound.samplesPerSecond * winSound.bytesPerSample;
-			winSound.safetyBytes = (int)(((r32)winSound.samplesPerSecond * (r32)winSound.bytesPerSample
-                                          / frameHz) / 3.0f);
-
-            winSound.samples = (s16 *)VirtualAlloc(0, (size_t)winSound.bufferSize, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-            
-            LPDIRECTSOUNDBUFFER soundBuffer = CreateSoundBuffer(window, winSound.bufferSize, winSound.channels,
-				winSound.samplesPerSecond, winSound.bitsPerSample);
-
-            ClearSoundBuffer(soundBuffer, winSound.bufferSize);
-			soundBuffer->Play(0, 0, DSBPLAY_LOOPING);
+    ClearSoundBuffer(soundBuffer, winSound.bufferSize);
+	soundBuffer->Play(0, 0, DSBPLAY_LOOPING);
                         
-            /********************************************************/
-            /* NOTE : Timing */
-            // Using the vertical scan rate of ~60Hz or 16ms a frame.
-            // We run cpu and ppu 16ms worth of ticks. After 16ms
-            // elapsed, we then reset the counters that tracks how
-            // ticks have been. Repeat
+    /********************************************************/
+    /* NOTE : Timing */
+    // Using the vertical scan rate of ~60Hz or 16ms a frame.
+    // We run cpu and ppu 16ms worth of ticks. After 16ms
+    // elapsed, we then reset the counters that tracks how
+    // ticks have been. Repeat
             
-            Nes nes = CreateNes("../roms/Zelda.nes");
-            nes.FrameClockTotal = nes.CpuHz * frameTargetSeconds; // TODO: Put in create nes?
+	u8 * initalRom = (u8 *)"../roms/Zelda.nes";
+    Nes nes = CreateNes(initalRom);
+
+    nes.frameClockTotal = nes.cpuHz * frameTargetSeconds; // TODO: Put in create nes?
             
-            globalNes = &nes;
+    globalNes = &nes;
 
-            ////
+    ////
             
-            r32 elapsedTime = 0.0;
-            u32 clocksRun = 0;
-            r32 frameTime = 0.0;
+    r32 elapsedTime = 0.0;
+    u32 clocksRun = 0;
+    r32 frameTime = 0.0;
             
-            LARGE_INTEGER lastClock = GetClock();
-            LARGE_INTEGER frameFlippedClock = GetClock();
-            LARGE_INTEGER frameLastFlippedClock = GetClock();
+    LARGE_INTEGER lastClock = GetClock();
+    LARGE_INTEGER frameFlippedClock = GetClock();
+    LARGE_INTEGER frameLastFlippedClock = GetClock();
             
-            /********************/
-            /* NOTE : Main Loop */
+    /********************/
+    /* NOTE : Main Loop */
 
-            globalRunning = true; 
-            while(globalRunning)
-            {
-                MSG msg = {}; 
-                while (PeekMessage(&msg, window, 0, 0, PM_REMOVE))
-                {
-                    TranslateMessage(&msg);
-                    DispatchMessage(&msg);
-                }
+    globalRunning = true; 
+    while(globalRunning)
+    {
+        MSG msg = {}; 
+        while (PeekMessage(&msg, window, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
                 
-                if(nes.frameClocksElapsed < nes.frameClockTotal)
-                {
-                    RunNes(&nes, &globalInput);
-                }
-                else
-                {
-                    Sleep(2);
-                }
-
-                /*
-                LARGE_INTEGER FrameSoundClock = getClock();
-                r32 FrameTimeElapsed = getSecondsElapsed(FrameFlippedClock, FrameSoundClock);
-                UpdateAudio(SoundBuffer, &WinSound, FrameHz, FrameTargetSeconds, FrameTimeElapsed);
-                */
-
-                // NOTE: TODO: The cpu might run several more cycles before we get to drawn screen.
-                // This could lead to pixels from the next frame overwriting other pixels we haven't displayed
-                // To fix, I could implement a double buffer. Two buffers, one is drawn on buy the ppu while the other is the displayed.
-                // They are then swapped. This will let the complete frame to be displayed while the new one can created.
-                
-                if(globalDrawScreen)
-                {
-					globalDrawScreen = false;
-                                                              
-                    GetWindowSize(window, &windowWidth, &windowHeight);
-                
-                    // NOTE: Drawing the backbuffer to the window 
-                    HDC deviceContext = GetDC(window);
-                    DrawScreenBuffer(&globalScreenBackBuffer, deviceContext,
-                                     windowWidth, windowHeight);
-                    ReleaseDC(window, deviceContext);
-
-                    frameFlippedClock = GetClock();
-
-                    frameTime = GetSecondsElapsed(frameLastFlippedClock, frameFlippedClock);
-                    frameLastFlippedClock = GetClock();
-                }
-
-                LARGE_INTEGER endClock = GetClock();
-                
-                r32 loopTime = GetSecondsElapsed(lastClock, endClock);
-                elapsedTime += loopTime;
-                
-                if(elapsedTime >= frameTargetSeconds)
-                {
-                    /*
-                    char TextBuffer[256];
-                    _snprintf(TextBuffer, 256, "CpuCycles %f, FrameTime %f, ElapsedTime %f\n",
-                              Nes.FrameClocksElapsed, FrameTime, ElapsedTime);
-                    printf("%s\n", TextBuffer);
-                    */
-                    
-                    elapsedTime -= frameTargetSeconds;
-
-                    // The extra clocks we need to add to the next frame. Is 0 or more
-                    if(nes.frameClocksElapsed >= nes.frameClockTotal)
-                    {
-                        nes.frameClocksElapsed = nes.frameClocksElapsed - nes.frameClockTotal;
-                    }
-                    else
-                    {
-                        nes.frameClocksElapsed = 0;
-                    }
-                }
-                
-                lastClock = endClock;
-            }
-     
-#if CPU_LOG
-            closeLog(Nes->Cpu.LogHandle);
-#endif            
+        if(nes.frameClocksElapsed < nes.frameClockTotal)
+        {
+            RunNes(&nes, &globalInput);
         }
         else
         {
-            // NOTE: Window failed to create
-            // TODO: Handle this in a better way
-            Assert(0);
+            Sleep(2);
         }
+
+        /*
+        LARGE_INTEGER FrameSoundClock = getClock();
+        r32 FrameTimeElapsed = getSecondsElapsed(FrameFlippedClock, FrameSoundClock);
+        UpdateAudio(SoundBuffer, &WinSound, FrameHz, FrameTargetSeconds, FrameTimeElapsed);
+        */
+
+        // NOTE: TODO: The cpu might run several more cycles before we get to drawn screen.
+        // This could lead to pixels from the next frame overwriting other pixels we haven't displayed
+        // To fix, I could implement a double buffer. Two buffers, one is drawn on buy the ppu while the other is the displayed.
+        // They are then swapped. This will let the complete frame to be displayed while the new one can created.
+                
+        if(globalDrawScreen)
+        {
+			globalDrawScreen = false;
+                                                              
+            GetWindowSize(window, &windowWidth, &windowHeight);
+                
+            // NOTE: Drawing the backbuffer to the window 
+            HDC deviceContext = GetDC(window);
+            DrawScreenBuffer(&globalScreenBackBuffer, deviceContext,
+                                windowWidth, windowHeight);
+            ReleaseDC(window, deviceContext);
+
+            frameFlippedClock = GetClock();
+
+            frameTime = GetSecondsElapsed(frameLastFlippedClock, frameFlippedClock);
+            frameLastFlippedClock = GetClock();
+        }
+
+        LARGE_INTEGER endClock = GetClock();
+                
+        r32 loopTime = GetSecondsElapsed(lastClock, endClock);
+        elapsedTime += loopTime;
+
+        if(elapsedTime >= frameTargetSeconds)
+        {        
+			// Get how many cpu and ppu clocks have happened since
+			printf("cpu clocks %f, ppu clocks %ld\n", nes.frameClocksElapsed, (long)nes.ppu.clocksHit);
+
+			if (nes.frameClocksElapsed > 20.0f)
+			{
+				if (nes.frameClocksElapsed < lowCpuClocks)
+				{
+					lowCpuClocks = nes.frameClocksElapsed;
+				}
+				if (nes.frameClocksElapsed > highCpuClocks)
+				{
+					highCpuClocks = nes.frameClocksElapsed;
+				}
+			}
+
+			if (nes.ppu.clocksHit > 20)
+			{
+				if (nes.ppu.clocksHit < lowPpuClocks)
+				{
+					lowPpuClocks = nes.ppu.clocksHit;
+				}
+				if (nes.ppu.clocksHit > highPpuClocks)
+				{
+					highPpuClocks = nes.ppu.clocksHit;
+				}
+			}
+
+            elapsedTime -= frameTargetSeconds;
+
+            // The extra clocks we need to add to the next frame. Is 0 or more
+            if(nes.frameClocksElapsed >= nes.frameClockTotal)
+            {
+                nes.frameClocksElapsed = nes.frameClocksElapsed - nes.frameClockTotal;
+            }
+            else
+            {
+                nes.frameClocksElapsed = 0;
+            }
+
+
+
+			nes.ppu.clocksHit = 0;
+        }
+                
+        lastClock = endClock;
     }
-    else
-    {
-        // NOTE: Failed to register window
-        // TODO: Handle this in a better way
-        Assert(0);
-    }
+
+#if CPU_LOG
+    closeLog(Nes->Cpu.LogHandle);
+#endif            
 
     return(0);
 } 

@@ -404,26 +404,25 @@ static void runPpu(ppu *Ppu, u16 ClocksToRun)
 }
 
 
-static void runPpu(ppu *Ppu)
+static void RunPpu(Ppu *ppu)
 {    
-    ppuTick(Ppu);
+    PpuTick(ppu);
 }
 
-static void
-initPpu(ppu *Ppu, u64 MemoryBase, u32 * BasePixel)
+static void InitPpu(Ppu *ppu, u64 memoryBase, u32 * basePixel)
 {
-    ZeroMemory((u8 *)MemoryBase, Kilobytes(64));
+    ZeroMemory((u8 *)memoryBase, Kilobytes(64));
     
-    *Ppu = {};
+    *ppu = {};
     
-    OamData = Ppu->Oam;
+    oamData = ppu->oam;
 
-    Ppu->MemoryBase = MemoryBase;
-    Ppu->BasePixel = BasePixel;
+    ppu->memoryBase = memoryBase;
+    ppu->basePixel = basePixel;
     
     // Palette at startup according to Blargg
-    u8 PaletteSize = 32;
-    u8 PaletteStartup[] = {0x09, 0x01, 0x00, 0x01,
+    u8 paletteSize = 32;
+    u8 paletteStartup[] = {0x09, 0x01, 0x00, 0x01,
                               0x00, 0x02, 0x02, 0x0D,
                               0x08, 0x10, 0x08, 0x24,
                               0x00, 0x00, 0x04, 0x2C,
@@ -432,9 +431,9 @@ initPpu(ppu *Ppu, u64 MemoryBase, u32 * BasePixel)
                               0x08, 0x3A, 0x00, 0x02,
                               0x00, 0x20, 0x2C, 0x08};
 
-    for(u8 Idx = 0; Idx < PaletteSize; ++Idx)
+    for(u8 idx = 0; idx < paletteSize; ++idx)
     {
-        write8(PaletteStartup[Idx], 0x3F00 + Idx, Ppu->MemoryBase);
+        Write8(paletteStartup[idx], 0x3F00 + idx, ppu->memoryBase);
     }
 }
 
