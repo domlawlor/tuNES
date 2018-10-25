@@ -88,9 +88,9 @@ static u8 RunCpu(Cpu *cpu, Input *newInput)
     return(cpu->opClockTotal);
 }
     
-static void InitCpu(Cpu *cpu, u64 memoryBase)
+static void InitCpu(Cpu *cpu, u8 * memoryBase)
 {
-    ZeroMemory((u8 *)memoryBase, Kilobytes(64));
+    ZeroMemory(memoryBase, Kilobytes(64));
 
     // DEBUG at moment. Matching FCEUX initial cpu memory state
     for(u16 index = 0; index < 0x2000; ++index)

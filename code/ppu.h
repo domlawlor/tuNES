@@ -60,7 +60,7 @@ struct Ppu
 {
 	u64 clocksHit;
 
-    u64 memoryBase;
+    u8 *memoryBase;
     u32 *basePixel;
 
     b32 renderingEnabled;

@@ -46,8 +46,8 @@ struct Nes
     Apu apu;
     Cartridge cartridge;
 
-    u64 cpuMemoryBase;
-    u64 ppuMemoryBase;
+    u8 * cpuMemoryBase;
+    u8 * ppuMemoryBase;
     
     b32 powerOn;
 

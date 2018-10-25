@@ -36,20 +36,18 @@ static void RunPpuCatchup(u8 clocksIntoCurrentOp)
     Assert((clocksIntoCurrentOp-1) >= 0);
 }
 
-static void Write8(u8 byte, u16 address, u64 memoryOffset)
+static void Write8(u8 byte, u8 * address)
 {   
-    u8 *newAddress = (u8 *)(address + memoryOffset);
-    *newAddress = byte;
+    *address = byte;
 }
 
-static u8 Read8(u16 address, u64 memoryOffset)
+static u8 Read8(u8 * address)
 {
-    u8 *newAddress = (u8 *)(address + memoryOffset);
-    u8 value = *newAddress;
+    u8 value = *address;
     return(value);
 }
 
-static u8 Read8(u16 address, u64 memoryOffset, u8 currentCycle)
+static u8 Read8(u8 *address, u8 currentCycle)
 {
     /*
     if((0x2000 <= address && address <= 0x2007) || address == 0x4014)
@@ -58,18 +56,23 @@ static u8 Read8(u16 address, u64 memoryOffset, u8 currentCycle)
     }
     */
 
-    return Read8(address, memoryOffset);
+    return Read8(address);
 }
 
 static u16 CpuMemoryMirror(u16 address)
 {
     // NOTE: Mirrors the address for the 2kb ram 
-    if(0x0800 <= address && address < 0x2000)
+	if (0x0800 <= address && address < 0x2000)
+	{
 		address = (address % 0x0800);
-    // NOTE: Mirror for PPU Registers
-    if(0x2008 <= address && address < 0x4000)
+	}
+	// NOTE: Mirror for PPU Registers
+	if (0x2008 <= address && address < 0x4000)
+	{
 		address = (address % (0x2008 - 0x2000)) + 0x2000;
-    return(address);
+	}
+
+	return(address);
 }
 
 static u8 ReadCpu8(u16 address, Cpu *cpu)
@@ -87,7 +90,7 @@ static u8 ReadCpu8(u16 address, Cpu *cpu)
         return ReadApuRegister(address);
     }
    
-    u8 value = Read8(address, cpu->memoryBase);
+    u8 value = Read8(cpu->memoryBase + address);
     
     // Input
     if(address == 0x4016 || address == 0x4017)
@@ -118,9 +121,9 @@ static u8 ReadCpu8(u16 address, Cpu *cpu)
             btnValue = cpu->inputPad2.buttons[cpu->pad2CurrentButton] & 1;
         }
 
-        u8 currentValue = Read8(inputAddress, cpu->memoryBase);
+        u8 currentValue = Read8(cpu->memoryBase + inputAddress);
         u8 newValue = (currentValue & 0xFE) | btnValue;
-        Write8(newValue, inputAddress, cpu->memoryBase);
+        Write8(newValue, cpu->memoryBase + inputAddress);
     }
     
     return(value);
@@ -162,13 +165,13 @@ static void WriteCpu8(u8 byte, u16 address, Cpu *cpu)
     }
     
     
-    Write8(byte, address, cpu->memoryBase);
+    Write8(byte, cpu->memoryBase + address);
     
     // Input
     if(address == 0x4016 || address == 0x4017)
     {
-        u8 reg1Value = Read8(0x4016, cpu->memoryBase);
-        u8 reg2Value = Read8(0x4017, cpu->memoryBase);
+        u8 reg1Value = Read8(cpu->memoryBase + 0x4016);
+        u8 reg2Value = Read8(cpu->memoryBase + 0x4017);
 
         u8 bit0 = (reg1Value | reg2Value) & 1;
 
@@ -186,10 +189,10 @@ static void WriteCpu8(u8 byte, u16 address, Cpu *cpu)
         }        
 
         u8 btnValue = cpu->inputPad1.buttons[cpu->pad1CurrentButton] & 1;
-        Write8(btnValue, 0x4016, cpu->memoryBase);
+        Write8(btnValue, cpu->memoryBase + 0x4016);
 
         btnValue = cpu->inputPad2.buttons[cpu->pad2CurrentButton] & 1;
-        Write8(btnValue, 0x4017, cpu->memoryBase);
+        Write8(btnValue, cpu->memoryBase + 0x4017);
     }
 
     // Mapper
@@ -338,7 +341,7 @@ static u8 ReadPpu8(u16 address, Ppu *ppu)
     }
     else
     {
-        result = Read8(address, ppu->memoryBase);
+        result = Read8(ppu->memoryBase + address);
     }
     return(result);
 }
@@ -353,7 +356,7 @@ static void WritePpu8(u8 byte, u16 address, Ppu *ppu)
     }
     else
     {
-        Write8(byte, address, ppu->memoryBase);
+        Write8(byte, ppu->memoryBase + address);
     }
 }
 
@@ -483,7 +486,7 @@ static void WritePpuRegister(u8 byte, u16 address)
                 u16 newAddress = (byte << 8) | byteCount;
 
                 u8 index = (ppu->oamAddress + byteCount);
-                ppu->oam[index] = Read8(newAddress, globalNes->cpu.memoryBase);
+                ppu->oam[index] = Read8(globalNes->cpu.memoryBase + newAddress);
             }            
             break;
         }

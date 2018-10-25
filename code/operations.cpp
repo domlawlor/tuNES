@@ -152,8 +152,8 @@ u8 irq(u8 value, Cpu *cpu)
     // Current implementation is just separating the nmi irq brk functions, may change // Cycle 5
     ClearBreak(&cpu->flags);        
     WriteStack(cpu->flags, cpu);
-    cpu->prgCounter = (cpu->prgCounter & 0xFF00) | Read8(IRQ_BRK_VEC, cpu->memoryBase, 6); // Cycle 6      
-    cpu->prgCounter = (Read8(IRQ_BRK_VEC+1, cpu->memoryBase, 7) << 8) | (cpu->prgCounter & 0xFF); // Cycle 7
+    cpu->prgCounter = (cpu->prgCounter & 0xFF00) | Read8(cpu->memoryBase + IRQ_BRK_VEC, 6); // Cycle 6      
+    cpu->prgCounter = (Read8(cpu->memoryBase + (IRQ_BRK_VEC + 1), 7) << 8) | (cpu->prgCounter & 0xFF); // Cycle 7
     ClearBreak(&cpu->flags);
     SetInterrupt(&cpu->flags);   
     return(0);
@@ -168,8 +168,8 @@ u8 nmi(u8 value, Cpu *cpu)
     // Current implementation is just separating the nmi irq brk functions, may change // Cycle 5
     ClearBreak(&cpu->flags);
     WriteStack(cpu->flags, cpu);
-    cpu->prgCounter = (cpu->prgCounter & 0xFF00) | Read8(NMI_VEC, cpu->memoryBase, 6);     // Cycle 6    
-    cpu->prgCounter = (Read8(NMI_VEC+1, cpu->memoryBase, 7) << 8) | (cpu->prgCounter & 0xFF); // Cycle 7
+    cpu->prgCounter = (cpu->prgCounter & 0xFF00) | Read8(cpu->memoryBase + NMI_VEC, 6);     // Cycle 6    
+    cpu->prgCounter = (Read8(cpu->memoryBase + (NMI_VEC + 1), 7) << 8) | (cpu->prgCounter & 0xFF); // Cycle 7
     ClearBreak(&cpu->flags);
     SetInterrupt(&cpu->flags);
     return(0);
@@ -188,8 +188,8 @@ u8 brk(u8 value, Cpu *cpu)
     SetBreak(&cpu->flags);
     WriteStack(cpu->flags, cpu);
     SetInterrupt(&cpu->flags);
-    cpu->prgCounter = (cpu->prgCounter & 0xFF00) | Read8(IRQ_BRK_VEC, cpu->memoryBase, 6); // Cycle 6
-    cpu->prgCounter = (Read8(IRQ_BRK_VEC + 1, cpu->memoryBase, 7) << 8) | (cpu->prgCounter & 0x00FF); // Cycle 7
+    cpu->prgCounter = (cpu->prgCounter & 0xFF00) | Read8(cpu->memoryBase + IRQ_BRK_VEC, 6); // Cycle 6
+    cpu->prgCounter = (Read8(cpu->memoryBase + (IRQ_BRK_VEC + 1), 7) << 8) | (cpu->prgCounter & 0x00FF); // Cycle 7
     return(0);
 }
 

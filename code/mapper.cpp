@@ -7,8 +7,8 @@
 
 void NromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 memPrgBank1 = 0x8000;
-    u16 memPrgBank2 = 0xC000;
+	u8 * memPrgBank1 = cpu->memoryBase + 0x8000;
+	u8 * memPrgBank2 = cpu->memoryBase + 0xC000;
 
     u8 * bankToCpy1;
     u8 * bankToCpy2;
@@ -24,8 +24,8 @@ void NromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
         bankToCpy2 = cartridge->prgData + Kilobytes(16);
     }
         
-    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy1, Kilobytes(16));
-    MemoryCopy((u8 *)memPrgBank2 + cpu->memoryBase, bankToCpy2, Kilobytes(16));
+    MemoryCopy(memPrgBank1, bankToCpy1, Kilobytes(16));
+    MemoryCopy(memPrgBank2, bankToCpy2, Kilobytes(16));
 
     // Map CHR Data to ppu
     if(cartridge->chrBankCount == 1)
@@ -36,33 +36,33 @@ void NromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 
 void Mmc1Init(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 memPrgBank1 = 0x8000;
-    u16 memPrgBank2 = 0xC000;
+	u8 * memPrgBank1 = cpu->memoryBase + 0x8000;
+	u8 * memPrgBank2 = cpu->memoryBase + 0xC000;
 
     u8 * bankToCpy1 = cartridge->prgData;
     u8 * bankToCpy2 = cartridge->prgData + ((cartridge->prgBankCount - 1) * Kilobytes(16));
            
-    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy1, Kilobytes(16));
-    MemoryCopy((u8 *)memPrgBank2 + cpu->memoryBase, bankToCpy2, Kilobytes(16));
+    MemoryCopy(memPrgBank1, bankToCpy1, Kilobytes(16));
+    MemoryCopy(memPrgBank2, bankToCpy2, Kilobytes(16));
  }
 
 void UnromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 memPrgBank1 = 0x8000;
-    u16 memPrgBank2 = 0xC000;
+    u8 * memPrgBank1 = cpu->memoryBase + 0x8000;
+    u8 * memPrgBank2 = cpu->memoryBase + 0xC000;
 
     u8 * bankToCpy1 = cartridge->prgData;
     u8 * bankToCpy2 = cartridge->prgData + ((cartridge->prgBankCount - 1) * Kilobytes(16));
            
-    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy1, Kilobytes(16));
-    MemoryCopy((u8 *)memPrgBank2 + cpu->memoryBase, bankToCpy2, Kilobytes(16));
+    MemoryCopy(memPrgBank1, bankToCpy1, Kilobytes(16));
+    MemoryCopy(memPrgBank2, bankToCpy2, Kilobytes(16));
 }
 
 void AxromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
 {
-    u16 memoryPrgBank = 0x8000;
-    u8 *bankToCpy = cartridge->prgData + ((cartridge->prgBankCount) * Kilobytes(16)) - Kilobytes(32);
-    MemoryCopy((u8 *)memoryPrgBank + cpu->memoryBase, bankToCpy, Kilobytes(32));
+    u8 * memoryPrgBank = cpu->memoryBase + 0x8000;
+    u8 * bankToCpy = cartridge->prgData + ((cartridge->prgBankCount) * Kilobytes(16)) - Kilobytes(32);
+    MemoryCopy(memoryPrgBank, bankToCpy, Kilobytes(32));
 
     ppu->mirrorType = SINGLE_SCREEN_BANK_A;
 }
@@ -213,12 +213,13 @@ void UnromUpdate(Nes *nes, u8 byteWritten, u16 address)
 {
     Cartridge *cartridge = &nes->cartridge;
     Cpu *cpu = &nes->cpu;
-    
-    u16 memPrgBank1 = 0x8000;
-    u8 bankNumber = byteWritten;
-    
+ 
+    u8 * memPrgBank1 = cpu->memoryBase + 0x8000;
+
+	const u8 bankNumber = byteWritten;
     u8 * bankToCpy = cartridge->prgData + (bankNumber * Kilobytes(16));
-    MemoryCopy((u8 *)memPrgBank1 + cpu->memoryBase, bankToCpy, Kilobytes(16));
+
+    MemoryCopy(memPrgBank1, bankToCpy, Kilobytes(16));
 }
 
 void AxromUpdate(Nes *nes, u8 byteWritten, u16 address)
@@ -227,12 +228,12 @@ void AxromUpdate(Nes *nes, u8 byteWritten, u16 address)
     Cpu *cpu = &nes->cpu;
     Ppu *ppu = &nes->ppu;
         
-    u16 memoryPrgBank = 0x8000;
+    u8 * memoryPrgBank = cpu->memoryBase + 0x8000;
     
-    u8 selectedBank = byteWritten & 7;
-    u8 *bankToCpy = cartridge->prgData + (selectedBank * Kilobytes(32));
+    const u8 selectedBank = byteWritten & 7;
+    u8 * bankToCpy = cartridge->prgData + (selectedBank * Kilobytes(32));
     
-    MemoryCopy((u8 *)memoryPrgBank + cpu->memoryBase, bankToCpy, Kilobytes(32));
+    MemoryCopy(memoryPrgBank, bankToCpy, Kilobytes(32));
 
     // Nametable Single Screen bank select
     if(byteWritten & 0x10)

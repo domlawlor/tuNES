@@ -46,7 +46,7 @@ struct Cpu
     u8 flags;
     u8 stackPtr;
     u16 prgCounter;
-    u64 memoryBase;
+    u8 * memoryBase;
 
     // TODO: Check if still needed
     b32 padStrobe; 

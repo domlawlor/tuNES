@@ -10,7 +10,6 @@
   341 Clocks Per scanline
   1 Cpu Cycle = 3 ppu Cycles
   Each ppu Cycle produces a pixel output
-
  */
 
 /*
@@ -509,9 +508,9 @@ static void RunPpu(Ppu *ppu, u16 clocksToRun)
 }
 
 
-static void InitPpu(Ppu *ppu, u64 memoryBase, u32 * basePixel)
+static void InitPpu(Ppu *ppu, u8 * memoryBase, u32 * basePixel)
 {
-    ZeroMemory((u8 *)memoryBase, Kilobytes(64));
+    ZeroMemory(memoryBase, Kilobytes(64));
     
     *ppu = {};
 
@@ -538,6 +537,7 @@ static void InitPpu(Ppu *ppu, u64 memoryBase, u32 * basePixel)
 
     for(u8 idx = 0; idx < paletteSize; ++idx)
     {
-        Write8(paletteStartup[idx], 0x3F00 + idx, ppu->memoryBase);
+		u16 address = backgroundPaletteAddress + idx;
+        Write8(paletteStartup[idx], ppu->memoryBase + address);
     }
 }

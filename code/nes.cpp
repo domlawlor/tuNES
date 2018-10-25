@@ -109,11 +109,11 @@ static void Power(Nes *nes)
         InitPpu(&nes->ppu, nes->ppuMemoryBase, (u32 *)globalScreenBackBuffer.memory);
            
         LoadCartridge(nes, romFileName);
-        nes->cpu.prgCounter = (Read8(RESET_VEC+1, nes->cpu.memoryBase) << 8) | Read8(RESET_VEC, nes->cpu.memoryBase);
+        nes->cpu.prgCounter = (Read8(nes->cpu.memoryBase + (RESET_VEC + 1)) << 8) | Read8(nes->cpu.memoryBase + RESET_VEC);
     }
     else
     {
-        u64 memoryBase = nes->cpu.memoryBase;
+        u8 * memoryBase = nes->cpu.memoryBase;
         nes->cpu = {};
         nes->cpu.memoryBase = memoryBase;
 
@@ -155,8 +155,8 @@ static Nes CreateNes(u8 *romName)
     u32 ppuMemorySize = Kilobytes(64);
     u8 * memory = (u8 *)VirtualAlloc(0, (size_t)(cpuMemorySize + ppuMemorySize), MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
     
-    nes.cpuMemoryBase = (u64)memory;
-    nes.ppuMemoryBase = (u64)memory + cpuMemorySize;
+    nes.cpuMemoryBase = memory;
+    nes.ppuMemoryBase = memory + cpuMemorySize;
 
     InitCpu(&nes.cpu, nes.cpuMemoryBase);
     InitPpu(&nes.ppu, nes.ppuMemoryBase, (u32 *)globalScreenBackBuffer.memory);
