@@ -1,10 +1,4 @@
-#if !defined(PPU_H)
-/* ========================================================================
-   $File: $
-   $Date: $
-   $Revision: $
-   $Creator: Dom Lawlor $
-   ======================================================================== */
+#pragma once 
 
 const u16 ppuPixelWidth = 256;
 const u16 ppuPixelHeight = 240;
@@ -21,126 +15,123 @@ const u16 oamSpriteTotal = 64;
 
 enum NameTableMirrorType
 {
-    SINGLE_SCREEN_BANK_A = 0,
-    SINGLE_SCREEN_BANK_B,
-    VERTICAL_MIRROR,
-    HORIZONTAL_MIRROR,
-    FOUR_SCREEN_MIRROR,   
+	SINGLE_SCREEN_BANK_A = 0,
+	SINGLE_SCREEN_BANK_B,
+	VERTICAL_MIRROR,
+	HORIZONTAL_MIRROR,
+	FOUR_SCREEN_MIRROR,
 };
 
 struct OamSprite
 {
-    u8 Y;
-    u8 tile;
-    u8 atrb;
-    u8 X;
+	u8 Y;
+	u8 tile;
+	u8 atrb;
+	u8 X;
 };
 
 struct Sprite
 {
 	OamSprite oamData;
 
-    b32 priority;
-    b32 spriteZero;
-    
-    u8 paletteValue;
-    u8 patternLow;
-    u8 patternHigh;
+	bool priority;
+	bool spriteZero;
+
+	u8 paletteValue;
+	u8 patternLow;
+	u8 patternHigh;
 };
 
 enum ScanlineType
 {
-    VISIBLE = 0,
-    POST_RENDER,
-    VBLANK,
-    PRE_RENDER
+	VISIBLE = 0,
+	POST_RENDER,
+	VBLANK,
+	PRE_RENDER
 };
+
+constexpr u64 PpuMemorySize = Kilobytes(64);
 
 struct Ppu
 {
+	u8 memory[PpuMemorySize];
+
 	u64 clocksHit;
 
-    u8 *memoryBase;
-    u32 *basePixel;
+	bool renderingEnabled;
 
-    b32 renderingEnabled;
+	bool oddFrame;
 
-    b32 oddFrame;
-    
-    u16 scanline;
-    u16 scanlineCycle;
+	u16 scanline;
+	u16 scanlineCycle;
 
-    ScanlineType scanlineType;
-    
-    // VRAM Address
-    u16 vRamAdrs;
-    u16 tempVRamAdrs;
-    u8 latchWrite;
-    u8 fineX;
+	ScanlineType scanlineType;
 
-    // 
-    u16 lowPatternShiftReg;
-    u16 highPatternShiftReg;
-    u8 paletteLatchOld;
-    u8 paletteLatchNew;
+	// VRAM Address
+	u16 vRamAdrs;
+	u16 tempVRamAdrs;
+	u8 latchWrite;
+	u8 fineX;
 
-    u8 nextLowPattern;
-    u8 nextHighPattern;
-    u8 nextAtrbByte;
-    u16 nextNametableAdrs;
+	// 
+	u16 lowPatternShiftReg;
+	u16 highPatternShiftReg;
+	u8 paletteLatchOld;
+	u8 paletteLatchNew;
 
-    // Name table banks. 
-    NameTableMirrorType mirrorType;
-    // TODO: Pre allocate?
-    u8 nametableBankA[0x400];
-    u8 nametableBankB[0x400];
-    u8 nametableBankC[0x400];
-    u8 nametableBankD[0x400];
-    
-    // Control Reg
-    u8 nametableBase;
-    u8 vRamIncrement;
-    u16 sPRTPattenBase;
-    u16 bGPatternBase;
-    b32 spriteSize8x16;
-    b32 ppuSlave;
-    b32 generateNMI;
+	u8 nextLowPattern;
+	u8 nextHighPattern;
+	u8 nextAtrbByte;
+	u16 nextNametableAdrs;
 
-    // Mask Reg
-    b32 greyScale;
-    b32 showBGLeft8Pixels;
-    b32 showSPRTLeft8Pixels;
-    b32 showBackground;
-    b32 showSprites;
-    b32 emphasizeRed;
-    b32 emphasizeGreen;
-    b32 emphasizeBlue;
+	// Name table banks. 
+	NameTableMirrorType mirrorType;
+	// TODO: Pre allocate?
+	u8 nametableBankA[0x400];
+	u8 nametableBankB[0x400];
+	u8 nametableBankC[0x400];
+	u8 nametableBankD[0x400];
 
-    // Status Reg
-    b32 spriteOverflow;
-    b32 spriteZeroHit;
-    b32 verticalBlank;
+	// Control Reg
+	u8 nametableBase;
+	u8 vRamIncrement;
+	u16 sPRTPattenBase;
+	u16 bGPatternBase;
+	bool spriteSize8x16;
+	bool ppuSlave;
+	bool generateNMI;
 
-    b32 supressVbl;
-    b32 supressNmiSet;
-    
-    // Oam Address Reg
-    u8 oamAddress;
+	// Mask Reg
+	bool greyScale;
+	bool showBGLeft8Pixels;
+	bool showSPRTLeft8Pixels;
+	bool showBackground;
+	bool showSprites;
+	bool emphasizeRed;
+	bool emphasizeGreen;
+	bool emphasizeBlue;
 
-    // VRam Data Read Buffering
-    u8 vRamDataBuffer;
-    
-    //Sprites
-    u8 *oamDma; 
-    u8 oam[oamSize];
+	// Status Reg
+	bool spriteOverflow;
+	bool spriteZeroHit;
+	bool verticalBlank;
 
-    u8 secondarySpriteCount;
-    Sprite secondaryOam[secondaryOamSpriteMax];
-    
-    u8 preparedSpriteCount;
-    Sprite preparedSprites[secondaryOamSpriteMax];
+	bool supressVbl;
+	bool supressNmiSet;
+
+	// Oam Address Reg
+	u8 oamAddress;
+
+	// VRam Data Read Buffering
+	u8 vRamDataBuffer;
+
+	//Sprites
+	u8 *oamDma;
+	u8 oam[oamSize];
+
+	u8 secondarySpriteCount;
+	Sprite secondaryOam[secondaryOamSpriteMax];
+
+	u8 preparedSpriteCount;
+	Sprite preparedSprites[secondaryOamSpriteMax];
 };
-
-
-#define PPU_H
-#endif

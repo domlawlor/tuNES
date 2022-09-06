@@ -1,6 +1,0 @@
-
-    if(0x3F00 <= Address && Address < 0x3F20 & 
-       ((Address & 0x3) == 0)) // Palette
-    {
-        Address -= 0x10;
-    }

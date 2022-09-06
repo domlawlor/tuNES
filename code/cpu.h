@@ -1,10 +1,4 @@
-#if !defined(CPU_H)
-/* ========================================================================
-   $File: $
-   $Date: $
-   $Revision: $
-   $Creator: Dom Lawlor $
-   ======================================================================== */
+#pragma once
 
 #define NMI_VEC     0xFFFA
 #define RESET_VEC   0xFFFC
@@ -26,66 +20,61 @@
 
 enum AddressType
 {
-    ACM = 0, IMPL, IMED, REL,
-    ZERO_R, ZERO_RW, ZERO_W,
-    ZERX_R, ZERX_RW, ZERX_W,
-    ZERY_R, ZERY_RW, ZERY_W,
-    ABS_R, ABS_RW, ABS_W,
-    ABSX_R, ABSX_RW, ABSX_W,
-    ABSY_R, ABSY_RW, ABSY_W,
-    INDX_R, INDX_RW, INDX_W,
-    INDY_R, INDY_RW, INDY_W,
-    ABSJ, INDI
+	ACM = 0, IMPL, IMED, REL,
+	ZERO_R, ZERO_RW, ZERO_W,
+	ZERX_R, ZERX_RW, ZERX_W,
+	ZERY_R, ZERY_RW, ZERY_W,
+	ABS_R, ABS_RW, ABS_W,
+	ABSX_R, ABSX_RW, ABSX_W,
+	ABSY_R, ABSY_RW, ABSY_W,
+	INDX_R, INDX_RW, INDX_W,
+	INDY_R, INDY_RW, INDY_W,
+	ABSJ, INDI
 };
+
+constexpr u64 CpuMemorySize = Kilobytes(64);
 
 struct Cpu
 {
-    u8 A;
-    u8 X;
-    u8 Y; 
-    u8 flags;
-    u8 stackPtr;
-    u16 prgCounter;
-    u8 * memoryBase;
+	u8 memory[CpuMemorySize];
 
-    // TODO: Check if still needed
-    b32 padStrobe; 
-    
-    Input inputPad1;
-    u8 pad1CurrentButton;
-    Input inputPad2;
-    u8 pad2CurrentButton;
+	u8 A;
+	u8 X;
+	u8 Y;
+	u8 flags;
+	u8 stackPtr;
+	u16 prgCounter;
+	
+	// TODO: Check if still needed
+	bool padStrobe;
 
-    char *opName;
-    u8 opCode;
-    u8 opClockTotal;
-    u8 addressType;
-    u8 opLowByte;
-    u8 opHighByte;
-    u8 opValue;
-    u8 opTemp;
+	Input inputPad1;
+	u8 pad1CurrentButton;
+	Input inputPad2;
+	u8 pad2CurrentButton;
 
-    // Timing
-    u16 catchupClocks;
-    u16 lastClocksIntoOp;
+	char *opName;
+	u8 opCode;
+	u8 opClockTotal;
+	u8 addressType;
+	u8 opLowByte;
+	u8 opHighByte;
+	u8 opValue;
+	u8 opTemp;
+
+	// Timing
+	u16 catchupClocks;
+	u16 lastClocksIntoOp;
+
+#if CPU_LOG
+	// TODO: Make platform independant. Hold the pointer?
+	u8 logA;
+	u8 logX;
+	u8 logY;
+	u8 logSP;
+	u8 logFlags;
+	u16 logPC;
+	u8 logOp;
+	char *logOpName;
+#endif
 };
-
-
-#if CPU_LOG    
-    // TODO: Make platform independant. Hold the pointer?
-    u8 logA;
-    u8 logX;
-    u8 logY;
-    u8 logSP;
-    u8 logFlags;
-    u16 logPC;
-    u8 logOp;
-    char logData1[8];
-    char logData2[8];
-    char logExtraInfo[32];
-    HANDLE logHandle;
-#endif
-
-#define CPU_H
-#endif
-

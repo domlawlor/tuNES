@@ -1,10 +1,4 @@
-#if !defined(GLOBALS_H)
-/* ========================================================================
-   $File: $
-   $Date: $
-   $Revision: $
-   $Creator: Dom Lawlor $
-   ======================================================================== */
+#pragma once
 
 #define global static
 
@@ -22,7 +16,6 @@ typedef int8_t s8;
 typedef int16_t s16;
 typedef int32_t s32;
 typedef int64_t s64;
-typedef s32 b32;
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -42,6 +35,3 @@ typedef size_t mem_idx;
 #define U16_MAX 0xFFFF
 #define U32_MAX 0xFFFFFFFF
 #define U64_MAX 0xFFFFFFFFFFFFFFFF
-
-#define GLOBALS_H
-#endif

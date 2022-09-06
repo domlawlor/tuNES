@@ -1,93 +1,84 @@
-#if !defined(APU_H)
-/* ========================================================================
-   $File: $
-   $Date: $
-   $Revision: $
-   $Creator: Dom Lawlor $
-   ======================================================================== */
+#pragma once
 
 struct Square
 {
-    u8 dutyCycle;
-    b32 lengthCounterHalt;
-    b32 envelopeDisable;
-    u8 volumePeriod;
-    b32 enableSweep;
-    u8 sweepPeriod;
-    b32 negative;
-    u8 shiftCount;
-    u8 periodLow;
-    u8 lengthCounter;
-    u8 periodHigh;
+	u8 dutyCycle;
+	bool lengthCounterHalt;
+	bool envelopeDisable;
+	u8 volumePeriod;
+	bool enableSweep;
+	u8 sweepPeriod;
+	bool negative;
+	u8 shiftCount;
+	u8 periodLow;
+	u8 lengthCounter;
+	u8 periodHigh;
 
 
-    u8 sweepDivider;
-    b32 sweepReset;
-    
-    u8 envDivider;
-    u8 envCounter;
-    b32 restartEnv;
-    
-    u8 sequenceValue;
-    u8 sequenceStep;
+	u8 sweepDivider;
+	bool sweepReset;
+
+	u8 envDivider;
+	u8 envCounter;
+	bool restartEnv;
+
+	u8 sequenceValue;
+	u8 sequenceStep;
 };
 
 struct Triangle
 {
-    b32 linearCtrl;
-    u8 linearCounter;    
-    u8 periodLow;
-    u8 lengthCounter;
-    u8 periodHigh;
+	bool linearCtrl;
+	u8 linearCounter;
+	u8 periodLow;
+	u8 lengthCounter;
+	u8 periodHigh;
 };
 
 struct Noise
-{   
-    b32 lengthCounterHalt;
-    b32 envelopeDisable;
-    u8 volumePeriod;
-    b32 loopNoise;
-    u8 loopPeriod;
-    u8 lengthCounter;
+{
+	bool lengthCounterHalt;
+	bool envelopeDisable;
+	u8 volumePeriod;
+	bool loopNoise;
+	u8 loopPeriod;
+	u8 lengthCounter;
 
-    b32 restartEnv;
+	bool restartEnv;
 };
 
 struct Dmc
 {
-    b32 irqEnable;
-    b32 loop;
-    u8 freqIndex;
+	bool irqEnable;
+	bool loop;
+	u8 freqIndex;
 
-    u8 loadCounter;
-    u8 sampleAddress;
-    u8 sampleLength;
+	u8 loadCounter;
+	u8 sampleAddress;
+	u8 sampleLength;
 };
 
 struct Apu
 {
-    Square square1;
-    Square square2;
-    Triangle triangle;
-    Noise noise;
-    Dmc dmc;
+	Square square1;
+	Square square2;
+	Triangle triangle;
+	Noise noise;
+	Dmc dmc;
 
-    b32 dmcEnabled;
-    b32 noiseEnabled;
-    b32 triangleEnabled;
-    b32 square1Enabled;
-    b32 square2Enabled;
+	bool dmcEnabled;
+	bool noiseEnabled;
+	bool triangleEnabled;
+	bool square1Enabled;
+	bool square2Enabled;
 
-    b32 dmcInterrupt;
-    b32 frameInterrupt;
+	bool dmcInterrupt;
+	bool frameInterrupt;
 
-    b32 mode;
-    b32 irqInhibit;
+	bool mode;
+	bool irqInhibit;
 
-    u8 frameCounter;
+	u8 frameCounter;
 
-    r32 finalOutput;
+	r32 finalOutput;
 };
-
-#define APU_H
-#endif
