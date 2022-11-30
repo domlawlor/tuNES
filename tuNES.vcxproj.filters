@@ -8,9 +8,7 @@
   <ItemGroup>
     <ClCompile Include="code\apu.cpp" />
     <ClCompile Include="code\cpu.cpp" />
-    <ClCompile Include="code\file.cpp" />
     <ClCompile Include="code\interrupts.cpp" />
-    <ClCompile Include="code\log.cpp" />
     <ClCompile Include="code\mapper.cpp" />
     <ClCompile Include="code\memory.cpp" />
     <ClCompile Include="code\nes.cpp" />
@@ -18,6 +16,7 @@
     <ClCompile Include="code\palette.cpp" />
     <ClCompile Include="code\ppu.cpp" />
     <ClCompile Include="code\win32_entry.cpp" />
+    <ClCompile Include="code\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="code\apu.h" />

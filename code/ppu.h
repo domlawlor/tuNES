@@ -50,12 +50,25 @@ enum ScanlineType
 	PRE_RENDER
 };
 
-constexpr u64 PpuMemorySize = Kilobytes(64);
+//constexpr u64 PpuMemorySize = Kilobytes(64);
+constexpr u64 PpuMemorySize = Kilobytes(16);
+constexpr u64 NametableBankSize = Kilobytes(1);
 
 struct Ppu
 {
+	Color *pixelBuffer;
 	u8 memory[PpuMemorySize];
 
+	u8 nametableBankA[NametableBankSize];
+	u8 nametableBankB[NametableBankSize];
+	u8 nametableBankC[NametableBankSize];
+	u8 nametableBankD[NametableBankSize];
+
+	bool hitEndFrame;
+//};
+//
+//struct Ppu
+//{
 	u64 clocksHit;
 
 	bool renderingEnabled;
@@ -83,14 +96,6 @@ struct Ppu
 	u8 nextHighPattern;
 	u8 nextAtrbByte;
 	u16 nextNametableAdrs;
-
-	// Name table banks. 
-	NameTableMirrorType mirrorType;
-	// TODO: Pre allocate?
-	u8 nametableBankA[0x400];
-	u8 nametableBankB[0x400];
-	u8 nametableBankC[0x400];
-	u8 nametableBankD[0x400];
 
 	// Control Reg
 	u8 nametableBase;

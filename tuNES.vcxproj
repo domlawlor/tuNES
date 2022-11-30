@@ -44,6 +44,7 @@
     <NMakePreprocessorDefinitions>_DEBUG;CPU_LOG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
     <IntDir>build\</IntDir>
     <OutDir>$(SolutionDir)build\</OutDir>
+    <NMakeIncludeSearchPath>E:\code\tuNES\libs\raylib\include;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <NMakeBuildCommandLine>build.bat</NMakeBuildCommandLine>
@@ -70,9 +71,8 @@
   <ItemGroup>
     <ClCompile Include="code\apu.cpp" />
     <ClCompile Include="code\cpu.cpp" />
-    <ClCompile Include="code\file.cpp" />
     <ClCompile Include="code\interrupts.cpp" />
-    <ClCompile Include="code\log.cpp" />
+    <ClCompile Include="code\main.cpp" />
     <ClCompile Include="code\mapper.cpp" />
     <ClCompile Include="code\memory.cpp" />
     <ClCompile Include="code\nes.cpp" />

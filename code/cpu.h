@@ -18,33 +18,92 @@
 #define NMI_OP 0x02
 #define IRQ_OP 0x12
 
-enum AddressType
+enum class AddressMode
 {
-	ACM = 0, IMPL, IMED, REL,
-	ZERO_R, ZERO_RW, ZERO_W,
-	ZERX_R, ZERX_RW, ZERX_W,
-	ZERY_R, ZERY_RW, ZERY_W,
-	ABS_R, ABS_RW, ABS_W,
-	ABSX_R, ABSX_RW, ABSX_W,
-	ABSY_R, ABSY_RW, ABSY_W,
-	INDX_R, INDX_RW, INDX_W,
-	INDY_R, INDY_RW, INDY_W,
-	ABSJ, INDI
+	NONE = 0, ACM, IMPL, IMED, REL,
+	ZERO, ZERO_X, ZERO_Y,
+	ABS, ABS_X, ABS_XW, ABS_Y, ABS_YW,
+	IND, IND_X, IND_Y, IND_YW
 };
+typedef AddressMode AM;
 
 constexpr u64 CpuMemorySize = Kilobytes(64);
-
 struct Cpu
 {
+public:
+	void InitCpu();
+	void Run();
+
+private:
+	u8 ReadOpcode();
+	u16 GetOperand();
+
+	u8 ReadMemory(u16 address);
+	void WriteMemory(u16 address, u8 value);
+
+	// Direct access to memory. 
+	u8 RawReadMemory(u16 address);
+	void RawWriteMemory(u16 address, u8 value);
+
+	inline void PushStack(u8 value)
+	{
+		WriteMemory(stackPointer + STACK_ADDRESS, value);
+		--stackPointer;
+	}
+	inline u8 PopStack()
+	{
+		++stackPointer;
+		return ReadMemory(stackPointer + STACK_ADDRESS);
+	}
+
+	// Status flag functions
+	inline void SetCarry() { flags = flags | CARRY_BIT; }
+	inline void ClearCarry() { flags = flags & ~CARRY_BIT; }
+	inline void SetInterrupt() { flags = flags | INTERRUPT_BIT; }
+	inline void ClearInterrupt() { flags = flags & ~INTERRUPT_BIT; }
+	inline void SetDecimal() { flags = flags | DECIMAL_BIT; }
+	inline void ClearDecimal() { flags = flags & ~DECIMAL_BIT; }
+	inline void SetBreak() { flags = flags | BREAK_BIT; }
+	inline void ClearBreak() { flags = flags & ~BREAK_BIT; }
+	inline void SetBlank() { flags = flags | BLANK_BIT; }
+	inline void ClearBlank() { flags = flags & ~BLANK_BIT; }
+	inline void SetOverflow() { flags = flags | OVERFLOW_BIT; }
+	inline void ClearOverflow() { flags = flags & ~OVERFLOW_BIT; }
+	inline void SetZero(u8 value) {
+		flags = (value == 0x00) ? (flags | ZERO_BIT) : (flags & ~ZERO_BIT);
+	}
+	inline void SetNegative(u8 value) {
+		flags = (value >= 0x00 && value <= 0x7F) ? (flags & ~NEGATIVE_BIT) : (flags | NEGATIVE_BIT);
+	}
+	inline bool IsFlagBitSet(u8 bit) {
+		return((bit & flags) != 0);
+	}
+
+
+
+
+private:
 	u8 memory[CpuMemorySize];
 
+	// Registers
 	u8 A;
 	u8 X;
 	u8 Y;
 	u8 flags;
-	u8 stackPtr;
-	u16 prgCounter;
-	
+	u8 stackPointer;
+	u8 prgCounter;
+
+	u16 operand;
+	AddressMode addressMode;
+
+	// Debug
+	char *opName;
+	u8 opCode;
+};
+
+/*
+struct Cpu
+{
 	// TODO: Check if still needed
 	bool padStrobe;
 
@@ -53,28 +112,9 @@ struct Cpu
 	Input inputPad2;
 	u8 pad2CurrentButton;
 
-	char *opName;
-	u8 opCode;
-	u8 opClockTotal;
-	u8 addressType;
 	u8 opLowByte;
 	u8 opHighByte;
 	u8 opValue;
 	u8 opTemp;
-
-	// Timing
-	u16 catchupClocks;
-	u16 lastClocksIntoOp;
-
-#if CPU_LOG
-	// TODO: Make platform independant. Hold the pointer?
-	u8 logA;
-	u8 logX;
-	u8 logY;
-	u8 logSP;
-	u8 logFlags;
-	u16 logPC;
-	u8 logOp;
-	char *logOpName;
-#endif
 };
+*/

@@ -15,31 +15,61 @@
 #include "ppu.cpp"
 #include "cpu.cpp"
 
-static void RunNes(Nes *nes, Input *newInput)
+void Nes::Update()
 {
+	InputFrame();
+
+	if(hitPowerOn)
+	{
+		hitPowerOn = false;
+		Power();
+	}
+	if(hitReset)
+	{
+		hitReset = false;
+		LoadCartridge(romFileName);
+		Reset();
+	}
+
 	// TODO: If power is off, could we just run the nes on an empty cartridge?
 	//       Or is this the best check to stop extra work being done
-	if(!nes->powerOn)
+	if(!isPowerOn)
 	{
 		return;
 	}
 
-	Cpu *cpu = &nes->cpu;
+	ppu.hitEndFrame = false;
+	while(!ppu->hitEndFrame)
+	{
+		// Run Ppu
+		// Run Cpu
+		// Run Ppu again??
+	}
 
 	// Input read // TODO: Only run when reading input??
 	// TODO: Move this to where it happens in memory read.
-	if(cpu->padStrobe)
+	if(cpu.padStrobe)
 	{
 		for(u8 idx = 0; idx < Input::BUTTON_NUM; ++idx)
 		{
-			cpu->inputPad1.buttons[idx] = newInput->buttons[idx];
+			cpu.inputPad1.buttons[idx] = input.buttons[idx];
 		}
 	}
 
 	nes->frameClocksElapsed += RunCpu(cpu, newInput);
+
+
+	Texture2D drawTexture = backBuffers[currentDrawBackBufferIndex];
+	currentDrawBackBufferIndex = (currentDrawBackBufferIndex + 1) % backBufferCount;
+	UpdateTexture(drawTexture, ppu.pixelBuffer);
+
+	BeginDrawing();
+	ClearBackground(GREEN);
+	DrawTexture(drawTexture, 0, 0, WHITE);
+	EndDrawing();
 }
 
-static void LoadCartridge(Nes *nes, u8 *fileName)
+void Nes::LoadCartridge(u8 *fileName)
 {
 	Cartridge *cartridge = &nes->cartridge;
 	Cpu *cpu = &nes->cpu;
@@ -48,7 +78,7 @@ static void LoadCartridge(Nes *nes, u8 *fileName)
 	// Reading rom file
 	cartridge->fileName = fileName;
 	cartridge->fileSize;
-	cartridge->data = (u8 *)ReadFileData(fileName, &cartridge->fileSize);
+	//cartridge->data = (u8 *)ReadFileData(fileName, &cartridge->fileSize);
 
 	if(cartridge->fileSize == 0)
 	{
@@ -103,36 +133,45 @@ static void LoadCartridge(Nes *nes, u8 *fileName)
 	}
 }
 
-static void Power(Nes *nes)
+void Nes::Power()
 {
-	nes->powerOn = !(nes->powerOn);
+	isPowerOn = !isPowerOn;
 
-	if(nes->powerOn)
+	if(isPowerOn)
 	{
-		InitCpu(&nes->cpu);
-		InitPpu(&nes->ppu);
-
-		LoadCartridge(nes, romFileName);
-	}
-	else
-	{
-		ZeroMemory(&nes->cpu, sizeof(Cpu));
-		ZeroMemory(&nes->ppu, sizeof(Ppu));
+		LoadCartridge(romFileName);
 	}
 
-	nes->cpu.prgCounter = ReadCpu16(RESET_VEC, &nes->cpu);
+	cpu.InitCpu();
+	InitPpu();
 }
 
-static void Reset(Nes *nes)
+void Nes::Reset()
 {
-	InitCpu(&nes->cpu);
-	InitPpu(&nes->ppu);
+	InitCpu(&cpu);
+	InitPpu(&ppu);
 
-	LoadCartridge(nes, romFileName);
+	LoadCartridge(romFileName);
 
 	// NOTE: The status after reset was taken from nesdev
-	nes->cpu.stackPtr -= 3;
-	SetInterrupt(&nes->cpu.flags);
+	cpu.stackPointer -= 3;
+	SetInterrupt(&cpu.flags);
 
-	nes->cpu.prgCounter = ReadCpu16(RESET_VEC, &nes->cpu);
+	cpu.prgCounter = ReadCpu16(RESET_VEC, &cpu);
+}
+
+void Nes::InputFrame()
+{
+	bool altDown = IsKeyDown(KEY_LEFT_ALT) || IsKeyDown(KEY_RIGHT_ALT);
+	bool shiftDown = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+
+	input.buttons[Input::B_UP] = IsKeyDown(KEY_UP);
+	input.buttons[Input::B_DOWN] = IsKeyDown(KEY_DOWN);
+	input.buttons[Input::B_LEFT] = IsKeyDown(KEY_LEFT);
+	input.buttons[Input::B_RIGHT] = IsKeyDown(KEY_RIGHT);
+
+	input.buttons[Input::B_A] = IsKeyDown(KEY_Z);
+	input.buttons[Input::B_B] = IsKeyDown(KEY_X);
+	input.buttons[Input::B_START] = IsKeyDown(KEY_ENTER);
+	input.buttons[Input::B_SELECT] = shiftDown;
 }

@@ -2,66 +2,181 @@
 
 #include "cpu.h"
 
-inline void WriteStack(u8 Byte, Cpu *cpu)
-{
-	WriteCpu8(Byte, (u16)cpu->stackPtr | STACK_ADDRESS, cpu);
-	--cpu->stackPtr;
-}
-inline u8 readStack(Cpu *cpu)
-{
-	++cpu->stackPtr;
-	u8 value = ReadCpu8((u16)cpu->stackPtr | STACK_ADDRESS, cpu);
-	return(value);
-}
-
-// Status flag functions
-inline void SetCarry(u8 *flags) { *flags = *flags | CARRY_BIT; }
-inline void ClearCarry(u8 *flags) { *flags = *flags & ~CARRY_BIT; }
-inline void SetInterrupt(u8 *flags) { *flags = *flags | INTERRUPT_BIT; }
-inline void ClearInterrupt(u8 *flags) { *flags = *flags & ~INTERRUPT_BIT; }
-inline void SetDecimal(u8 *flags) { *flags = *flags | DECIMAL_BIT; }
-inline void ClearDecimal(u8 *flags) { *flags = *flags & ~DECIMAL_BIT; }
-inline void SetBreak(u8 *flags) { *flags = *flags | BREAK_BIT; }
-inline void ClearBreak(u8 *flags) { *flags = *flags & ~BREAK_BIT; }
-inline void SetBlank(u8 *flags) { *flags = *flags | BLANK_BIT; }
-inline void ClearBlank(u8 *flags) { *flags = *flags & ~BLANK_BIT; }
-inline void SetOverflow(u8 *flags) { *flags = *flags | OVERFLOW_BIT; }
-inline void ClearOverflow(u8 *flags) { *flags = *flags & ~OVERFLOW_BIT; }
-inline void SetZero(u8 value, u8 *flags) {
-	*flags = (value == 0x00) ? (*flags | ZERO_BIT) : (*flags & ~ZERO_BIT);
-}
-inline void SetNegative(u8 value, u8 *flags) {
-	*flags = (value >= 0x00 && value <= 0x7F) ? (*flags & ~NEGATIVE_BIT) : (*flags | NEGATIVE_BIT);
-}
-inline bool IsBitSet(u8 bit, u8 flags) {
-	return((bit & flags) != 0);
-}
 
 #include "operations.cpp"
 
-static void FetchOpcode(Cpu *cpu)
-{
-	if(nmiInterruptSet)
-	{
-		nmiInterruptSet = false;
-		cpu->opCode = NMI_OP;
-	}
-	else if(irqInterruptSet)
-	{
-		irqInterruptSet = false;
-		cpu->opCode = IRQ_OP;
-	}
-	else
-	{
-		cpu->opCode = ReadCpu8(cpu->prgCounter++, cpu);
-	}
 
-	cpu->addressType = OpAddressType[cpu->opCode];
-	cpu->opName = OpName[cpu->opCode];
-	cpu->opClockTotal = OpClocks[cpu->opCode];
+u8 Cpu::ReadMemory(u16 address)
+{
+	// One memory read is 1 cycles worth. 
+	// Run other systems (Ppu, Apu) for half of this Cpu cycle, then run second half after the read
+
+
+	u8 value = RawReadMemory(address);
+
+	return value;
 }
 
-static u8 RunCpu(Cpu *cpu, Input *newInput)
+void Cpu::WriteMemory(u16 address, u8 value)
+{
+	RawWriteMemory(address, value);
+}
+
+u8 Cpu::RawReadMemory(u16 address)
+{
+	return memory[address];
+}
+
+void Cpu::RawWriteMemory(u16 address, u8 value)
+{
+	memory[address] = value;
+}
+
+void Cpu::InitCpu()
+{
+	MemorySet(memory, 0, sizeof(CpuMemorySize));
+
+	// DEBUG at moment. Matching FCEUX initial cpu memory state
+	for(u16 index = 0; index < 0x2000; ++index)
+	{
+		if(index % 8 >= 4)
+		{
+			memory[index] = 0xFF;
+		}
+	}
+
+	for(u16 index = 0x4008; index < 0x5000; ++index)
+	{
+		memory[index] = 0xFF;
+	}
+
+	A = 0;
+	X = 0;
+	Y = 0;
+	flags = 0x04;
+	stackPointer = 0xFD;
+	prgCounter = (RawReadMemory(RESET_VEC + 1) << 8) | RawReadMemory(RESET_VEC); // Read the reset vector directly. No need for ppu catchup cycles
+	opName = "NUL";
+}
+
+u8 Cpu::ReadOpcode()
+{
+	u8 opcode = ReadMemory(prgCounter);
+	++prgCounter;
+	return opcode;
+}
+
+u16 Cpu::GetOperand()
+{
+	if(addressMode == AddressMode::ACM || addressMode == AddressMode::IMPL)
+	{
+		ReadMemory(prgCounter); // Dummy Read for cycle accuracy
+		return 0;
+	}
+	else if(addressMode == AddressMode::IMED || addressMode == AddressMode::REL)
+	{
+		u8 value = ReadMemory(prgCounter);
+		prgCounter++;
+		return value;
+	}
+	else if(addressMode == AddressMode::ZERO)
+	{
+		u8 value = ReadMemory(prgCounter);
+		prgCounter++;
+		return value;
+	}
+	else if(addressMode == AddressMode::ZERO_X)
+	{
+		u8 value = ReadMemory(prgCounter);
+		prgCounter++;
+		ReadMemory(value); // Dummy read for cycle accuracy
+		return value + X;
+	}
+	else if(addressMode == AddressMode::ZERO_Y)
+	{
+		u8 value = ReadMemory(prgCounter);
+		prgCounter++;
+		ReadMemory(value); // Dummy read for cycle accuracy
+		return value + Y;
+	}
+	else if(addressMode == AddressMode::IND)
+	{
+		u16 value = (ReadMemory(prgCounter + 1) << 8) | ReadMemory(prgCounter);
+		prgCounter += 2;
+		return value;
+	}
+	else if(addressMode == AddressMode::IND_X)
+	{
+		u8 indBase = ReadMemory(prgCounter);
+		prgCounter++;
+		ReadMemory(indBase); // Dummy read for cycle accuracy
+
+		u8 indDest = indBase + X;
+
+		u16 address = 0x0000;
+		if(indDest != 0xFF)
+		{
+			address = (ReadMemory(indDest + 1) << 8) | ReadMemory(indDest);
+		}
+		else
+		{
+			address = (ReadMemory(0x00) << 8) | ReadMemory(0xFF);
+		}
+		return address;
+	}
+	else if(addressMode == AddressMode::IND_Y)
+	{
+		u8 ind = ReadMemory(prgCounter);
+		prgCounter++;
+
+		u16 address = 0x0000;
+		if(ind != 0xFF)
+		{
+			address = (ReadMemory(ind + 1) << 8) | ReadMemory(ind);
+		}
+		else
+		{
+			address = (ReadMemory(0x00) << 8) | ReadMemory(0xFF);
+		}
+
+		u16 indAddress = address + Y;
+		// Check to see if page has been crossed
+		if((indAddress & 0xFF00) != (address & 0xFF00))
+		{
+			ReadMemory(indAddress - 0x100); // Duummy Read
+		}
+		return indAddress;
+	}
+	else if(addressMode == AddressMode::IND_YW)
+	{
+		u8 ind = ReadMemory(prgCounter);
+		prgCounter++;
+
+		u16 address = 0x0000;
+		if(ind != 0xFF)
+		{
+			address = (ReadMemory(ind + 1) << 8) | ReadMemory(ind);
+		}
+		else
+		{
+			address = (ReadMemory(0x00) << 8) | ReadMemory(0xFF);
+		}
+
+		u16 indAddress = address + Y;
+		bool crossedPage = (indAddress & 0xFF00) != (address & 0xFF00);
+		if(crossedPage)
+		{
+			ReadMemory(indAddress - 0x100); // Duummy Read
+		}
+		else
+		{
+			ReadMemory(indAddress);
+		}
+		return indAddress;
+	}
+}
+
+void Cpu::Run()
 {
 	// NOTE: How cpu keeps track of clocks: Calling into a op will
 	// execute all clocks of the instruction at once. If there is any
@@ -72,62 +187,33 @@ static u8 RunCpu(Cpu *cpu, Input *newInput)
 	// need to be added to the 'catchup' total are returned.  After a
 	// frames worth of clocks are run, then we display the frame and
 	// update the audio on the platform
+	opCode = ReadOpcode();
+	opName = OpNames[opCode];
+
+	addressMode = OpAddressModes[opCode];
+	operand = GetOperand();
 
 
-#if CPU_LOG
-	cpu->logA = cpu->A;
-	cpu->logX = cpu->X;
-	cpu->logY = cpu->Y;
-	cpu->logFlags = cpu->flags;
-	cpu->logPC = cpu->prgCounter;
-	cpu->logSP = cpu->stackPtr;
-#endif
+	OperationAddressModes[addressMode](cpu);
+	
 
-	FetchOpcode(cpu);
-
-	OperationAddressModes[cpu->addressType](cpu);
-
-	// Add how many clocks in the Op, minus any clocks already run for catchup.
-	cpu->catchupClocks += (cpu->opClockTotal - cpu->lastClocksIntoOp);
-	cpu->lastClocksIntoOp = 0;
-
-#if CPU_LOG
-	cpu->logOp = cpu->opCode;
-	cpu->logOpName = cpu->opName;
-
-	char logString[256] = {};
-	snprintf(logString, 256, "0x%04X %s - %02X - A:%02X X:%02X Y:%02X - Flags:%02X SP:%02X\n",
-		cpu->logPC, cpu->logOpName, cpu->logOp, cpu->logA, cpu->logX, cpu->logY, cpu->logFlags, cpu->logSP);
-	u32 bytesToWrite =  strlen(logString);
-
-	u32 bytesWritten = 0;
-	WriteLog(logString, bytesToWrite, &bytesWritten, globalNes.logCpuHandle);
-#endif
-
-	return(cpu->opClockTotal);
-}
-
-static void InitCpu(Cpu *cpu)
-{
-	ZeroMemory(cpu, sizeof(Cpu));
-
-	// DEBUG at moment. Matching FCEUX initial cpu memory state
-	for(u16 index = 0; index < 0x2000; ++index)
+	if(_prevRunIrq || _prevNeedNmi) {
+		IRQ();
+		/*
+	if(nmiInterruptSet)
 	{
-		if(index % 8 >= 4)
-		{
-			cpu->memory[index] = 0xFF;
-		}
+		nmiInterruptSet = false;
+		cpu->opCode = NMI_OP;
+	}
+	else if(irqInterruptSet)
+	{
+		irqInterruptSet = false;
+		cpu->opCode = IRQ_OP;
+	}
+*/
 	}
 
-	for(u16 index = 0x4008; index < 0x5000; ++index)
-	{
-		cpu->memory[index] = 0xFF;
-	}
-
-	cpu->stackPtr = 0xFD;
-	cpu->flags = 0x04;
-
-	cpu->opName = "NUL";
 }
+
+
 

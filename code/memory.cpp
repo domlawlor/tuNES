@@ -12,6 +12,15 @@ static void WriteApuRegister(u8 byte, u16 address);
 // TODO: Forward declarations, is this the best idea?
 static void RunPpu(Ppu *ppu, u16 clocksToRun);
 
+inline void MemorySet(void *memory, u8 value, u64 size)
+{
+	u8 *memoryU8 = (u8 *)memory;
+	for(u64 i = 0; i < size; ++i)
+	{
+		memoryU8[i] = value;
+	}
+}
+
 static void RunPpuCatchup(u8 clocksIntoCurrentOp)
 {
 	// TODO: Find a better way to get Global values?
@@ -208,20 +217,17 @@ static u8 *GetNametableBank(u16 address, Ppu *ppu)
 {
 	u8 *result = 0;
 
-	switch(ppu->mirrorType)
+	Cartridge *cartrdige = Nes::GetCartridge();
+
+	switch(cartridge.nametableMirrorType)
 	{
-	case SINGLE_SCREEN_BANK_A:
-	{
+	case NametableMirror::SINGLE_SCREEN_BANK_A:
 		result = ppu->nametableBankA;
 		break;
-	}
-	case SINGLE_SCREEN_BANK_B:
-	{
+	case NametableMirror::SINGLE_SCREEN_BANK_B:
 		result = ppu->nametableBankB;
 		break;
-	}
-	case VERTICAL_MIRROR:
-	{
+	case NametableMirror::VERTICAL_MIRROR:
 		if(address < 0x2400 || (0x2800 <= address && address < 0x2C00))
 		{
 			result = ppu->nametableBankA;
@@ -231,9 +237,7 @@ static u8 *GetNametableBank(u16 address, Ppu *ppu)
 			result = ppu->nametableBankB;
 		}
 		break;
-	}
-	case HORIZONTAL_MIRROR:
-	{
+	case NametableMirror::HORIZONTAL_MIRROR:
 		if(address < 0x2800)
 		{
 			result = ppu->nametableBankA;
@@ -243,9 +247,7 @@ static u8 *GetNametableBank(u16 address, Ppu *ppu)
 			result = ppu->nametableBankB;
 		}
 		break;
-	}
-	case FOUR_SCREEN_MIRROR:
-	{
+	case NametableMirror::FOUR_SCREEN_MIRROR:
 		Assert(0);
 		if(address < 0x2400)
 		{
@@ -264,7 +266,6 @@ static u8 *GetNametableBank(u16 address, Ppu *ppu)
 			result = ppu->nametableBankD;
 		}
 		break;
-	}
 	}
 
 	return result;

@@ -504,7 +504,7 @@ static void RunPpu(Ppu *ppu, u16 clocksToRun)
 
 static void InitPpu(Ppu *ppu)
 {
-	ZeroMemory(ppu, sizeof(Ppu));
+	MemorySet(ppu, 0, sizeof(Ppu));
 
 	// TODO: This is to test if oam is initialized differently.
 
