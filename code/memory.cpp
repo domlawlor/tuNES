@@ -10,39 +10,16 @@ static u8 ReadApuRegister(u16 address);
 static void WriteApuRegister(u8 byte, u16 address);
 
 // TODO: Forward declarations, is this the best idea?
-static void RunPpu(Ppu *ppu, u16 clocksToRun);
-
-inline void MemorySet(void *memory, u8 value, u64 size)
-{
-	u8 *memoryU8 = (u8 *)memory;
-	for(u64 i = 0; i < size; ++i)
-	{
-		memoryU8[i] = value;
-	}
-}
+static void RunPpu(Ppu *ppu);
 
 static void RunPpuCatchup(u8 clocksIntoCurrentOp)
 {
 	// TODO: Find a better way to get Global values?
-	Cpu *cpu = &globalNes.cpu;
-	Ppu *ppu = &globalNes.ppu;
+	Cpu *cpu = Nes::GetCpu();
+	Ppu *ppu = Nes::GetPpu();
 	//ppu *Apu = &globalNes.Apu;
 
-	// New ClocksInto Op should be minus 1. Because we send in what
-	// cycle we want to catch up too. We don't want to run that cycle
-	// yet. Just one behind it
-	u16 newClocks = (clocksIntoCurrentOp - 1) - cpu->lastClocksIntoOp;
-
-	// Add the clocks already elapsed in Op.
-	u16 clocksToRun = cpu->catchupClocks + newClocks;
-
-	u16 ppuClocksToRun = clocksToRun * 3;
-
-	RunPpu(ppu, ppuClocksToRun);
-
-	cpu->catchupClocks = 0;
-	cpu->lastClocksIntoOp = (clocksIntoCurrentOp - 1);
-	Assert((clocksIntoCurrentOp - 1) >= 0);
+	RunPpu(ppu);
 }
 
 static u8 Read8(u8 *address, u8 currentCycle)
@@ -217,9 +194,9 @@ static u8 *GetNametableBank(u16 address, Ppu *ppu)
 {
 	u8 *result = 0;
 
-	Cartridge *cartrdige = Nes::GetCartridge();
+	Cartridge *cartridge = Nes::GetCartridge();
 
-	switch(cartridge.nametableMirrorType)
+	switch(cartridge->nametableMirrorType)
 	{
 	case NametableMirror::SINGLE_SCREEN_BANK_A:
 		result = ppu->nametableBankA;
@@ -289,28 +266,22 @@ static void WriteNametable(u8 byte, u16 address, Ppu *ppu)
 
 static u16 PpuMemoryMirror(u16 address)
 {
-	Ppu *ppu = &globalNes.ppu;
-
 	// Over half of the memory map is mirrored
-	if(address >= 0x4000) {
-		address = address % 0x4000;
-	}
+	address = address % 0x4000;
 
-	if(0x3F20 <= address && address < 0x4000) {
-		address = (address % 0x20) + 0x3F00;
-	}
-
-	if(0x3F00 <= address && address < 0x3F20) // Palette
+	if(0x3F00 <= address && address < 0x4000) // Palette
 	{
+		address = (address % 0x20) + 0x3F00;
+
+		// Some of palette addresses are identical
 		if(address == 0x3F10) { address = 0x3F00; }
 		else if(address == 0x3F14) { address = 0x3F04; }
 		else if(address == 0x3F18) { address = 0x3F08; }
 		else if(address == 0x3F1C) { address = 0x3F0C; }
 	}
 
-	// NOTE: Nametable Mirroring. Controlled by Cartridge
-	 // This first as it maps to the nametable range
-	if(0x3000 <= address && address < 0x3F00) {
+	if(0x3000 <= address && address < 0x3F00) // Nametable Mirroring
+	{
 		address -= 0x1000;
 	}
 

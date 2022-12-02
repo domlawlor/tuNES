@@ -65,26 +65,23 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="build.bat" />
-    <None Include="code\scratch" />
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="code\apu.cpp" />
     <ClCompile Include="code\cpu.cpp" />
-    <ClCompile Include="code\interrupts.cpp" />
     <ClCompile Include="code\main.cpp" />
-    <ClCompile Include="code\mapper.cpp" />
+    <ClCompile Include="code\cartridge.cpp" />
     <ClCompile Include="code\memory.cpp" />
     <ClCompile Include="code\nes.cpp" />
-    <ClCompile Include="code\operations.cpp" />
     <ClCompile Include="code\palette.cpp" />
     <ClCompile Include="code\ppu.cpp" />
-    <ClCompile Include="code\win32_entry.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="code\apu.h" />
     <ClInclude Include="code\cpu.h" />
     <ClInclude Include="code\globals.h" />
+    <ClInclude Include="code\cartridge.h" />
     <ClInclude Include="code\nes.h" />
     <ClInclude Include="code\ppu.h" />
   </ItemGroup>

@@ -3,19 +3,15 @@
   <ItemGroup>
     <None Include="build.bat" />
     <None Include="README.md" />
-    <None Include="code\scratch" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="code\apu.cpp" />
     <ClCompile Include="code\cpu.cpp" />
-    <ClCompile Include="code\interrupts.cpp" />
-    <ClCompile Include="code\mapper.cpp" />
+    <ClCompile Include="code\cartridge.cpp" />
     <ClCompile Include="code\memory.cpp" />
     <ClCompile Include="code\nes.cpp" />
-    <ClCompile Include="code\operations.cpp" />
     <ClCompile Include="code\palette.cpp" />
     <ClCompile Include="code\ppu.cpp" />
-    <ClCompile Include="code\win32_entry.cpp" />
     <ClCompile Include="code\main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -24,5 +20,6 @@
     <ClInclude Include="code\globals.h" />
     <ClInclude Include="code\nes.h" />
     <ClInclude Include="code\ppu.h" />
+    <ClInclude Include="code\cartridge.h" />
   </ItemGroup>
 </Project>
