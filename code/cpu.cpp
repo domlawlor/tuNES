@@ -1,377 +1,604 @@
-/* ========================================================================
-   $File: $
-   $Date: $
-   $Revision: $
-   $Creator: Dom Lawlor $
-   ======================================================================== */
+#include "nes.h"
 
 #include "cpu.h"
 
-static void push(uint8 Byte, cpu *Cpu)
+#include <string.h>
+
+void Cpu::UpdateInterrupts()
 {
-    writeCpu8(Byte, (uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
-    --Cpu->StackPtr;  
-}
-static uint8 pop(cpu *Cpu)
-{
-    ++Cpu->StackPtr;
-    uint8 Value = readCpu8((uint16)Cpu->StackPtr | STACK_ADDRESS, Cpu);
-    return(Value);
-}
+	prevTriggerNmi = triggerNmi;
+	if(!prevNmiSet && nmiSet)
+	{
+		triggerNmi = true;
+	}
+	prevNmiSet = nmiSet;
 
-inline void setCarry(uint8 *Flags)       { *Flags = *Flags | CARRY_BIT; }
-inline void clearCarry(uint8 *Flags)     { *Flags = *Flags & ~CARRY_BIT; }
-inline void setInterrupt(uint8 *Flags)   { *Flags = *Flags | INTERRUPT_BIT; }
-inline void clearInterrupt(uint8 *Flags) { *Flags = *Flags & ~INTERRUPT_BIT; }
-inline void setDecimal(uint8 *Flags)     { *Flags = *Flags | DECIMAL_BIT; }
-inline void clearDecimal(uint8 *Flags)   { *Flags = *Flags & ~DECIMAL_BIT; }
-inline void setBreak(uint8 *Flags)       { *Flags = *Flags | BREAK_BIT; }
-inline void clearBreak(uint8 *Flags)     { *Flags = *Flags & ~BREAK_BIT; }
-inline void setBlank(uint8 *Flags)       { *Flags = *Flags | BLANK_BIT; }
-inline void clearBlank(uint8 *Flags)     { *Flags = *Flags & ~BLANK_BIT; }
-inline void setOverflow(uint8 *Flags)    { *Flags = *Flags | OVERFLOW_BIT; }
-inline void clearOverflow(uint8 *Flags)  { *Flags = *Flags & ~OVERFLOW_BIT; }
-inline void setZero(uint8 Value, uint8 *Flags)
-{
-    if(Value == 0x00)
-        *Flags = *Flags | ZERO_BIT;
-    else
-        *Flags = *Flags & ~ZERO_BIT;
-}
-inline void setNegative(uint8 Value, uint8 *Flags)
-{  
-    if(Value >= 0x00 && Value <= 0x7F)
-        *Flags = *Flags & ~NEGATIVE_BIT; // clear negative flag
-    else
-        *Flags = *Flags | NEGATIVE_BIT; // set negative flag
-}
-inline bool32 isBitSet(uint8 Bit, uint8 Flags) { return(Bit & Flags); }
-inline bool32 crossedPageCheck(uint16 Before, uint16 Now) { return((Before & 0xFF00) != (Now & 0xFF00));}
-
-global uint8 instAddressMode[INSTRUCTION_COUNT] =
-{
-    /*         0     1     2     3     4     5     6     7     8     9     A     B     C     D     E     F  */
-    /*0*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,        
-    /*1*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*2*/    ABS, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*3*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*4*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*5*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*6*/   IMPL, INDX, IMPL, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED,  ACM, IMED, INDI,  ABS,  ABS,  ABS,
-    /*7*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*8*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*9*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERY, ZERY, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSY, ABSY,
-    /*A*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*B*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERY, ZERY, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSY, ABSY,
-    /*C*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*D*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-    /*E*/   IMED, INDX, IMED, INDX, ZERO, ZERO, ZERO, ZERO, IMPL, IMED, IMPL, IMED,  ABS,  ABS,  ABS,  ABS,
-    /*F*/    REL, INDY, IMPL, INDY, ZERX, ZERX, ZERX, ZERX, IMPL, ABSY, IMPL, ABSY, ABSX, ABSX, ABSX, ABSX,
-};
-
-global uint8 instLength[INSTRUCTION_COUNT] =
-{
-    /*      0 1 2 3 4 5 6 7 8 9 A B C D E F      */
-    /*0*/   2,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*1*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-    /*2*/   3,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*3*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-    /*4*/   1,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*5*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-    /*6*/   1,2,1,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*7*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-    /*8*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*9*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-    /*A*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*B*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-    /*C*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*D*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-    /*E*/   2,2,2,2,2,2,2,2,1,2,1,2,3,3,3,3,
-    /*F*/   2,2,1,2,2,2,2,2,1,3,1,3,3,3,3,3,
-};
-
-global char * instName[INSTRUCTION_COUNT] =
-{
-    /*         0     1     2     3     4     5     6     7     8     9     A     B     C     D     E     F        */
-    /*0*/  "BRK","ORA","KIL","SLO","NOP","ORA","ASL","SLO","PHP","ORA","ASL","ANC","NOP","ORA","ASL","SLO",
-    /*1*/  "BPL","ORA","KIL","SLO","NOP","ORA","ASL","SLO","CLC","ORA","NOP","SLO","NOP","ORA","ASL","SLO",
-    /*2*/  "JSR","AND","KIL","RLA","BIT","AND","ROL","RLA","PLP","AND","ROL","ANC","BIT","AND","ROL","RLA", 
-    /*3*/  "BMI","AND","KIL","RLA","NOP","AND","ROL","RLA","SEC","AND","NOP","RLA","NOP","AND","ROL","RLA",
-    /*4*/  "RTI","EOR","KIL","SRE","NOP","EOR","LSR","SRE","PHA","EOR","LSR","ALR","JMP","EOR","LSR","SRE",
-    /*5*/  "BVC","EOR","KIL","SRE","NOP","EOR","LSR","SRE","CLI","EOR","NOP","SRE","NOP","EOR","LSR","SRE",
-    /*6*/  "RTS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","PLA","ADC","ROR","ARR","JMP","ADC","ROR","RRA",
-    /*7*/  "BVS","ADC","KIL","RRA","NOP","ADC","ROR","RRA","SEI","ADC","NOP","RRA","NOP","ADC","ROR","RRA",
-    /*8*/  "NOP","STA","NOP","SAX","STY","STA","STX","SAX","DEY","NOP","TXA","XAA","STY","STA","STX","SAX",
-    /*9*/  "BCC","STA","KIL","AHX","STY","STA","STX","SAX","TYA","STA","TXS","TAS","SHY","STA","SHX","AHX",
-    /*A*/  "LDY","LDA","LDX","LAX","LDY","LDA","LDX","LAX","TAY","LDA","TAX","LAX","LDY","LDA","LDX","LAX",
-    /*B*/  "BCS","LDA","KIL","LAX","LDY","LDA","LDX","LAX","CLV","LDA","TSX","LAS","LDY","LDA","LDX","LAX",
-    /*C*/  "CPY","CMP","NOP","DCP","CPY","CMP","DEC","DCP","INY","CMP","DEX","AXS","CPY","CMP","DEC","DCP",
-    /*D*/  "BNE","CMP","KIL","DCP","NOP","CMP","DEC","DCP","CLD","CMP","NOP","DCP","NOP","CMP","DEC","DCP",
-    /*E*/  "CPX","SBC","NOP","ISC","CPX","SBC","INC","ISC","INX","SBC","NOP","SBC","CPX","SBC","INC","ISC",
-    /*F*/  "BEQ","SBC","KIL","ISC","NOP","SBC","INC","ISC","SED","SBC","NOP","ISC","NOP","SBC","INC","ISC"
-};
-
-global uint8 instCycles[INSTRUCTION_COUNT] =
-{
-    /*     0 1 2 3 4 5 6 7 8 9 A B C D E F      */
-    /*0*/  7,6,0,8,3,3,5,5,3,2,2,2,4,4,6,6,
-    /*1*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7, 
-    /*2*/  6,6,0,8,3,3,5,5,4,2,2,2,4,4,6,6,
-    /*3*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*4*/  6,6,0,8,3,3,5,5,3,2,2,2,3,4,6,6,
-    /*5*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*6*/  6,6,0,8,3,3,5,5,4,2,2,2,5,4,6,6,
-    /*7*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*8*/  2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-    /*9*/  2,6,0,6,4,4,4,4,2,5,2,5,5,5,5,5,
-    /*A*/  2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-    /*B*/  2,5,0,5,4,4,4,4,2,4,2,4,4,4,4,4,
-    /*C*/  2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
-    /*D*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*E*/  2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
-    /*F*/  2,5,0,8,4,4,6,6,2,4,2,7,4,4,7,7
-};
-
-global uint8 instBoundaryCheck[INSTRUCTION_COUNT] =
-{
-    /*     0 1 2 3 4 5 6 7 8 9 A B C D E F      */
-    /*0*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*1*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
-    /*2*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*3*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
-    /*4*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*5*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
-    /*6*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*7*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
-    /*8*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*9*/  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*A*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*B*/  1,1,0,1,0,0,0,0,0,1,0,1,1,1,1,1,
-    /*C*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*D*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
-    /*E*/  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /*F*/  1,1,0,0,0,0,0,0,0,1,0,0,1,1,0,0,
-};
-
-#include "operations.cpp"
-
-uint8 (*instrOps[INSTRUCTION_COUNT])(uint16 Address, cpu *Cpu, uint8 AddressMode) =
-{
-    /*         0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F        */
-    /*0*/    brk,ora,kil,slo,nop,ora,asl,slo,php,ora,asl,anc,nop,ora,asl,slo,
-    /*1*/    bpl,ora,kil,slo,nop,ora,asl,slo,clc,ora,nop,slo,nop,ora,asl,slo,
-    /*2*/    jsr,AND,kil,rla,bit,AND,rol,rla,plp,AND,rol,anc,bit,AND,rol,rla,
-    /*3*/    bmi,AND,kil,rla,nop,AND,rol,rla,sec,AND,nop,rla,nop,AND,rol,rla,
-    /*4*/    rti,eor,kil,sre,nop,eor,lsr,sre,pha,eor,lsr,alr,jmp,eor,lsr,sre,
-    /*5*/    bvc,eor,kil,sre,nop,eor,lsr,sre,cli,eor,nop,sre,nop,eor,lsr,sre,
-    /*6*/    rts,adc,kil,rra,nop,adc,ror,rra,pla,adc,ror,arr,jmp,adc,ror,rra,
-    /*7*/    bvs,adc,kil,rra,nop,adc,ror,rra,sei,adc,nop,rra,nop,adc,ror,rra,
-    /*8*/    nop,sta,nop,sax,sty,sta,stx,sax,dey,nop,txa,xaa,sty,sta,stx,sax,
-    /*9*/    bcc,sta,kil,ahx,sty,sta,stx,sax,tya,sta,txs,tas,shy,sta,shx,ahx,
-    /*A*/    ldy,lda,ldx,lax,ldy,lda,ldx,lax,tay,lda,tax,lax,ldy,lda,ldx,lax,
-    /*B*/    bcs,lda,kil,lax,ldy,lda,ldx,lax,clv,lda,tsx,las,ldy,lda,ldx,lax,
-    /*C*/    cpy,cmp,nop,dcp,cpy,cmp,dec,dcp,iny,cmp,dex,axs,cpy,cmp,dec,dcp,
-    /*D*/    bne,cmp,kil,dcp,nop,cmp,dec,dcp,cld,cmp,nop,dcp,nop,cmp,dec,dcp,
-    /*E*/    cpx,sbc,nop,isc,cpx,sbc,inc,isc,inx,sbc,nop,sbc,cpx,sbc,inc,isc,
-    /*F*/    beq,sbc,kil,isc,nop,sbc,inc,isc,sed,sbc,nop,isc,nop,sbc,inc,isc
-};
-
-
-static uint8 nmi_irq(uint16 Address, cpu *Cpu, uint8 AddressMode)
-{
-    uint8 HighByte = (uint8)(Cpu->PrgCounter >> 8);
-    uint8 LowByte = (uint8)Cpu->PrgCounter; 
-    push(HighByte, Cpu);
-    push(LowByte, Cpu);
-
-    clearBreak(&Cpu->Flags);
-    push(Cpu->Flags, Cpu); 
-    setInterrupt(&Cpu->Flags);
-
-    Cpu->PrgCounter = (read8(Address+1, Cpu->MemoryBase) << 8) | read8(Address, Cpu->MemoryBase);
-    return(0);
-}
-
-#if 0
-        char Buf[1024];
-        sprintf(Buf, "%X\n", WriteValue);
-        OutputDebugString(Buf);
-#endif   
-
-static uint8 cpuTick(cpu *Cpu, input *NewInput)
-{
-    uint8 CyclesElapsed = 0;
-
-    Cpu->PotentialCatchUp = 0;
-    
-    uint16 Address = 0;
-    bool32 CrossedPage = 0;
-    
-    uint8 Instruction;
-    uint8 AddressMode;
-    uint8 InstrLength;
-    char *InstrName;
-    uint8 InstrCycles;
-    uint8 InstrData[3]; // Stores data for each instruction
-
-    // NOTE: Logging: Save Cpu before changes. Print out later
-    cpu LogCpu = *Cpu;
-
-    if(Cpu->PadStrobe)
-    {
-        for(uint8 idx = 0; idx < input::BUTTON_NUM; ++idx)
-            Cpu->InputPad1.buttons[idx] = NewInput->buttons[idx];
-    }
-    
-    if(Cpu->StartNmi)
-    {
-        NmiTriggered = true;
-        Cpu->StartNmi = false;
-                
-        LogCpu.PrgCounter = NMI_VEC;
-        Address = NMI_VEC;
-        AddressMode = IMPL;
-        InstrLength = 0;
-        InstrName = "NMI";
-        InstrCycles = 7;
-        InstrData[0] = 0;
-
-        nmi_irq(Address, Cpu, AddressMode);
-    }
-    else if(IrqTriggered)
-    {
-        LogCpu.PrgCounter = readCpu16(IRQ_BRK_VEC, Cpu);
-        Address = IRQ_BRK_VEC;
-        AddressMode = IMPL;
-        InstrLength = 0;
-        InstrName = "IRQ";
-        InstrCycles = 7;
-        InstrData[0] = 0;
-    }
-    else
-    {    
-        Instruction = readCpu8(Cpu->PrgCounter, Cpu);
-        AddressMode = instAddressMode[Instruction];
-        InstrLength = instLength[Instruction];
-        InstrName = instName[Instruction];
-        InstrCycles = instCycles[Instruction];
-
-        for(int i = 0; i < InstrLength; ++i)
-        {
-            InstrData[i] = readCpu8(Cpu->PrgCounter + i, Cpu); 
-        }
-            
-        switch(AddressMode)
-        {
-            case ACM:
-                break;            
-            case IMPL:
-                break;
-            case IMED:
-                Address = Cpu->PrgCounter + 1;
-                break;
-            case ZERO:
-                Address = (uint16)InstrData[1];
-                Cpu->PotentialCatchUp = 2;
-                break;
-            case ZERX:
-                Address = ((uint16)InstrData[1] + Cpu->X) & 0xFF;
-                Cpu->PotentialCatchUp = 3;
-                break;
-            case ZERY:
-                Address = ((uint16)InstrData[1] + Cpu->Y) & 0xFF;
-                Cpu->PotentialCatchUp = 3;
-                break;
-            case ABS:
-                Address = ((uint16)InstrData[2] << 8) | InstrData[1];
-                Cpu->PotentialCatchUp = 3;
-                break;
-            case ABSX:
-                Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->X;
-                CrossedPage = crossedPageCheck(Address - Cpu->X, Address);
-                Cpu->PotentialCatchUp = 4;
-                break;
-            case ABSY:
-                Address = (((uint16)InstrData[2] << 8) | InstrData[1]) + Cpu->Y;
-                CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
-                Cpu->PotentialCatchUp = 4;
-                break;
-            case REL:
-            {
-                int8 RelOffset = InstrData[1];
-                Address = Cpu->PrgCounter + 2 + RelOffset;
-                break;
-            }
-            case INDX:
-            {
-                // Always reading from zero page
-                uint8 ZeroAddress = InstrData[1];
-                uint8 AddedAddress = (ZeroAddress + Cpu->X) & 0xFF;
-                Address = bugReadCpu16(AddedAddress, Cpu);
-                Cpu->PotentialCatchUp = 5;
-                break;
-            }
-            case INDY:
-            {                
-                uint8 ZeroAddress = InstrData[1];
-                Address = bugReadCpu16(ZeroAddress, Cpu) + Cpu->Y;
-                CrossedPage = crossedPageCheck(Address - Cpu->Y, Address);
-                Cpu->PotentialCatchUp = 5;
-                break;
-            }
-            case INDI:
-            {
-                uint16 IndirectAddress = ((uint16)InstrData[2] << 8) | InstrData[1];
-                Address = bugReadCpu16(IndirectAddress, Cpu);
-                break;
-            }
-            case NUL:
-            {
-                Assert(0);
-                break;
-            }        
-        }
-
-        Cpu->StartNmi = TriggerNmi;
-        TriggerNmi = false;
-        
-        Cpu->PrgCounter += InstrLength;
-        CyclesElapsed += InstrCycles;
-
-        // NOTE: This is where the operation is executed, returning extra cycles, for branch ops
-        if(CrossedPage)
-        {
-            CyclesElapsed += instBoundaryCheck[Instruction];
-        }
-        
-        uint8 AdditionalCycles = instrOps[Instruction](Address, Cpu, AddressMode);
-        CyclesElapsed += AdditionalCycles;
-
-    }
-#if 0
-    char LogInstrData[16];
-    if(InstrLength == 3)
-        sprintf(LogInstrData, "%2X %2X %2X", InstrData[0], InstrData[1], InstrData[2]);
-    else if(InstrLength == 2)
-        sprintf(LogInstrData, "%2X %2X   ", InstrData[0], InstrData[1]);
-    else
-        sprintf(LogInstrData, "%2X      ", InstrData[0]);
-
-    char LogOpInfo[64];
-//    sprintf(LogOpInfo, ""
-    
-    char LogCpuInfo[64];
-    sprintf(LogCpuInfo, "A:%2X X:%2X Y:%2X P:%2X SP:%2X  CYC: %d",
-            LogCpu.A, LogCpu.X, LogCpu.Y, LogCpu.Flags, LogCpu.StackPtr, CyclesElapsed);
-
-    // NOTE: CPU Log options
-    char LogBuffer[1024];
-    sprintf(LogBuffer, "%4X %s    %s\n", LogCpu.PrgCounter, LogInstrData, LogCpuInfo);
-    OutputDebugString(LogBuffer);
-#endif
-    
-    return(CyclesElapsed);
+	prevTriggerIrq = triggerIrq;
+	if(!IsFlagBitSet(INTERRUPT_BIT))
+	{
+		triggerIrq = (irqFlag & activeIrqs) ? 1 : 0;
+	}
 }
 
 
+u8 Cpu::RawReadMemory(u16 address)
+{
+	if(address < 0x2000) // ram address
+	{
+		address = (address % 0x0800); // NOTE: address mirrored for the 2kb ram until 0x2000
+		return ramMemory[address];
+	}
+	else if(address >= 0x2000 && address < 0x4000) // Ppu registers
+	{
+		address = (address % 8) + 0x2000; // Mirror ppu registers
+		return Nes::GetPpu()->ReadRegisters(address);
+	} 
+	else if(address == 0x4014) // No mirroring
+	{
+		return Nes::GetPpu()->ReadRegisters(address);
+	}
+	else if((address >= 0x4000 && address <= 0x4013) || address == 0x4015)
+	{
+		return 0;
+		// Apu
+	}
+	else if(address == 0x4016 || address == 0x4017)
+	{
+		Input *input = Nes::GetInput();
 
+		u8 btnValue;
+		if(address == 0x4016)
+		{
+			if(input->pad1CurrentButton > Input::BUTTON_NUM)
+			{
+				btnValue = 1;
+			}
+			else
+			{
+				btnValue = input->pad1Buttons[input->pad1CurrentButton] ? 1 : 0;
+			}
+		}
+		else
+		{
+			if(input->pad2CurrentButton > Input::BUTTON_NUM)
+			{
+				btnValue = 1;
+			}
+			else
+			{
+				btnValue = input->pad2Buttons[input->pad2CurrentButton] ? 1 : 0;
+			}
+		}
+
+		// each read will move to the next button
+		if(!input->padStrobe)
+		{
+			if(address == 0x4016) { ++input->pad1CurrentButton; }
+			else { ++input->pad2CurrentButton; }
+		}
+
+		return 0x40 | btnValue;
+	}
+	else if(address >= 0x6000)
+	{
+		Cartridge *cartridge = Nes::GetCartridge();
+		return cartridge->ReadMemory(address);
+	}
+
+	return 0;
+}
+
+void Cpu::RawWriteMemory(u16 address, u8 value)
+{
+	if(address < 0x2000) // ram address
+	{
+		address = (address % 0x0800); // address mirrored for the 2kb ram until 0x2000
+		ramMemory[address] = value;
+	}
+	else if(address >= 0x2000 && address < 0x4000) // Ppu registers
+	{
+		address = (address % 8) + 0x2000; // Mirror ppu registers
+		Nes::GetPpu()->WriteRegisters(address, value);
+	}
+	else if(address == 0x4014) // No mirroring
+	{
+		Nes::GetPpu()->WriteRegisters(address, value);
+	}
+	else if((address >= 0x4000 && address <= 0x4013) || address == 0x4015 || address == 0x4017)
+	{
+		// Apu
+	}
+	else if(address == 0x4016)
+	{
+		Input *input = Nes::GetInput();
+		input->padStrobe = (value & 1) > 0;
+		input->pad1CurrentButton = Input::B_A;
+		input->pad2CurrentButton = Input::B_A;
+	}
+	else if(address >= 0x6000)
+	{
+		Nes::GetCartridge()->WriteMemory(address, value);
+	}
+}
+
+void Cpu::RunPreMemoryCycles(bool isRead)
+{
+	cycle += 1;
+
+	masterClock += isRead ? preReadClockCycles : preWriteClockCycles;
+	Nes::GetPpu()->RunCatchup(masterClock);
+	//_console->ProcessCpuClock();
+}
+
+void Cpu::RunPostMemoryCycles(bool isRead)
+{
+	masterClock += isRead ? postReadClockCycles : postWriteClockCycles;
+	Nes::GetPpu()->RunCatchup(masterClock);
+	UpdateInterrupts();
+}
+
+u8 Cpu::ReadMemory(u16 address)
+{
+	// One memory read is 1 cycles worth. 
+	// Run other systems (Ppu, Apu) for half of this Cpu cycle, then run second half after the read
+
+	if(cpuHaltQueued)
+	{
+		RunActiveDMA(address);
+	}
+
+	RunPreMemoryCycles(true);
+
+	u8 value = RawReadMemory(address);
+
+	RunPostMemoryCycles(true);
+
+	return value;
+}
+
+void Cpu::WriteMemory(u16 address, u8 value)
+{
+	// Cycle accuracy inspired by mesen
+	RunPreMemoryCycles(false);
+	RawWriteMemory(address, value);
+	RunPostMemoryCycles(false);
+}
+
+Cpu::Cpu()
+{
+	// Copy operations into CPU operation buffer
+	// Must happen at runtime when we have an instance
+	Operation operationsFuncs[INSTRUCTION_COUNT] =
+	{
+		/*          0          1          2          3          4          5          6          7          8          9          A          B          C          D          E          F   */
+		/*0*/ &Cpu::BRK, &Cpu::ORA, &Cpu::KIL, &Cpu::SLO, &Cpu::SKB, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO, &Cpu::PHP, &Cpu::ORA, &Cpu::ASL, &Cpu::ANC, &Cpu::SKW, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO,
+		/*1*/ &Cpu::BPL, &Cpu::ORA, &Cpu::KIL, &Cpu::SLO, &Cpu::SKB, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO, &Cpu::CLC, &Cpu::ORA, &Cpu::NOP, &Cpu::SLO, &Cpu::SKW, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO,
+		/*2*/ &Cpu::JSR, &Cpu::AND, &Cpu::KIL, &Cpu::RLA, &Cpu::BIT, &Cpu::AND, &Cpu::ROL, &Cpu::RLA, &Cpu::PLP, &Cpu::AND, &Cpu::ROL, &Cpu::ANC, &Cpu::BIT, &Cpu::AND, &Cpu::ROL, &Cpu::RLA,
+		/*3*/ &Cpu::BMI, &Cpu::AND, &Cpu::KIL, &Cpu::RLA, &Cpu::SKB, &Cpu::AND, &Cpu::ROL, &Cpu::RLA, &Cpu::SEC, &Cpu::AND, &Cpu::NOP, &Cpu::RLA, &Cpu::SKW, &Cpu::AND, &Cpu::ROL, &Cpu::RLA,
+		/*4*/ &Cpu::RTI, &Cpu::EOR, &Cpu::KIL, &Cpu::SRE, &Cpu::SKB, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE, &Cpu::PHA, &Cpu::EOR, &Cpu::LSR, &Cpu::ALR, &Cpu::JMP, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE,
+		/*5*/ &Cpu::BVC, &Cpu::EOR, &Cpu::KIL, &Cpu::SRE, &Cpu::SKB, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE, &Cpu::CLI, &Cpu::EOR, &Cpu::NOP, &Cpu::SRE, &Cpu::SKW, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE,
+		/*6*/ &Cpu::RTS, &Cpu::ADC, &Cpu::KIL, &Cpu::RRA, &Cpu::SKB, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA, &Cpu::PLA, &Cpu::ADC, &Cpu::ROR, &Cpu::ARR, &Cpu::JMP, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA,
+		/*7*/ &Cpu::BVS, &Cpu::ADC, &Cpu::KIL, &Cpu::RRA, &Cpu::SKB, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA, &Cpu::SEI, &Cpu::ADC, &Cpu::NOP, &Cpu::RRA, &Cpu::SKW, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA,
+		/*8*/ &Cpu::SKB, &Cpu::STA, &Cpu::SKB, &Cpu::SAX, &Cpu::STY, &Cpu::STA, &Cpu::STX, &Cpu::SAX, &Cpu::DEY, &Cpu::SKB, &Cpu::TXA, &Cpu::XAA, &Cpu::STY, &Cpu::STA, &Cpu::STX, &Cpu::SAX,
+		/*9*/ &Cpu::BCC, &Cpu::STA, &Cpu::KIL, &Cpu::AHX, &Cpu::STY, &Cpu::STA, &Cpu::STX, &Cpu::SAX, &Cpu::TYA, &Cpu::STA, &Cpu::TXS, &Cpu::TAS, &Cpu::SHY, &Cpu::STA, &Cpu::SHX, &Cpu::AHX,
+		/*A*/ &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX, &Cpu::TAY, &Cpu::LDA, &Cpu::TAX, &Cpu::LAX, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX,
+		/*B*/ &Cpu::BCS, &Cpu::LDA, &Cpu::KIL, &Cpu::LAX, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX, &Cpu::CLV, &Cpu::LDA, &Cpu::TSX, &Cpu::LAS, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX,
+		/*C*/ &Cpu::CPY, &Cpu::CMP, &Cpu::SKB, &Cpu::DCP, &Cpu::CPY, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP, &Cpu::INY, &Cpu::CMP, &Cpu::DEX, &Cpu::AXS, &Cpu::CPY, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP,
+		/*D*/ &Cpu::BNE, &Cpu::CMP, &Cpu::KIL, &Cpu::DCP, &Cpu::SKB, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP, &Cpu::CLD, &Cpu::CMP, &Cpu::NOP, &Cpu::DCP, &Cpu::SKW, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP,
+		/*E*/ &Cpu::CPX, &Cpu::SBC, &Cpu::SKB, &Cpu::ISC, &Cpu::CPX, &Cpu::SBC, &Cpu::INC, &Cpu::ISC, &Cpu::INX, &Cpu::SBC, &Cpu::NOP, &Cpu::SBC, &Cpu::CPX, &Cpu::SBC, &Cpu::INC, &Cpu::ISC,
+		/*F*/ &Cpu::BEQ, &Cpu::SBC, &Cpu::KIL, &Cpu::ISC, &Cpu::SKB, &Cpu::SBC, &Cpu::INC, &Cpu::ISC, &Cpu::SED, &Cpu::SBC, &Cpu::NOP, &Cpu::ISC, &Cpu::SKW, &Cpu::SBC, &Cpu::INC, &Cpu::ISC
+	};
+
+	for(u16 opNum = 0; opNum < INSTRUCTION_COUNT; ++opNum)
+	{
+		operations[opNum] = operationsFuncs[opNum];
+	}
+
+	logFile = fopen("cpu.log", "w+");
+}
+
+Cpu::~Cpu()
+{
+	fclose(logFile);
+	logFile = nullptr;
+}
+
+
+void Cpu::Reset(bool powerCycle)
+{
+	MemorySet(ramMemory, 0, CpuRamSize);
+
+	A = 0;
+	X = 0;
+	Y = 0;
+	flags = 0x04;
+	stackPointer = 0xFD;
+	prgCounter = (RawReadMemory(RESET_VEC + 1) << 8) | RawReadMemory(RESET_VEC); // Read the reset vector directly. No need for ppu catchup cycles
+	opName = "NUL";
+
+	if(!powerCycle)
+	{
+		// NOTE: The status after reset was taken from nesdev
+		stackPointer -= 3;
+		SetInterrupt();
+	}
+
+	u8 preCatchupClockCycles = 6;
+	u8 postCatchupClockCycles = 6;
+	preReadClockCycles = preCatchupClockCycles - 1;
+	postReadClockCycles = postCatchupClockCycles + 1;
+	preWriteClockCycles = preCatchupClockCycles + 1;
+	postWriteClockCycles = postCatchupClockCycles - 1;
+
+	masterClock += 12;
+
+	// Cpu just idles 8 cycles before reading any game data
+	constexpr u8 idleCycles = 8;
+	for(int i = 0; i < idleCycles; i++)
+	{
+		masterClock += preCatchupClockCycles + postCatchupClockCycles;
+		Nes::GetPpu()->RunCatchup(masterClock);
+		UpdateInterrupts();
+	}
+}
+
+u16 Cpu::ReadOperand()
+{
+	if(addressMode == AddressMode::ACM || addressMode == AddressMode::IMPL)
+	{
+		ReadMemory(prgCounter); // Dummy Read for cycle accuracy
+		return 0;
+	}
+	else if(addressMode == AddressMode::IMED || addressMode == AddressMode::REL
+		|| addressMode == AddressMode::ZERO)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		prgCounter++;
+		return opValue1;
+	}
+	else if(addressMode == AddressMode::ZERO_X)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		prgCounter++;
+		ReadMemory(opValue1); // Dummy read for cycle accuracy
+		return opValue1 + X;
+	}
+	else if(addressMode == AddressMode::ZERO_Y)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		prgCounter++;
+		ReadMemory(opValue1); // Dummy read for cycle accuracy
+		return opValue1 + Y;
+	}
+	else if(addressMode == AddressMode::IND || addressMode == AddressMode::ABS)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		opValue2 = ReadMemory(prgCounter + 1);
+		u16 value = (opValue2 << 8) | opValue1;
+		prgCounter += 2;
+		return value;
+	}
+	else if(addressMode == AddressMode::IND_X)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		u8 indBase = opValue1;
+		prgCounter++;
+		ReadMemory(indBase); // Dummy read for cycle accuracy
+
+		u8 indDest = indBase + X;
+
+		u16 address = 0x0000;
+		if(indDest != 0xFF)
+		{
+			address = (ReadMemory(indDest + 1) << 8) | ReadMemory(indDest);
+		}
+		else
+		{
+			address = (ReadMemory(0x00) << 8) | ReadMemory(0xFF);
+		}
+		return address;
+	}
+	else if(addressMode == AddressMode::IND_Y || addressMode == AddressMode::IND_YW)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		u8 ind = opValue1;
+		prgCounter++;
+
+		u16 address = 0x0000;
+		if(ind != 0xFF)
+		{
+			address = (ReadMemory(ind + 1) << 8) | ReadMemory(ind);
+		}
+		else
+		{
+			address = (ReadMemory(0x00) << 8) | ReadMemory(0xFF);
+		}
+
+		u16 indAddress = address + Y;
+
+		if(IsCrossPageBoundary(indAddress, address)) // Check if crossed page
+		{
+			ReadMemory(indAddress - 0x100); // Duummy Read
+		}
+		else if(addressMode == AddressMode::IND_YW) // write version also has a dummy read here if no page cross
+		{
+			ReadMemory(indAddress);
+		}
+		return indAddress;
+	}
+	else if(addressMode == AddressMode::ABS_X || addressMode == AddressMode::ABS_XW)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		opValue2 = ReadMemory(prgCounter + 1);
+
+		u16 address = (opValue2 << 8) | opValue1;
+		prgCounter += 2;
+
+		u16 offsetAddress = address + X;
+		if(IsCrossPageBoundary(offsetAddress, address)) // Check if crossed page
+		{
+			ReadMemory(offsetAddress - 0x100); // Duummy Read
+		}
+		else if(addressMode == AddressMode::ABS_XW)
+		{
+			ReadMemory(offsetAddress);
+		}
+		return offsetAddress;
+	}
+	else if(addressMode == AddressMode::ABS_Y || addressMode == AddressMode::ABS_YW)
+	{
+		opValue1 = ReadMemory(prgCounter);
+		opValue2 = ReadMemory(prgCounter + 1);
+
+		u16 address = (opValue2 << 8) | opValue1;
+		prgCounter += 2;
+
+		u16 offsetAddress = address + Y;
+		if(IsCrossPageBoundary(offsetAddress, address)) // Check if crossed page
+		{
+			ReadMemory(offsetAddress - 0x100); // Duummy Read
+		}
+		else if(addressMode == AddressMode::ABS_YW)
+		{
+			ReadMemory(offsetAddress);
+		}
+		return offsetAddress;
+	}
+
+	// TODO: Print error here, address mode not implemented??
+	return 0;
+}
+
+void Cpu::Run()
+{
+	// NOTE: How timing between CPU, APU and PPU functions
+	//	Cpu is the main engine of the emulator. APU and PPU and updated during a CPU tick
+	//  We run a full instruction each tick, and on read/writes to memory, we run the ppu and apu.
+	//  This way we always keep each component in sync.
+	//  See ReadMemory and WriteMemory for the catchup code
+
+	// For logging
+	lastPrgCounter = prgCounter;
+
+	Ppu *ppu = Nes::GetPpu();
+	logPpuCycle = ppu->GetCycle();
+	logPpuScanline = ppu->GetScanline();
+	if(logPpuScanline == 261) { logPpuScanline = -1; }
+
+	// Get operation code for this instruction
+	opCode = ReadMemory(prgCounter);
+	++prgCounter;
+
+	opName = OpNames[opCode]; // store for debugging
+
+	// Get address mode used for this operation
+	addressMode = OpAddressModes[opCode];
+	
+	// Using the address mode, read in the value used by the operation
+	// each address mode does this slightly different, and some also don't read anything
+	// We keep cycle accuracy by using dummy reads where the hardware would also do the same. Taking extra cycles
+	operand = ReadOperand();
+
+	LogOp(); // Log Op before executing
+
+	(this->*operations[opCode])();
+
+	if(prevTriggerNmi) { NMI(); }
+	else if(prevTriggerIrq) { IRQ(); }
+}
+
+
+
+void Cpu::NMI()
+{
+	ReadMemory(prgCounter); // Dummy Read
+	ReadMemory(prgCounter); // Dummy Read
+
+	triggerNmi = false;
+
+	u8 highByte = (prgCounter >> 8) & 0xFF;
+	u8 lowByte = prgCounter & 0xFF;
+	PushStack(highByte);
+	PushStack(lowByte);
+
+	
+	u8 stackFlags = flags | BLANK_BIT;
+	PushStack(stackFlags);
+
+	SetInterrupt();
+
+	u16 nmiAddress = (ReadMemory(NMI_VEC + 1) << 8) | ReadMemory(NMI_VEC);
+	prgCounter = nmiAddress;
+}
+
+void Cpu::IRQ()
+{
+	ReadMemory(prgCounter); // Dummy Read
+	ReadMemory(prgCounter); // Dummy Read
+
+	u8 highByte = (prgCounter >> 8) & 0xFF;
+	u8 lowByte = prgCounter & 0xFF;
+	PushStack(highByte);
+	PushStack(lowByte);
+
+	u8 stackFlags = flags | BLANK_BIT;
+	PushStack(stackFlags);
+
+	SetInterrupt();
+
+	u16 irqAddress = (ReadMemory(IRQ_BRK_VEC + 1) << 8) | ReadMemory(IRQ_BRK_VEC);
+	prgCounter = irqAddress;
+}
+
+
+void Cpu::RunActiveDMA(u16 address)
+{
+	RunPreMemoryCycles(true);
+	RawReadMemory(address); // Dummy read
+	RunPostMemoryCycles(true);
+
+	cpuHaltQueued = false;
+
+	uint16_t spriteDmaCounter = 0;
+	uint8_t spriteReadAddr = 0;
+	uint8_t readValue = 0;
+	bool skipDummyReads = (address == 0x4016 || address == 0x4017);
+
+	auto processCycle = [this] {
+		//Sprite DMA cycles count as halt/dummy cycles for the DMC DMA when both run at the same time
+		if(cpuHaltQueued)
+		{
+			cpuHaltQueued = false;
+		}
+		else if(dmcDmaNeedDummyRead)
+		{
+			dmcDmaNeedDummyRead = false;
+		}
+		RunPreMemoryCycles(true);
+	};
+
+	while(dmcDmaActive || spriteDmaActive)
+	{
+		bool isOddCycle = (cycle % 2) > 0;
+		if(isOddCycle)
+		{
+			if(dmcDmaActive && !cpuHaltQueued && !dmcDmaNeedDummyRead) {
+				/*
+				//DMC DMA is ready to read a byte (both halt and dummy read cycles were performed before this)
+				processCycle();
+				readValue = RawReadMemory(Nes::GetApu()->GetDmcReadAddress()); // Apu DMC read
+				RunPostMemoryCycles(true);
+				_console->GetApu()->SetDmcReadBuffer(readValue);
+				_dmcDmaRunning = false;
+				*/
+			}
+			else if(spriteDmaActive) {
+				//DMC DMA is not running, or not ready, run sprite DMA
+				processCycle();
+				readValue = RawReadMemory(spriteDmaOffset * 0x100 + spriteReadAddr);
+				RunPostMemoryCycles(true);
+				spriteReadAddr++;
+				spriteDmaCounter++;
+			}
+			else {
+				//DMC DMA is running, but not ready (need halt/dummy read) and sprite DMA isn't runnnig, perform a dummy read
+				Assert(cpuHaltQueued || dmcDmaNeedDummyRead);
+				processCycle();
+				if(!skipDummyReads) {
+					RawReadMemory(address); // Dummy Read
+				}
+				RunPostMemoryCycles(true);
+			}
+		}
+		else
+		{
+			if(spriteDmaActive && (spriteDmaCounter & 0x01))
+			{
+				//Sprite DMA write cycle (only do this if a sprite dma read was performed last cycle)
+				processCycle();
+				Nes::GetPpu()->WriteOAMValue(readValue);
+				RunPostMemoryCycles(true);
+				spriteDmaCounter++;
+				if(spriteDmaCounter == 0x200) {
+					spriteDmaActive = false;
+				}
+			}
+			else
+			{
+				//Align to read cycle before starting sprite DMA (or align to perform DMC read)
+				processCycle();
+				if(!skipDummyReads)
+				{
+					RawReadMemory(address); // Dummy Read
+				}
+				RunPostMemoryCycles(true);
+			}
+		}
+	}
+}
+
+void Cpu::StartDMAWrite(u8 value)
+{
+	cpuHaltQueued = true;
+	spriteDmaActive = true;
+	spriteDmaOffset = value;
+}
+
+void Cpu::StartApuDMCWrite()
+{
+	cpuHaltQueued = true;
+	dmcDmaActive = true;
+	dmcDmaNeedDummyRead = true;
+}
+
+
+void Cpu::LogOp()
+{
+	// PrgCounter OpCode Op1 Op2
+	constexpr u8 logStringLength = 128;
+	char logString[logStringLength];
+
+	switch(addressMode)
+	{
+	case AddressMode::ACM:
+	case AddressMode::IMPL:
+	{
+		// eg "C5A5 $88         A:00 X:00 Y:58 P:06 SP:FD"
+		const char *formatString = "%04X $%02X         A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
+		sprintf(logString, formatString, lastPrgCounter, opCode, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
+		break;
+	}
+	case AddressMode::IMED:
+	case AddressMode::REL:
+	case AddressMode::ZERO:
+	case AddressMode::ZERO_X:
+	case AddressMode::ZERO_Y:
+	case AddressMode::IND_X:
+	case AddressMode::IND_Y:
+	case AddressMode::IND_YW:
+	{
+		// eg "C5A3 $91 $1F     A:00 X:00 Y:5A P:06 SP:FD"
+		const char *formatString = "%04X $%02X $%02X     A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
+		sprintf(logString, formatString, lastPrgCounter, opCode, opValue1, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
+		break;
+	}
+	case AddressMode::ABS:
+	case AddressMode::ABS_X:
+	case AddressMode::ABS_XW:
+	case AddressMode::ABS_Y:
+	case AddressMode::ABS_YW:
+	case AddressMode::IND:
+	{
+		// eg "C008 $AD $02 $20 A:00 X:00 Y:00 P:06 SP:F5"
+		const char *formatString = "%04X $%02X $%02X $%02X A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
+		sprintf(logString, formatString, lastPrgCounter, opCode, opValue1, opValue2, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
+		break;
+	}
+	}
+
+	u32 logStringSize = strlen(logString);
+
+	fwrite(logString, 1, logStringSize, logFile);
+
+	//TraceLog(LOG_INFO, logString);
+}

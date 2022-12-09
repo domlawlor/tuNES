@@ -1,128 +1,182 @@
-#if !defined(PPU_H)
-/* ========================================================================
-   $File: $
-   $Date: $
-   $Revision: $
-   $Creator: Dom Lawlor $
-   ======================================================================== */
+#pragma once 
 
-#define PIXEL_WIDTH 256
-#define PIXEL_HEIGHT 240
+constexpr u16 ppuPixelWidth = 256;
+constexpr u16 ppuPixelHeight = 240;
 
-#define PIXEL_PER_TILE 8
+constexpr u16 pixelsPerTile = 8;
 
-#define BGRD_PALETTE_ADRS 0x3F00
-#define SPRT_PALETTE_ADRS 0x3F10
+constexpr u16 backgroundPaletteAddress = 0x3F00;
+constexpr u16 spritePaletteAddress = 0x3F10;
 
-#define SECONDARY_OAM_SPRITE_MAX 8
+constexpr u16 secondaryOamSpriteMax = 8;
 
-enum NT_MIRROR
+constexpr u16 oamSize = 0x100;
+constexpr u16 oamSpriteTotal = 64;
+
+struct OamSprite
 {
-    SINGLE_SCREEN_BANK_A = 0,
-    SINGLE_SCREEN_BANK_B,
-    VERTICAL_MIRROR,
-    HORIZONTAL_MIRROR,
-    FOUR_SCREEN_MIRROR,   
+	u8 Y;
+	u8 tile;
+	u8 atrb;
+	u8 X;
 };
 
-struct vram_io
+struct Sprite
 {
-    uint16 VRamAdrs;
-    uint16 TempVRamAdrs;
-    uint8 LatchWrite;
-    uint8 FineX;
+	OamSprite oamData;
+
+	bool priority;
+	bool spriteZero;
+
+	u8 paletteValue;
+	u8 patternLow;
+	u8 patternHigh;
 };
 
-struct oam_sprite
+constexpr u64 NametableBankSize = Kilobytes(1);
+constexpr u8 PaletteSize = 32;
+
+class Ppu
 {
-    uint8 Y;
-    uint8 Tile;
-    uint8 Atrb;
-    uint8 X;
+public:
+	Ppu();
+	~Ppu();
+
+	void Reset();
+	void RunCatchup(u64 masterClock);
+
+	Color *GetPixelBuffer() { return m_pixelBuffer; };
+	u64 GetFrameNum() { return m_frameNum; }
+
+	u8 ReadRegisters(u16 address);
+	void WriteRegisters(u16 address, u8 value);
+
+	u16 GetCycle() { return m_cycle; };
+	u16 GetScanline() { return m_scanline; };
+
+	void WriteOAMValue(u8 value);
+
+private:
+	u8 ReadPpuMemory(u16 address);
+	void WritePpuMemory(u16 address, u8 value);
+
+	u8 *GetNametableBank(u16 address);
+
+	void RunCycle();
+
+	void VisibleLine();
+	void PostRenderLine();
+	void VblankLine();
+	void PreRenderLine();
+
+	void LoadFutureData();
+
+	void ResetScrollHorz();
+	void ResetScrollVert();
+	void ScrollIncHorz();
+	void ScrollIncVert();
+
+	void EvaluateSecondaryOam();
+
+	void DrawPixel(u16 x, u16 y, Color colour);
+
+private:
+	Color *m_pixelBuffer = nullptr;
+	
+	u8 m_nametableBankA[NametableBankSize];
+	u8 m_nametableBankB[NametableBankSize];
+	u8 m_nametableBankC[NametableBankSize];
+	u8 m_nametableBankD[NametableBankSize];
+
+	u8 m_paletteMemory[PaletteSize];
+
+	u64 m_frameNum = 0;
+	u64 m_masterClock = 0;
+
+
+	u16 m_scanline = 0;
+	u16 m_cycle = 0;
+
+	bool renderingEnabled = false;
+
+	// VRAM Address
+	u16 vRamAdrs = 0;
+	u16 tempVRamAdrs = 0;
+	bool latchWrite = false;
+	u8 fineX = 0;
+
+	// 
+	u16 lowPatternShiftReg = 0;
+	u16 highPatternShiftReg = 0;
+	u8 paletteLatchOld = 0;
+	u8 paletteLatchNew = 0;
+
+	u8 nextLowPattern = 0;
+	u8 nextHighPattern = 0;
+	u8 nextAtrbByte = 0;
+	u16 nextNametableAdrs = 0;
+
+	// Control Reg
+	u8 nametableBase = 0;
+	u8 vRamIncrement = 0;
+	u16 sPRTPattenBase = 0;
+	u16 bGPatternBase = 0;
+	bool spriteSize8x16 = 0;
+	bool ppuSlave = 0;
+	bool generateNMI = 0;
+
+	// Mask Reg
+	bool greyScale = 0;
+	bool showBGLeft8Pixels = 0;
+	bool showSPRTLeft8Pixels = 0;
+	bool showBackground = 0;
+	bool showSprites = 0;
+	bool emphasizeRed = 0;
+	bool emphasizeGreen = 0;
+	bool emphasizeBlue = 0;
+
+	// Status Reg
+	bool spriteOverflow = 0;
+	bool spriteZeroHit = 0;
+	bool verticalBlank = 0;
+
+	bool supressVbl = 0;
+	bool supressNmiSet = 0;
+
+	// Oam Address Reg
+	u8 oamAddress = 0;
+
+	// VRam Data Read Buffering
+	u8 vRamDataBuffer = 0;
+
+	//Sprites
+	u8 *oamDma = nullptr;
+	u8 oam[oamSize];
+
+	u8 secondarySpriteCount = 0;
+	Sprite secondaryOam[secondaryOamSpriteMax];
+
+	u8 preparedSpriteCount = 0;
+	Sprite preparedSprites[secondaryOamSpriteMax];
 };
 
-struct sprite
+constexpr u8 PaletteEntries = 64;
+Color ColorPalette[PaletteEntries] =
 {
-    oam_sprite OamData;
-
-    bool32 Priority;
-    bool32 Sprite0;
-    
-    uint8 PaletteValue;
-    uint8 PatternLow;
-    uint8 PatternHigh;
+	{0x75, 0x75, 0x75, 0xFF}, {0x27, 0x1B, 0x8F, 0xFF}, {0x00, 0x00, 0xAB, 0xFF}, {0x47, 0x00, 0x9F, 0xFF}, //0x00
+	{0x8F, 0x00, 0x77, 0xFF}, {0xAB, 0x00, 0x13, 0xFF}, {0xA7, 0x00, 0x00, 0xFF}, {0x7F, 0x0B, 0x00, 0xFF}, //0x04
+	{0x43, 0x2F, 0x00, 0xFF}, {0x00, 0x47, 0x00, 0xFF}, {0x00, 0x51, 0x00, 0xFF}, {0x00, 0x3F, 0x17, 0xFF}, //0x08
+	{0x1B, 0x3F, 0x5F, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, //0x0C
+	{0xBC, 0xBC, 0xBC, 0xFF}, {0x00, 0x73, 0xEF, 0xFF}, {0x23, 0x3B, 0xEF, 0xFF}, {0x83, 0x00, 0xF3, 0xFF}, //0x10
+	{0xBF, 0x00, 0xBF, 0xFF}, {0xE7, 0x00, 0x5B, 0xFF}, {0xDB, 0x2B, 0x00, 0xFF}, {0xCB, 0x4F, 0x0F, 0xFF}, //0x14
+	{0x8B, 0x73, 0x00, 0xFF}, {0x00, 0x97, 0x00, 0xFF}, {0x00, 0xAB, 0x00, 0xFF}, {0x00, 0x93, 0x3B, 0xFF}, //0x18
+	{0x00, 0x83, 0x8B, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, //0x1C
+	{0xFF, 0xFF, 0xFF, 0xFF}, {0x3F, 0xBF, 0xFF, 0xFF}, {0x5F, 0x97, 0xFF, 0xFF}, {0xA7, 0x8B, 0xFD, 0xFF}, //0x20
+	{0xF7, 0x7B, 0xFF, 0xFF}, {0xFF, 0x77, 0xB7, 0xFF}, {0xFF, 0x77, 0x63, 0xFF}, {0xFF, 0x9B, 0x3B, 0xFF}, //0x24
+	{0xF3, 0xBF, 0x3F, 0xFF}, {0x83, 0xD3, 0x13, 0xFF}, {0x4F, 0xDF, 0x4B, 0xFF}, {0x58, 0xF8, 0x98, 0xFF}, //0x28
+	{0x00, 0xEB, 0xDB, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, //0x2C
+	{0xFF, 0xFF, 0xFF, 0xFF}, {0xAB, 0xE7, 0xFF, 0xFF}, {0xC7, 0xD7, 0xFF, 0xFF}, {0xD7, 0xCB, 0xFF, 0xFF}, //0x30
+	{0xFF, 0xC7, 0xFF, 0xFF}, {0xFF, 0xC7, 0xDB, 0xFF}, {0xFF, 0xBF, 0xB3, 0xFF}, {0xFF, 0xDB, 0xAB, 0xFF}, //0x34
+	{0xFF, 0xE7, 0xA3, 0xFF}, {0xE3, 0xFF, 0xA3, 0xFF}, {0xAB, 0xF3, 0xBF, 0xFF}, {0xB3, 0xFF, 0xCF, 0xFF}, //0x38
+	{0x9F, 0xFF, 0xF3, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}, {0x00, 0x00, 0x00, 0xFF}  //0x3C
 };
-
-struct ppu
-{
-    uint64 MemoryBase;
-    uint32 *BasePixel;
-
-    // TODO: Not just for ppu. also apu. So pull out into global
-    uint8 OpenBus;
-
-    // Nametable mirror type
-    NT_MIRROR MirrorType;
-
-    // Name table banks. Mirror type selects which one is used
-    uint8 NametableBankA[0x400];
-    uint8 NametableBankB[0x400];
-    uint8 NametableBankC[0x400];
-    uint8 NametableBankD[0x400];
-    
-    // Control Reg
-    uint8 NametableBase;
-    uint8 VRamIncrement;
-    uint16 SPRTPattenBase;
-    uint16 BGPatternBase;
-    bool32 SpriteSize8x16;
-    bool32 PpuSlave;
-    bool32 GenerateNMI;
-
-    // Mask Reg
-    bool32 GreyScale;
-    bool32 ShowBGLeft8Pixels;
-    bool32 ShowSPRTLeft8Pixels;
-    bool32 ShowBackground;
-    bool32 ShowSprites;
-    bool32 EmphasizeRed;
-    bool32 EmphasizeGreen;
-    bool32 EmphasizeBlue;
-
-    // Status Reg
-    bool32 SpriteOverflow;
-    bool32 Sprite0Hit;
-    bool32 VerticalBlank;
-
-    // Oam Address Reg
-    uint8 OamAddress;
-
-    // VRam Data Read Buffering
-    uint8 VRamDataBuffer;
-    
-    //Sprites
-    uint8 *OamDma; 
-    uint8 Oam[OAM_SIZE];
-
-    uint8 SecondarySpriteCount;
-    sprite SecondaryOam[SECONDARY_OAM_SPRITE_MAX];
-    
-    uint8 PreparedSpriteCount;
-    sprite PreparedSprites[SECONDARY_OAM_SPRITE_MAX];
-    
-    uint16 Scanline;
-    uint16 ScanlineCycle;
-
-    vram_io VRamIO;
-
-    bool32 OddFrame;
-
-    screen_buffer *BackBuffer;
-
-    bool32 SupressNmi;
-    bool32 SupressVbl;
-};
-
-
-#define PPU_H
-#endif
