@@ -28,14 +28,21 @@ enum class NametableMirror
 class Cartridge
 {
 public:
-	static bool LoadCartridge(const char *fileName);
-
-	static u8 ReadMemory(u16 address) { Assert(instance); return instance->ReadMemoryInternal(address); }
-	static u8 WriteMemory(u16 address, u8 value) { Assert(instance); instance->WriteMemoryInternal(address, value); }
-
-protected:
+	static Cartridge *CreateCartridgeForRom(u8 *romData, u32 romSize);
 	
-	const char *m_fileName;
+	~Cartridge() { UnloadFileData(m_romFileData); }
+
+	virtual void Init() = 0;
+	virtual u8 ReadMemory(u16 address) = 0;
+	virtual void WriteMemory(u16 address, u8 value) = 0;
+
+	virtual u8 ReadCHRMemory(u16 address) = 0;
+	virtual void WriteCHRMemory(u16 address, u8 value) = 0;
+	
+	NametableMirror GetNametableMirrorType() { return m_nametableMirrorType; }
+protected:
+	Cartridge() {};
+
 	u8 *m_romFileData;
 	u32 m_romFileSize;
 
@@ -54,301 +61,353 @@ protected:
 	u8 m_mapperNum;
 
 	NametableMirror m_nametableMirrorType;
-
-	// u16 m_extRegister;
-	u8 m_mapperInternalReg;
-	u8 m_mapperWriteCount;
-
-	
-	bool m_chr4KbMode;
-
 private:
-	virtual void Init() {};
-	virtual u8 ReadMemoryInternal(u16 address) {};
-	virtual void WriteMemoryInternal(u16 address, u8 value) {};
-
-	void ClearCartridge();
-	void ParseRom(const char *romFileName, u8 *romData, u32 romSize);
-
-	static Cartridge *GetCartridgeByMapper(u8 mapperNum);
-
-	static Cartridge *instance;
+	void ParseRom(u8 *romData, u32 romSize);
 };
+
+
+constexpr u64 NROMChrMemorySize = Kilobytes(8);
 
 class NROM : public Cartridge
 {
+public:
 	virtual void Init() override
 	{
 		m_is32kPrgRom = m_prgBankCount == 2;
 		Assert(m_prgBankCount <= 2);
 	}
-	virtual u8 ReadMemoryInternal(u16 address) override
+	virtual u8 ReadMemory(u16 address) override
 	{
 		u16 bankAddress = address - 0x8000;
 		if(!m_is32kPrgRom) { bankAddress = bankAddress % 0x4000; }
-		return m_prgBanks[bankAddress];
+		u8 val = m_prgBanks[bankAddress];
+		return val;
 	}
-	/*virtual void WriteMemoryInternal(u16 address, u8 value) override
+	virtual void WriteMemory(u16 address, u8 value) override
 	{
 
-	}*/
+	}
 
-	bool m_is32kPrgRom;
+	virtual u8 ReadCHRMemory(u16 address) override
+	{
+		u8 value = m_chrBanks[address];
+		return value;
+	}
+	virtual void WriteCHRMemory(u16 address, u8 value) override { }
+
+private:
+
+	bool m_is32kPrgRom = false;
 };
 
-/*
+
+// use the smallest bank size and calc in functions if using bigger bank mode
+constexpr u64 Mmc1PrgBankSize = 0x4000;
+constexpr u64 Mmc1ChrBankSize = 0x1000;
 constexpr u64 Mmc1PrgRamMaxSize = Kilobytes(32);
+constexpr u64 Mmc1ChrRamMaxSize = Kilobytes(8);
 class MMC1 : public Cartridge
 {
+public:
 	virtual void Init() override
 	{
-		m_slot1BankNum = 0;
-		m_slot2BankNum = m_prgBankCount - 1; // Filled by last bank
-		m_prgRomMode = 0x3; // Initially starts here(control register is 0xC)
-	}
-	virtual u8 ReadMemoryInternal(u16 address) override
-	{
-		if(address < 0x8000)
-		{
+		// init state
+		// first bank on cartridge mapped to 0x8000
+		// last bank on cartridge mapped to 0xc000
+		MemorySet(m_prgRam, 0, Mmc1PrgRamMaxSize);
+		MemorySet(m_chrRam, 0, Mmc1ChrRamMaxSize);
 
+		m_prgBankNumSlotA = 0;
+		m_prgBankNumSlotB = m_prgBankCount - 1; // Filled by last bank
+		m_controlReg = 0x0C; // Initially starts here(control register is 0xC)
+		ApplyUpdates();
+	}
+
+	virtual u8 ReadMemory(u16 address) override
+	{
+		if(address < 0x8000) // save/work ram
+		{
+			u8 value = m_prgRam[address % Mmc1PrgRamMaxSize];
+			return value;
 		}
 		else
 		{
-			u16 bankAddress = address - 0x8000;
-			if(!m_is32kPrgRom) { bankAddress = bankAddress % 0x4000; }
-			return m_prgBanks[bankAddress];
+			u32 bankNum = (address >= 0xC000) ? m_prgBankNumSlotB : m_prgBankNumSlotA;
+			u8 *bank = m_prgBanks + (bankNum * Mmc1PrgBankSize);
+			u8 value = bank[address % Mmc1PrgBankSize];
+			return value;
 		}
 	}
-	virtual void WriteMemoryInternal(u16 address, u8 value) override
+	virtual void WriteMemory(u16 address, u8 value) override
 	{
-		
+		if(address < 0x8000) // save/work ram
+		{
+			m_prgRam[address % Mmc1PrgRamMaxSize] = value;
+		}
+		else
+		{
+			bool isClearBitSet = (value & 0x80) != 0;
+			if(isClearBitSet)
+			{
+				m_writeReg = 0;
+				m_writeCount = 0;
 
+				m_controlReg = m_controlReg |= 0x0C;
+				ApplyUpdates();
+			}
+			else
+			{
+				// Shifted where the first write is the least significant, last write is most significant
+				m_writeReg = (m_writeReg >> 1);
+				m_writeReg |= ((value << 4) & 0x10);
+
+				++m_writeCount;
+
+				if(m_writeCount == 5) // On 5th write
+				{
+					u16 registerNum = (address & 0x6000) >> 13;
+
+					if(registerNum == 0)
+					{
+						m_controlReg = m_writeReg;
+					}
+					else if(registerNum == 1)
+					{
+						m_chrBankNumSlotA = m_writeReg;
+					}
+					else if(registerNum == 2)
+					{
+						m_chrBankNumSlotB = m_writeReg;
+					}
+					else if(registerNum == 3)
+					{
+						m_prgBankReg = m_writeReg;
+					}
+
+					ApplyUpdates();
+
+					m_writeReg = 0;
+					m_writeCount = 0;
+				}
+			}
+		}
 	}
 
-	u8 prgRam[Mmc1PrgRamMaxSize];
+	virtual u8 ReadCHRMemory(u16 address) override
+	{
+		if(m_chrBankCount == 0)
+		{
+			u8 value = m_chrRam[address % Mmc1ChrRamMaxSize];
+			return value;
+		}
+		else
+		{
+			u32 bankNum = (address >= 0x1000) ? m_chrBankNumSlotB : m_chrBankNumSlotA;
+			u8 *bank = m_chrBanks + (bankNum * Mmc1ChrBankSize);
+			u8 value = bank[address % Mmc1ChrBankSize];
+			return value;
+		}
+	}
+	virtual void WriteCHRMemory(u16 address, u8 value) override
+	{
+		if(m_chrBankCount == 0)
+		{
+			m_chrRam[address % Mmc1ChrRamMaxSize] = value;
+		}
+		else
+		{
+			Assert(0);
+			/*u32 bankNum = (address >= 0x1000) ? m_chrBankNumSlotB : m_chrBankNumSlotA;
+			u8 *bank = m_chrBanks + (bankNum * Mmc1ChrBankSize);
+			bank[address % Mmc1ChrBankSize] = value;*/
+		}
+	}
 
-	u8 m_slot1BankNum;
-	u8 m_slot2BankNum;
+private:
+	void ApplyUpdates()
+	{
+		// CHR Bank
+		bool inChrBank4KbMode = ((m_controlReg & 0x10) != 0);
+	
+		u32 chrBankNumA = m_chrBankRegA & 0x1F;
+		u32 chrBankNumB = m_chrBankRegB & 0x1F;
 
-	u8 m_prgRomMode;
+		if(inChrBank4KbMode)
+		{
+			m_chrBankNumSlotA = chrBankNumA;
+			m_chrBankNumSlotB = chrBankNumB;
+		}
+		else // 8kb chr banks
+		{
+			u32 chrBank8kbNum = chrBankNumA & 0x1E; // Ignore bottom bit
+			m_chrBankNumSlotA = chrBank8kbNum;
+			m_chrBankNumSlotB = chrBank8kbNum + 1;
+		}
+
+		// PRG bank
+		bool prgBankSwapLowSlot = (m_controlReg & 0x04) != 0;
+		bool prgBankModeIs16k = (m_controlReg & 0x08) != 0;
+
+		u32 prgBankNum = m_prgBankReg & 0xF;
+
+		if(prgBankModeIs16k)
+		{
+			if(prgBankSwapLowSlot)
+			{
+				m_prgBankNumSlotA = prgBankNum;
+				m_prgBankNumSlotB = m_prgBankCount - 1;
+			}
+			else
+			{
+				m_prgBankNumSlotA = 0;
+				m_prgBankNumSlotB = prgBankNum;
+			}
+		}
+		else // 32k prg banks
+		{
+			u32 prgBank32kbNum = prgBankNum & 0xFE; // Ignore bottom bit
+			m_prgBankNumSlotA = prgBank32kbNum;
+			m_prgBankNumSlotB = prgBank32kbNum + 1;
+		}
+
+		u8 mirrorType = m_controlReg & 0x03;
+		if(mirrorType == 0) { m_nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_A; }
+		if(mirrorType == 1) { m_nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_B; }
+		if(mirrorType == 2) { m_nametableMirrorType = NametableMirror::VERTICAL_MIRROR; }
+		if(mirrorType == 3) { m_nametableMirrorType = NametableMirror::HORIZONTAL_MIRROR; }
+	}
+
+	u8 m_prgRam[Mmc1PrgRamMaxSize];
+	u8 m_chrRam[Mmc1ChrRamMaxSize];
+	
+
+	u32 m_prgBankNumSlotA = 0;
+	u32 m_prgBankNumSlotB = 0;
+
+	u32 m_chrBankNumSlotA = 0;
+	u32 m_chrBankNumSlotB = 0;
+
+	u8 m_controlReg = 0;
+	u8 m_chrBankRegA = 0;
+	u8 m_chrBankRegB = 0;
+	u8 m_prgBankReg = 0;
+
+	u8 m_writeReg = 0;
+	u8 m_writeCount = 0;
 };
+
+
+constexpr u32 unromPrgBankSize = 0x4000;
+constexpr u32 unromChrRAMSize = 0x2000;
 
 class UNROM : public Cartridge
 {
+public:
 	virtual void Init() override
 	{
 		m_slot1BankNum = 0;
-		m_slot2BankNum = m_prgBankCount - 1; // Filled by last bank
 	}
-	virtual u8 ReadMemoryInternal(u16 address) override
+
+	virtual u8 ReadMemory(u16 address) override
 	{
-		u16 bankAddress = address - 0x8000;
-		u8 bankSlot = bankAddress / 0x4000;
-		
-		u8 *bank;
-		// TODO
-		return m_prgBanks[bankAddress];
+		u32 bankNum = (address >= 0xC000) ? (m_prgBankCount - 1) : m_slot1BankNum;
+		u8 *bank = m_prgBanks + (bankNum * unromPrgBankSize);
+		u8 value = bank[address % unromPrgBankSize];
+		return value;
 	}
-	virtual void WriteMemoryInternal(u16 address, u8 value) override
+	virtual void WriteMemory(u16 address, u8 value) override
 	{
-
+		m_slot1BankNum = value & 0x7;
 	}
 
+	virtual u8 ReadCHRMemory(u16 address) override
+	{
+		u8 value = m_chrRam[address % unromChrRAMSize];
+		return value;
+	}
+	virtual void WriteCHRMemory(u16 address, u8 value) override
+	{ 
+		m_chrRam[address % unromChrRAMSize] = value;
+	}
 
-	u8 m_slot1BankNum;
-	u8 m_slot2BankNum;
+private:
+	u8 m_chrRam[unromChrRAMSize];
+	u8 m_slot1BankNum = 0;
 };
 
 
-void AxromInit(Cartridge *cartridge, Cpu *cpu, Ppu *ppu)
+constexpr u32 axromPrgBankSize = 0x8000; // 32kb
+constexpr u32 axromChrRAMSize = 0x2000; // 8kb
+
+class AXROM : public Cartridge
 {
-	u8 *memoryPrgBank = cpu->memory + 0x8000;
-	u8 *bankToCpy = cartridge->prgBanks + ((cartridge->prgBankCount) * Kilobytes(16)) - Kilobytes(32);
-	MemoryCopy(memoryPrgBank, bankToCpy, Kilobytes(32));
-
-	//ppu->mirrorType = SINGLE_SCREEN_BANK_A;
-	cartridge->nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_A;
-}
-
-void Mmc1Update(Nes *nes, u8 byteWritten, u16 address)
-{
-	Cpu *cpu = Nes::GetCpu();
-	Ppu *ppu = Nes::GetPpu();
-	Cartridge *cartridge = Nes::GetCartridge();
-
-	u16 prgRomBank1 = 0x8000;
-	u16 prgRomBank2 = 0xC000;
-
-	bool isLargePrg = (cartridge->prgBankCount > 16);
-	bool isLargeChr = (cartridge->chrBankCount > 1);
-
-
-	bool isClearBitSet = (byteWritten & (1 << 7)) != 0;
-	if(isClearBitSet)
+public:
+	virtual void Init() override
 	{
-		cartridge->mapperWriteCount = 0;
-		byteWritten = 0;
-		cartridge->mapperInternalReg = 0;
+		u32 bank32kbCount = m_prgBankCount / 2;
+
+		m_bankNum = bank32kbCount - 1;
+		m_nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_A;
 	}
-	else
+
+	virtual u8 ReadMemory(u16 address) override
 	{
-		++cartridge->mapperWriteCount;
-
-		// Shifted where the first write is the least significant, last write is most significant
-		cartridge->mapperInternalReg = (cartridge->mapperInternalReg >> 1);
-		cartridge->mapperInternalReg = (cartridge->mapperInternalReg & 0xF); // clear 5-bit
-		cartridge->mapperInternalReg |= ((byteWritten & 1) << 4);
-
-		if(cartridge->mapperWriteCount == 5) // On 5th write
-		{
-			u8 dataReg = cartridge->mapperInternalReg;
-
-			// TODO: Potentially change all address bounds checks to this style?
-			bool bit13Set = (address & (1 << 13)) != 0;
-			bool bit14Set = (address & (1 << 14)) != 0;
-
-			if(!bit13Set && !bit14Set)     // Control Reg
-			{
-				u8 mirror = dataReg & 3;
-				if(mirror == 0)
-					m_nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_A;
-				if(mirror == 1)
-					m_nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_B;
-				if(mirror == 2)
-					m_nametableMirrorType = NametableMirror::VERTICAL_MIRROR;
-				if(mirror == 3)
-					cartridge->nametableMirrorType = NametableMirror::HORIZONTAL_MIRROR;
-
-				u8 prevPrgRomMode = cartridge->prgRomMode;
-				cartridge->prgRomMode = (dataReg & 0xC) >> 2;
-
-				if(prevPrgRomMode != cartridge->prgRomMode) // TODO: Update the banks
-				{
-					if(cartridge->prgRomMode == 2) // 16kb fixed low bank
-					{
-						u8 *bankToCpy = cartridge->prgBanks;
-						MemoryCopy((u8 *)cpu->memory + 0x8000, bankToCpy, Kilobytes(16));
-					}
-					else if(cartridge->prgRomMode == 3) // 16kb fixed high bank, use last bank
-					{
-						u8 *bankToCpy = cartridge->prgBanks + ((cartridge->prgBankCount - 1) * Kilobytes(16));
-						MemoryCopy((u8 *)cpu->memory + 0xC000, bankToCpy, Kilobytes(16));
-					}
-				}
-
-				cartridge->chr4KbMode = ((dataReg & 0x10) == 0);
-			}
-			else if(bit13Set && !bit14Set) // CHR Bank 0
-			{
-				u8 sizeToCpy = 0;
-
-				if(cartridge->chr4KbMode)
-				{
-					sizeToCpy = (u8)Kilobytes(4);
-				}
-				else
-				{
-					dataReg = dataReg >> 1; // 8kb mode Low bit ignored
-					sizeToCpy = (u8)Kilobytes(8);
-				}
-
-				// TODO: We shouldn't need to copy the memory to another place.
-				//       Bank switch is a direct line to memory, so it should just change a pointer
-
-				// If CHR bank count is 0, then it uses RAM?? TODO: Check
-				if(cartridge->chrBankCount > 0) {
-					u8 *bankToCpy = cartridge->chrBanks + (dataReg * sizeToCpy);
-					MemoryCopy((u8 *)ppu->memory, bankToCpy, sizeToCpy);
-				}
-			}
-			else if(!bit13Set && bit14Set) // CHR Bank 1
-			{
-				if(cartridge->chr4KbMode)
-				{
-					// TODO: mmc1 variants write other bits. Investigate
-
-					if(cartridge->chrBankCount > 0)
-					{
-						u8 *bankToCpy = cartridge->chrBanks + (dataReg * Kilobytes(4));
-						MemoryCopy(ppu->memory + 0x1000, bankToCpy, Kilobytes(4));
-					}
-				}
-			}
-			else if(bit13Set && bit14Set) // PRG bank
-			{
-				dataReg &= 0xF; // mask away MSB/5th bit, not used for bank num
-				Assert(dataReg < cartridge->prgBankCount);
-
-				if(cartridge->prgRomMode == 0 || cartridge->prgRomMode == 1) // 32kib Mode
-				{
-					dataReg = dataReg >> 1;
-					u8 *bankToCpy = cartridge->prgBanks + (dataReg * Kilobytes(32));
-					MemoryCopy(cpu->memory + 0x8000, bankToCpy, Kilobytes(32));
-				}
-				else if(cartridge->prgRomMode == 2) // 16kb fixed low bank - swap high bank
-				{
-					u8 *bankToCpy = cartridge->prgBanks + (dataReg * Kilobytes(16));
-					MemoryCopy(cpu->memory + 0xC000, bankToCpy, Kilobytes(16));
-				}
-				else if(cartridge->prgRomMode == 3) // 16kb fixed high bank - swap low bank
-				{
-					u8 *bankToCpy = cartridge->prgBanks + (dataReg * Kilobytes(16));
-					MemoryCopy(cpu->memory + 0x8000, bankToCpy, Kilobytes(16));
-				}
-			}
-
-			cartridge->mapperWriteCount = 0;
-			cartridge->mapperInternalReg = 0;
-		}
+		u8 *bank = m_prgBanks + (m_bankNum * axromPrgBankSize);
+		u8 value = bank[address % axromPrgBankSize];
+		return value;
 	}
-}
-
-void UnromUpdate(Nes *nes, u8 byteWritten, u16 address)
-{
-	Cpu *cpu = Nes::GetCpu();
-	Ppu *ppu = Nes::GetPpu();
-	Cartridge *cartridge = Nes::GetCartridge();
-
-	u8 *memPrgBank1 = cpu->memory + 0x8000;
-
-	const u8 bankNumber = byteWritten;
-	u8 *bankToCpy = cartridge->prgBanks + (bankNumber * Kilobytes(16));
-
-	MemoryCopy(memPrgBank1, bankToCpy, Kilobytes(16));
-}
-
-void AxromUpdate(Nes *nes, u8 byteWritten, u16 address)
-{
-	Cpu *cpu = Nes::GetCpu();
-	Ppu *ppu = Nes::GetPpu();
-	Cartridge *cartridge = Nes::GetCartridge();
-
-	u8 *memoryPrgBank = cpu->memory + 0x8000;
-
-	const u8 selectedBank = byteWritten & 7;
-	u8 *bankToCpy = cartridge->prgBanks + (selectedBank * Kilobytes(32));
-
-	MemoryCopy(memoryPrgBank, bankToCpy, Kilobytes(32));
-
-	// Nametable Single Screen bank select
-	if(byteWritten & 0x10)
+	virtual void WriteMemory(u16 address, u8 value) override
 	{
-		cartridge->nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_B;
+		m_bankNum = value & 0x7;
+		m_nametableMirrorType = ((value & 0x10) != 0) ? NametableMirror::SINGLE_SCREEN_BANK_B : NametableMirror::SINGLE_SCREEN_BANK_A;
 	}
-	else
+
+	virtual u8 ReadCHRMemory(u16 address) override
 	{
-		cartridge->nametableMirrorType = NametableMirror::SINGLE_SCREEN_BANK_A;
+		u8 value = m_chrRam[address % axromChrRAMSize];
+		return value;
 	}
-}
-*/
-
-Cartridge *Cartridge::GetCartridgeByMapper(u8 mapperNumber)
-{
-	switch(mapperNumber)
+	virtual void WriteCHRMemory(u16 address, u8 value) override
 	{
-	case 0: return new NROM(); break;
-	//case 1: return new MMC1();
-	default: TraceLog(LOG_ERROR, "Missing mapper class!!"); return nullptr; break;
-	};
+		m_chrRam[address % axromChrRAMSize] = value;
+	}
 
-}
+private:
+	u8 m_chrRam[axromChrRAMSize];
+	u8 m_bankNum = 0;
+};
+
+constexpr u32 cnromPrgBankSize = 0x8000; // 32kb
+constexpr u32 cnromChrRAMSize = 0x2000; // 8kb
+
+class CNROM : public Cartridge
+{
+public:
+	virtual void Init() override
+	{
+		m_chrBankNum = 0;
+	}
+
+	virtual u8 ReadMemory(u16 address) override
+	{
+		u8 value = m_prgBanks[address % 0x8000];
+		return value;
+	}
+	virtual void WriteMemory(u16 address, u8 value) override
+	{
+		m_chrBankNum = value;
+	}
+
+	virtual u8 ReadCHRMemory(u16 address) override
+	{
+		u8 *chrBank = m_chrBanks + (m_chrBankNum * cnromChrRAMSize);
+		u8 value = chrBank[address % cnromChrRAMSize];
+		return value;
+	}
+	virtual void WriteCHRMemory(u16 address, u8 value) override
+	{
+	}
+
+private:
+	u32 m_chrBankNum;
+};

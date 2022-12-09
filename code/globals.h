@@ -58,3 +58,12 @@ typedef size_t mem_idx;
 #define MIN(a, b) ((a < b) ? a : b)
 
 #define UNUSED(x) ((void)(x))
+
+inline void MemorySet(void *memory, u8 value, u64 size)
+{
+	u8 *memoryU8 = (u8 *)memory;
+	for(u64 i = 0; i < size; ++i)
+	{
+		memoryU8[i] = value;
+	}
+}

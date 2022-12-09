@@ -9,32 +9,13 @@
 //#include "apu.h"
 #include "cartridge.h"
 
-constexpr u8 gWindowScale = 1.0f;
+constexpr u16 romFileNameMaxLength = Kilobytes(1);
+
+constexpr u8 gWindowScale = 4.0f;
 constexpr u16 gNesWidth = 256;
 constexpr u16 gNesHeight = 240;
 constexpr u32 gWindowWidth = gNesWidth * gWindowScale;
 constexpr u32 gWindowHeight = gNesHeight * gWindowScale;
-
-inline void MemorySet(void *memory, u8 value, u64 size)
-{
-	u8 *memoryU8 = (u8 *)memory;
-	for(u64 i = 0; i < size; ++i)
-	{
-		memoryU8[i] = value;
-	}
-}
-
-/*
-// Copy Size amount of bytes from source to destination
-inline void MemoryCopy(u8 *dest, u8 *src, u16 size)
-{
-	// NOTE: Very basic copy. Not bounds protection
-	for(u16 byte = 0; byte < size; ++byte)
-	{
-		dest[byte] = src[byte];
-	}
-}
-*/
 
 struct Input
 {
@@ -49,44 +30,60 @@ struct Input
 		B_RIGHT,
 		BUTTON_NUM
 	};
-	bool buttons[BUTTON_NUM];
+	bool pad1Buttons[BUTTON_NUM] = {};
+	bool pad2Buttons[BUTTON_NUM] = {};
+
+	bool padStrobe = false;
+	u8 pad1CurrentButton = 0;
+	u8 pad2CurrentButton = 0;
+	//u8 inputBusBuffer = 0;
 };
 
 class Nes
 {
 public:
 	void Init();
+	void Deinit();
+
 	void Update();
 
-	static Cpu *GetCpu() { return &GetInstance().m_cpu; };
-	static Ppu *GetPpu() { return &GetInstance().m_ppu; };
-	static Cartridge *GetCartridge() { return &GetInstance().m_cartridge; };
-	//static Input *GetInput() { return &GetInstance().input; };
+	static Cpu *GetCpu() { return GetInstance().m_cpu; };
+	static Ppu *GetPpu() { return GetInstance().m_ppu; };
+	static Cartridge *GetCartridge() { return GetInstance().m_cartridge; };
+	static Input *GetInput() { return &GetInstance().m_input; };
 
 	static Nes &GetInstance() { return _instance; };
-private:
-	void Power();
-	void Reset();
 
-	void LoadCartridge(u8 *romFileName);
-	void InputFrame();
+	static void PowerButton() { GetInstance().m_triggerPowerOn = true; }
+	static void ResetButton() { GetInstance().m_triggerReset = true; }
+	static void QueueRomLoad(char *loadFileName) { GetInstance().QueueRomLoadInternal(loadFileName); };
+
+	static bool HasRomLoaded() { return GetInstance().m_cartridge != nullptr; }
+
+	static void SetOpenBus(u8 value) { GetInstance().openBus = value; }
+	static u8 GetOpenBus() { return GetInstance().openBus; }
+private:
+	void Reset(bool cyclePower);
+
+	void QueueRomLoadInternal(char *loadFileName);
+
+	bool LoadCartridge(const char *fileName);
+
+	void InputUpdate();
 
 	static Nes _instance;
 
-	Cpu m_cpu;
-	Ppu m_ppu;
-	Cartridge m_cartridge;
+	Cpu *m_cpu;
+	Ppu *m_ppu;
+	Cartridge *m_cartridge;
 	Input m_input;
 
-	bool m_hitPowerOn;
-	bool m_hitReset;
-	bool m_isPowerOn;
+	u8 openBus = 0;
 
-	const char *m_romFileName = "Mario Bros.nes";
+	bool m_triggerPowerOn = false;
+	bool m_triggerReset = false;
+	bool m_isPowerOn = false;
+
+	char m_romFileName[romFileNameMaxLength];
+	bool m_triggerRomLoad = false;
 };
-
-//struct Nes
-//{
-//	r32 cpuHz;
-//	u8 openBus;
-//};

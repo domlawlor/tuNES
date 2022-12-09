@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdio.h>
+
+
 #define NMI_VEC     0xFFFA
 #define RESET_VEC   0xFFFC
 #define IRQ_BRK_VEC 0xFFFE 
@@ -15,9 +18,6 @@
 #define OVERFLOW_BIT  0x40
 #define NEGATIVE_BIT  0x80
 
-//#define NMI_OP 0x02
-//#define IRQ_OP 0x12
-
 enum class AddressMode
 {
 	NONE = 0, ACM, IMPL, IMED, REL,
@@ -30,22 +30,22 @@ typedef AddressMode AM;
 static AddressMode OpAddressModes[INSTRUCTION_COUNT] =
 {
 	/*          0         1           2         3           4           5           6           7           8         9           A         B           C          D          E           F  */
-	/*0*/   AM::IMPL, AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::ABS,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*1*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X, AM::ABS_X, AM::ABS_XW, AM::ABS_XW,
-	/*2*/   AM::IMPL, AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::ABS,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*3*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X, AM::ABS_X, AM::ABS_XW, AM::ABS_XW,
-	/*4*/   AM::IMPL, AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::ABS,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*5*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X, AM::ABS_X, AM::ABS_XW, AM::ABS_XW,
-	/*6*/   AM::IMPL, AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::IND,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*7*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X, AM::ABS_X, AM::ABS_XW, AM::ABS_XW,
-	/*8*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*9*/   AM::REL,  AM::IND_YW, AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_Y, AM::ZERO_Y, AM::IMPL, AM::ABS_YW, AM::IMPL, AM::ABS_YW, AM::ABS_X, AM::ABS_X, AM::ABS_YW, AM::ABS_YW,
-	/*A*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*B*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_Y,  AM::ZERO_X, AM::ZERO_X, AM::ZERO_Y, AM::ZERO_Y, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_Y,  AM::ABS_X, AM::ABS_X, AM::ABS_Y,  AM::ABS_Y,
-	/*C*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*D*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X, AM::ABS_X, AM::ABS_XW, AM::ABS_XW,
-	/*E*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,   AM::ABS,   AM::ABS,    AM::ABS,
-	/*F*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X, AM::ABS_X, AM::ABS_XW, AM::ABS_XW,
+	/*0*/   AM::IMPL, AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::ABS,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*1*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X,  AM::ABS_X,  AM::ABS_XW, AM::ABS_XW,
+	/*2*/   AM::ABS,  AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::ABS,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*3*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X,  AM::ABS_X,  AM::ABS_XW, AM::ABS_XW,
+	/*4*/   AM::IMPL, AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::ABS,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*5*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X,  AM::ABS_X,  AM::ABS_XW, AM::ABS_XW,
+	/*6*/   AM::IMPL, AM::IND_X,  AM::NONE, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::ACM,  AM::IMED,   AM::IND,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*7*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X,  AM::ABS_X,  AM::ABS_XW, AM::ABS_XW,
+	/*8*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*9*/   AM::REL,  AM::IND_YW, AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_Y, AM::ZERO_Y, AM::IMPL, AM::ABS_YW, AM::IMPL, AM::ABS_YW, AM::ABS_XW, AM::ABS_XW, AM::ABS_YW, AM::ABS_YW,
+	/*A*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*B*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_Y,  AM::ZERO_X, AM::ZERO_X, AM::ZERO_Y, AM::ZERO_Y, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_Y,  AM::ABS_X,  AM::ABS_X,  AM::ABS_Y,  AM::ABS_Y,
+	/*C*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*D*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X,  AM::ABS_X,  AM::ABS_XW, AM::ABS_XW,
+	/*E*/   AM::IMED, AM::IND_X,  AM::IMED, AM::IND_X,  AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::ZERO,   AM::IMPL, AM::IMED,   AM::IMPL, AM::IMED,   AM::ABS,    AM::ABS,    AM::ABS,    AM::ABS,
+	/*F*/   AM::REL,  AM::IND_Y,  AM::NONE, AM::IND_YW, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::ZERO_X, AM::IMPL, AM::ABS_Y,  AM::IMPL, AM::ABS_YW, AM::ABS_X,  AM::ABS_X,  AM::ABS_XW, AM::ABS_XW,
 };
 
 static char *OpNames[INSTRUCTION_COUNT] =
@@ -69,60 +69,79 @@ static char *OpNames[INSTRUCTION_COUNT] =
 	/*F*/  "BEQ","SBC","KIL","ISC","SKB","SBC","INC","ISC","SED","SBC","NOP","ISC","SKW","SBC","INC","ISC"
 };
 
-constexpr u64 CpuMemorySize = Kilobytes(64);
 
+//constexpr u64 CpuMemorySize = Kilobytes(64);
+constexpr u64 CpuRamSize = Kilobytes(2);
 class Cpu
 {
-	u8 memory[CpuMemorySize];
+	typedef void(Cpu:: *Operation)();
+	Operation operations[INSTRUCTION_COUNT];
+
+	u8 ramMemory[CpuRamSize];
 
 	// Registers
-	u8 A;
-	u8 X;
-	u8 Y;
-	u8 flags;
-	u8 stackPointer;
-	u16 prgCounter;
+	u8 A = 0;
+	u8 X = 0;
+	u8 Y = 0;
+	u8 flags = 0;
+	u8 stackPointer = 0;
+	u16 prgCounter = 0;
 
-	u16 operand;
-	AddressMode addressMode;
+	u8 opCode = 0;
+	u8 opValue1 = 0;
+	u8 opValue2 = 0;
+	u16 operand = 0;
+	AddressMode addressMode = AddressMode::NONE;
+
+	u64 cycle = 0;
+	u64 masterClock = 0;
+
+	u8 preReadClockCycles = 0;
+	u8 postReadClockCycles = 0;
+
+	u8 preWriteClockCycles = 0;
+	u8 postWriteClockCycles = 0;
+
+
+	u8 irqFlag = 0;
+	u8 activeIrqs = 0;
+
+	bool triggerIrq = false;
+	bool prevTriggerIrq = false;
+
+	bool prevNmiSet = false;
+	bool nmiSet = false; // Set from ppu
+
+	bool triggerNmi = false;
+	bool prevTriggerNmi = false;
+
+	bool cpuHaltQueued = false;
+
+	bool spriteDmaActive = false;
+	u8 spriteDmaOffset = 0;
+
+	bool dmcDmaNeedDummyRead = false;
+	bool dmcDmaActive = false;
 
 	// Debug
-	char *opName;
-	u8 opCode;
-
-	u64 masterClock;
-
-	u8 clockCyclesPreCatchup;
-	u8 clockCyclesPostCatchup;
-
-
-
-	// TODO: Check if still needed
-	/*
-	bool padStrobe;
-
-	Input inputPad1;
-	u8 pad1CurrentButton;
-	Input inputPad2;
-	u8 pad2CurrentButton;
-	*/
-
-	u8 irqFlag;
-	u8 activeIrqs;
-
-	bool triggerIrq;
-	bool prevTriggerIrq;
-
-	bool nmiSet; // Set from ppu
-	bool triggerNmi;
-	bool prevTriggerNmi;
+	FILE *logFile = nullptr;
+	char *opName = nullptr;
+	u16 lastPrgCounter = 0;
+	u16 logPpuCycle = 0;
+	s16 logPpuScanline = 0;
 
 public:
-	void Init();
-	void OnReset();
+	Cpu();
+	~Cpu();
+
+	void Reset(bool powerCycle);
 
 	void Run();
 
+	void SetNMI(bool flagActive) { nmiSet = flagActive; }
+
+	void StartDMAWrite(u8 value);
+	void StartApuDMCWrite();
 private:
 	u16 ReadOperand();
 
@@ -133,7 +152,14 @@ private:
 	u8 RawReadMemory(u16 address);
 	void RawWriteMemory(u16 address, u8 value);
 
+	void LogOp();
+
 	void UpdateInterrupts();
+
+	void RunPreMemoryCycles(bool isRead);
+	void RunPostMemoryCycles(bool isRead);
+
+	void RunActiveDMA(u16 address);
 
 	// Status flag functions
 	inline void SetCarry() { flags = flags | CARRY_BIT; }
@@ -723,26 +749,4 @@ private:
 		//
 		WriteMemory(operand, opValue);
 	}
-
-	typedef void(Cpu:: *Operation)();
-	Operation operations[INSTRUCTION_COUNT] =
-	{
-		/*          0          1          2          3          4          5          6          7          8          9          A          B          C          D          E          F   */
-		/*0*/ &Cpu::BRK, &Cpu::ORA, &Cpu::KIL, &Cpu::SLO, &Cpu::SKB, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO, &Cpu::PHP, &Cpu::ORA, &Cpu::ASL, &Cpu::ANC, &Cpu::SKW, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO,
-		/*1*/ &Cpu::BPL, &Cpu::ORA, &Cpu::KIL, &Cpu::SLO, &Cpu::SKB, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO, &Cpu::CLC, &Cpu::ORA, &Cpu::NOP, &Cpu::SLO, &Cpu::SKW, &Cpu::ORA, &Cpu::ASL, &Cpu::SLO,
-		/*2*/ &Cpu::JSR, &Cpu::AND, &Cpu::KIL, &Cpu::RLA, &Cpu::BIT, &Cpu::AND, &Cpu::ROL, &Cpu::RLA, &Cpu::PLP, &Cpu::AND, &Cpu::ROL, &Cpu::ANC, &Cpu::BIT, &Cpu::AND, &Cpu::ROL, &Cpu::RLA,
-		/*3*/ &Cpu::BMI, &Cpu::AND, &Cpu::KIL, &Cpu::RLA, &Cpu::SKB, &Cpu::AND, &Cpu::ROL, &Cpu::RLA, &Cpu::SEC, &Cpu::AND, &Cpu::NOP, &Cpu::RLA, &Cpu::SKW, &Cpu::AND, &Cpu::ROL, &Cpu::RLA,
-		/*4*/ &Cpu::RTI, &Cpu::EOR, &Cpu::KIL, &Cpu::SRE, &Cpu::SKB, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE, &Cpu::PHA, &Cpu::EOR, &Cpu::LSR, &Cpu::ALR, &Cpu::JMP, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE,
-		/*5*/ &Cpu::BVC, &Cpu::EOR, &Cpu::KIL, &Cpu::SRE, &Cpu::SKB, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE, &Cpu::CLI, &Cpu::EOR, &Cpu::NOP, &Cpu::SRE, &Cpu::SKW, &Cpu::EOR, &Cpu::LSR, &Cpu::SRE,
-		/*6*/ &Cpu::RTS, &Cpu::ADC, &Cpu::KIL, &Cpu::RRA, &Cpu::SKB, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA, &Cpu::PLA, &Cpu::ADC, &Cpu::ROR, &Cpu::ARR, &Cpu::JMP, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA,
-		/*7*/ &Cpu::BVS, &Cpu::ADC, &Cpu::KIL, &Cpu::RRA, &Cpu::SKB, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA, &Cpu::SEI, &Cpu::ADC, &Cpu::NOP, &Cpu::RRA, &Cpu::SKW, &Cpu::ADC, &Cpu::ROR, &Cpu::RRA,
-		/*8*/ &Cpu::SKB, &Cpu::STA, &Cpu::SKB, &Cpu::SAX, &Cpu::STY, &Cpu::STA, &Cpu::STX, &Cpu::SAX, &Cpu::DEY, &Cpu::SKB, &Cpu::TXA, &Cpu::XAA, &Cpu::STY, &Cpu::STA, &Cpu::STX, &Cpu::SAX,
-		/*9*/ &Cpu::BCC, &Cpu::STA, &Cpu::KIL, &Cpu::AHX, &Cpu::STY, &Cpu::STA, &Cpu::STX, &Cpu::SAX, &Cpu::TYA, &Cpu::STA, &Cpu::TXS, &Cpu::TAS, &Cpu::SHY, &Cpu::STA, &Cpu::SHX, &Cpu::AHX,
-		/*A*/ &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX, &Cpu::TAY, &Cpu::LDA, &Cpu::TAX, &Cpu::LAX, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX,
-		/*B*/ &Cpu::BCS, &Cpu::LDA, &Cpu::KIL, &Cpu::LAX, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX, &Cpu::CLV, &Cpu::LDA, &Cpu::TSX, &Cpu::LAS, &Cpu::LDY, &Cpu::LDA, &Cpu::LDX, &Cpu::LAX,
-		/*C*/ &Cpu::CPY, &Cpu::CMP, &Cpu::SKB, &Cpu::DCP, &Cpu::CPY, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP, &Cpu::INY, &Cpu::CMP, &Cpu::DEX, &Cpu::AXS, &Cpu::CPY, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP,
-		/*D*/ &Cpu::BNE, &Cpu::CMP, &Cpu::KIL, &Cpu::DCP, &Cpu::SKB, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP, &Cpu::CLD, &Cpu::CMP, &Cpu::NOP, &Cpu::DCP, &Cpu::SKW, &Cpu::CMP, &Cpu::DEC, &Cpu::DCP,
-		/*E*/ &Cpu::CPX, &Cpu::SBC, &Cpu::SKB, &Cpu::ISC, &Cpu::CPX, &Cpu::SBC, &Cpu::INC, &Cpu::ISC, &Cpu::INX, &Cpu::SBC, &Cpu::NOP, &Cpu::SBC, &Cpu::CPX, &Cpu::SBC, &Cpu::INC, &Cpu::ISC,
-		/*F*/ &Cpu::BEQ, &Cpu::SBC, &Cpu::KIL, &Cpu::ISC, &Cpu::SKB, &Cpu::SBC, &Cpu::INC, &Cpu::ISC, &Cpu::SED, &Cpu::SBC, &Cpu::NOP, &Cpu::ISC, &Cpu::SKW, &Cpu::SBC, &Cpu::INC, &Cpu::ISC
-	};
 };

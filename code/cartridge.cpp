@@ -1,52 +1,44 @@
 #include "nes.h"
 
-bool Cartridge::LoadCartridge(const char *fileName)
+Cartridge *Cartridge::CreateCartridgeForRom(u8 *romData, u32 romSize)
 {
-	u32 romFileSize = 0;
-	u8 *romFileData = LoadFileData((const char *)fileName, &romFileSize);
+	iNESHeader *romHeader = (iNESHeader *)romData;
 
-	if(!romFileData)
-	{
-		return false;
-	}
-
-	iNESHeader *romHeader = (iNESHeader *)romFileData;
-
-	bool isINesRom = (romHeader->nesId[0] == 'N' && romHeader->nesId[1] == 'E' &&
-		romHeader->nesId[2] == 'S' && romHeader->nesId[3] == '\0');
+	bool isINesRom = (romHeader->nesId[0] == 'N' && romHeader->nesId[1] == 'E' && romHeader->nesId[2] == 'S');
 
 	if(!isINesRom)
 	{
-		return false;
+		return nullptr;
 	}
 
 	// Now get the correct mapper class
 	u8 mapperNum = (romHeader->flags7 & 0xF0) | (romHeader->flags6 >> 4);
-	Cartridge *cartridgeImpl = GetCartridgeByMapper(mapperNum);
 
-	if(!cartridgeImpl)
+	Cartridge *cartridge = nullptr;
+
+
+	switch(mapperNum)
 	{
-		TraceLog(LOG_ERROR, "LoadCartridge failed - Mapper Num %u does not have implementation", mapperNum);
-		return false;
-	}
+	case 0: cartridge = new NROM(); break;
+	case 1: cartridge = new MMC1(); break;
+	case 2: cartridge = new UNROM(); break;
+	case 3: cartridge = new CNROM(); break;
+	case 7: cartridge = new AXROM(); break;
+	default: TraceLog(LOG_ERROR, "Missing mapper impl for mapper num - %u", mapperNum); return nullptr; break;
+	};
 
-	// We have a rom to load, and have a mppaer. so clear the old one here
-	if(instance)
-	{
-		instance->ClearCartridge();
-		delete instance;
-	}
+	cartridge->ParseRom(romData, romSize);
+	cartridge->Init();
 
-	instance = cartridgeImpl;
-	instance->ParseRom(fileName, romFileData, romFileSize);
-	instance->Init();
+	return cartridge;
 }
 
-void Cartridge::ParseRom(const char *romFileName, u8* romData, u32 romSize)
+void Cartridge::ParseRom(u8* romData, u32 romSize)
 {
-	m_fileName = romFileName;
-
 	iNESHeader *romHeader = (iNESHeader *)romData;
+
+	m_romFileData = romData;
+	m_romFileSize = romSize;
 
 	m_prgBankCount = romHeader->prgBankCount;
 	m_chrBankCount = romHeader->chrBankCount;
@@ -63,7 +55,7 @@ void Cartridge::ParseRom(const char *romFileName, u8* romData, u32 romSize)
 	constexpr u32 prgBankSize = Kilobytes(16);
 	m_chrBanks = m_prgBanks + (m_prgBankCount * prgBankSize);
 
-	m_useVerticalMirror = (romHeader->flags6 & (1)) != 0;
+	m_useVerticalMirror = (romHeader->flags6 & 0x01) != 0;
 	m_hasBatteryRam = (romHeader->flags6 & (1 << 1)) != 0;
 	m_hasTrainer = (romHeader->flags6 & (1 << 2)) != 0;
 	m_useFourScreenMirror = (romHeader->flags6 & (1 << 3)) != 0;
@@ -74,7 +66,7 @@ void Cartridge::ParseRom(const char *romFileName, u8* romData, u32 romSize)
 	if(m_useFourScreenMirror)
 	{
 		m_nametableMirrorType = NametableMirror::FOUR_SCREEN_MIRROR;
-	} 
+	}
 	else if(m_useVerticalMirror)
 	{
 		m_nametableMirrorType = NametableMirror::VERTICAL_MIRROR;
@@ -83,13 +75,4 @@ void Cartridge::ParseRom(const char *romFileName, u8* romData, u32 romSize)
 	{
 		m_nametableMirrorType = NametableMirror::HORIZONTAL_MIRROR;
 	}
-}
-
-void Cartridge::ClearCartridge()
-{
-	if(m_romFileData)
-	{
-		UnloadFileData(m_romFileData);
-	}
-	*this = {};
 }

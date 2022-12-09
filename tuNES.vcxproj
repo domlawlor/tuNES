@@ -72,10 +72,9 @@
     <ClCompile Include="code\cpu.cpp" />
     <ClCompile Include="code\main.cpp" />
     <ClCompile Include="code\cartridge.cpp" />
-    <ClCompile Include="code\memory.cpp" />
     <ClCompile Include="code\nes.cpp" />
-    <ClCompile Include="code\palette.cpp" />
     <ClCompile Include="code\ppu.cpp" />
+    <ClCompile Include="libs\raylib\include\external\tinyfiledialogs.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="code\apu.h" />
@@ -84,6 +83,9 @@
     <ClInclude Include="code\cartridge.h" />
     <ClInclude Include="code\nes.h" />
     <ClInclude Include="code\ppu.h" />
+    <ClInclude Include="libs\raylib\include\gui_file_dialogs.h" />
+    <ClInclude Include="libs\raylib\include\raygui.h" />
+    <ClInclude Include="libs\raylib\include\external\tinyfiledialogs.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

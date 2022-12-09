@@ -1,17 +1,17 @@
 #pragma once 
 
-const u16 ppuPixelWidth = 256;
-const u16 ppuPixelHeight = 240;
+constexpr u16 ppuPixelWidth = 256;
+constexpr u16 ppuPixelHeight = 240;
 
-const u16 pixelsPerTile = 8;
+constexpr u16 pixelsPerTile = 8;
 
-const u16 backgroundPaletteAddress = 0x3F00;
-const u16 spritePaletteAddress = 0x3F10;
+constexpr u16 backgroundPaletteAddress = 0x3F00;
+constexpr u16 spritePaletteAddress = 0x3F10;
 
-const u16 secondaryOamSpriteMax = 8;
+constexpr u16 secondaryOamSpriteMax = 8;
 
-const u16 oamSize = 0x100;
-const u16 oamSpriteTotal = 64;
+constexpr u16 oamSize = 0x100;
+constexpr u16 oamSpriteTotal = 64;
 
 struct OamSprite
 {
@@ -33,31 +33,39 @@ struct Sprite
 	u8 patternHigh;
 };
 
-enum class ScanlineType
-{
-	VISIBLE = 0,
-	POST_RENDER,
-	VBLANK,
-	PRE_RENDER
-};
-
-//constexpr u64 PpuMemorySize = Kilobytes(64);
-constexpr u64 PpuMemorySize = Kilobytes(16);
 constexpr u64 NametableBankSize = Kilobytes(1);
+constexpr u8 PaletteSize = 32;
 
 class Ppu
 {
 public:
-	void Init();
+	Ppu();
+	~Ppu();
+
+	void Reset();
 	void RunCatchup(u64 masterClock);
 
 	Color *GetPixelBuffer() { return m_pixelBuffer; };
+	u64 GetFrameNum() { return m_frameNum; }
+
+	u8 ReadRegisters(u16 address);
+	void WriteRegisters(u16 address, u8 value);
+
+	u16 GetCycle() { return m_cycle; };
+	u16 GetScanline() { return m_scanline; };
+
+	void WriteOAMValue(u8 value);
 
 private:
+	u8 ReadPpuMemory(u16 address);
+	void WritePpuMemory(u16 address, u8 value);
+
+	u8 *GetNametableBank(u16 address);
+
 	void RunCycle();
 
 	void VisibleLine();
-	void PostRenderLine() {}; // Does nothing
+	void PostRenderLine();
 	void VblankLine();
 	void PreRenderLine();
 
@@ -73,88 +81,82 @@ private:
 	void DrawPixel(u16 x, u16 y, Color colour);
 
 private:
-	Color *m_pixelBuffer;
-	u8 m_memory[PpuMemorySize];
-
+	Color *m_pixelBuffer = nullptr;
+	
 	u8 m_nametableBankA[NametableBankSize];
 	u8 m_nametableBankB[NametableBankSize];
 	u8 m_nametableBankC[NametableBankSize];
 	u8 m_nametableBankD[NametableBankSize];
 
-	bool m_hitEndFrame;
-//};
-//
-//struct Ppu
-//{
-	u64 clocksHit;
+	u8 m_paletteMemory[PaletteSize];
 
-	bool renderingEnabled;
+	u64 m_frameNum = 0;
+	u64 m_masterClock = 0;
 
-	bool oddFrame;
 
-	u16 scanline;
-	u16 scanlineCycle;
+	u16 m_scanline = 0;
+	u16 m_cycle = 0;
 
-	ScanlineType scanlineType;
+	bool renderingEnabled = false;
 
 	// VRAM Address
-	u16 vRamAdrs;
-	u16 tempVRamAdrs;
-	u8 latchWrite;
-	u8 fineX;
+	u16 vRamAdrs = 0;
+	u16 tempVRamAdrs = 0;
+	bool latchWrite = false;
+	u8 fineX = 0;
 
 	// 
-	u16 lowPatternShiftReg;
-	u16 highPatternShiftReg;
-	u8 paletteLatchOld;
-	u8 paletteLatchNew;
+	u16 lowPatternShiftReg = 0;
+	u16 highPatternShiftReg = 0;
+	u8 paletteLatchOld = 0;
+	u8 paletteLatchNew = 0;
 
-	u8 nextLowPattern;
-	u8 nextHighPattern;
-	u8 nextAtrbByte;
-	u16 nextNametableAdrs;
+	u8 nextLowPattern = 0;
+	u8 nextHighPattern = 0;
+	u8 nextAtrbByte = 0;
+	u16 nextNametableAdrs = 0;
 
 	// Control Reg
-	u8 nametableBase;
-	u8 vRamIncrement;
-	u16 sPRTPattenBase;
-	u16 bGPatternBase;
-	bool spriteSize8x16;
-	bool ppuSlave;
-	bool generateNMI;
+	u8 nametableBase = 0;
+	u8 vRamIncrement = 0;
+	u16 sPRTPattenBase = 0;
+	u16 bGPatternBase = 0;
+	bool spriteSize8x16 = 0;
+	bool ppuSlave = 0;
+	bool generateNMI = 0;
 
 	// Mask Reg
-	bool greyScale;
-	bool showBGLeft8Pixels;
-	bool showSPRTLeft8Pixels;
-	bool showBackground;
-	bool showSprites;
-	bool emphasizeRed;
-	bool emphasizeGreen;
-	bool emphasizeBlue;
+	bool greyScale = 0;
+	bool showBGLeft8Pixels = 0;
+	bool showSPRTLeft8Pixels = 0;
+	bool showBackground = 0;
+	bool showSprites = 0;
+	bool emphasizeRed = 0;
+	bool emphasizeGreen = 0;
+	bool emphasizeBlue = 0;
 
 	// Status Reg
-	bool spriteOverflow;
-	bool spriteZeroHit;
-	bool verticalBlank;
+	bool spriteOverflow = 0;
+	bool spriteZeroHit = 0;
+	bool verticalBlank = 0;
 
-	bool supressVbl;
-	bool supressNmiSet;
+	bool supressVbl = 0;
+	bool supressNmiSet = 0;
 
 	// Oam Address Reg
-	u8 oamAddress;
+	u8 oamAddress = 0;
 
 	// VRam Data Read Buffering
-	u8 vRamDataBuffer;
+	u8 vRamDataBuffer = 0;
 
 	//Sprites
-	u8 *oamDma;
+	u8 *oamDma = nullptr;
 	u8 oam[oamSize];
 
-	u8 secondarySpriteCount;
+	u8 secondarySpriteCount = 0;
 	Sprite secondaryOam[secondaryOamSpriteMax];
 
-	u8 preparedSpriteCount;
+	u8 preparedSpriteCount = 0;
 	Sprite preparedSprites[secondaryOamSpriteMax];
 };
 
