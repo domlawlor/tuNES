@@ -9,7 +9,7 @@
 
 #include "cpu.cpp"
 #include "ppu.cpp"
-//#include "apu.cpp"
+#include "apu.cpp"
 #include "cartridge.cpp"
 
 // Static define
@@ -51,14 +51,14 @@ void Nes::Init()
 {
 	m_cpu = new Cpu();
 	m_ppu = new Ppu();
+	m_apu = new Apu();
 }
 
 void Nes::Deinit()
 {
 	delete m_cpu;
-
-	//m_ppu->Deinit();
 	delete m_ppu;
+	delete m_apu;
 	delete m_cartridge;
 }
 

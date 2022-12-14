@@ -128,6 +128,7 @@ void Cpu::RunPreMemoryCycles(bool isRead)
 	masterClock += isRead ? preReadClockCycles : preWriteClockCycles;
 	Nes::GetPpu()->RunCatchup(masterClock);
 	//_console->ProcessCpuClock();
+	Nes::GetApu()->RunCycle();
 }
 
 void Cpu::RunPostMemoryCycles(bool isRead)

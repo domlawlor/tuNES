@@ -6,7 +6,7 @@
 
 #include "cpu.h"
 #include "ppu.h"
-//#include "apu.h"
+#include "apu.h"
 #include "cartridge.h"
 
 constexpr u16 romFileNameMaxLength = Kilobytes(1);
@@ -49,6 +49,7 @@ public:
 
 	static Cpu *GetCpu() { return GetInstance().m_cpu; };
 	static Ppu *GetPpu() { return GetInstance().m_ppu; };
+	static Apu *GetApu() { return GetInstance().m_apu; };
 	static Cartridge *GetCartridge() { return GetInstance().m_cartridge; };
 	static Input *GetInput() { return &GetInstance().m_input; };
 
@@ -75,6 +76,7 @@ private:
 
 	Cpu *m_cpu;
 	Ppu *m_ppu;
+	Apu *m_apu;
 	Cartridge *m_cartridge;
 	Input m_input;
 
