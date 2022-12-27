@@ -42,58 +42,12 @@ GameState gameState = GameState::NES_MENU;
 
 void MenuUpdate();
 
-// Cycles per second (hz)
-float frequency = 440.0f;
-
-// Audio frequency, for smoothing
-bool updateAudioFrequency = false;
-float audioFrequency = 440.0f;
-
-// Index for audio rendering
-float sineIdx = 0.0f;
-
-// Audio input processing callback
-void AudioInputCallback(void *buffer, unsigned int frames)
-{
-	audioFrequency = frequency + (audioFrequency - frequency) * 0.95f;
-	audioFrequency += 1.0f;
-	audioFrequency -= 1.0f;
-	float incr = audioFrequency / 44100.0f;
-	short *d = (short *)buffer;
-
-	for(int i = 0; i < frames; i++)
-	{
-		d[i] = (short)(32000.0f * sinf(2 * PI * sineIdx));
-		sineIdx += incr;
-		if(sineIdx > 1.0f) sineIdx -= 1.0f;
-	}
-}
-
 int main()
 {
 	const char *workDir = GetWorkingDirectory();
 	TraceLog(LOG_INFO, "workDir = %s", workDir);
 
 	InitWindow(gWindowWidth, gWindowHeight, "tuNES");
-
-	//////
-
-	int waveLength = 1;
-	updateAudioFrequency = false;
-
-	InitAudioDevice();
-
-	constexpr u32 samplesPerFrame = 4096;
-	SetAudioStreamBufferSizeDefault(samplesPerFrame);
-	
-	// Init raw audio stream (sample rate: 44100, sample size: 16bit-short, channels: 1-mono)
-	AudioStream stream = LoadAudioStream(44100, 16, 1);
-	
-	SetAudioStreamCallback(stream, AudioInputCallback);
-
-	PlayAudioStream(stream);        // Start processing stream buffer (no data loaded currently)
-
-	//////
 
 	u8 targetFPS = 60;
 	SetTargetFPS(targetFPS);
@@ -122,7 +76,6 @@ int main()
 		{
 			Nes::GetInstance().Update();
 		}
-
 
 		Color *pixelBuffer = Nes::GetPpu()->GetPixelBuffer();
 		

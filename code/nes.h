@@ -17,6 +17,8 @@ constexpr u16 gNesHeight = 240;
 constexpr u32 gWindowWidth = gNesWidth * gWindowScale;
 constexpr u32 gWindowHeight = gNesHeight * gWindowScale;
 
+constexpr u64 gNesCpuClockRate = 1789773;
+
 struct Input
 {
 	enum Buttons {

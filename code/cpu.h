@@ -69,6 +69,12 @@ static char *OpNames[INSTRUCTION_COUNT] =
 	/*F*/  "BEQ","SBC","KIL","ISC","SKB","SBC","INC","ISC","SED","SBC","NOP","ISC","SKW","SBC","INC","ISC"
 };
 
+enum IRQ
+{
+	EXTERNAL = 0x1,
+	FRAME_COUNTER = 0x2,
+	DMC = 0x4
+};
 
 //constexpr u64 CpuMemorySize = Kilobytes(64);
 constexpr u64 CpuRamSize = Kilobytes(2);
@@ -142,6 +148,11 @@ public:
 
 	void StartDMAWrite(u8 value);
 	void StartApuDMCWrite();
+
+	bool IsOddCycle() { return (cycle % 2) != 0; };
+
+	void SetApuFrameCounterIRQ() { irqFlag = irqFlag | IRQ::FRAME_COUNTER; }
+	void ClearApuFrameCounterIRQ() { irqFlag = irqFlag & ~IRQ::FRAME_COUNTER; }
 private:
 	u16 ReadOperand();
 

@@ -3,6 +3,7 @@
   <ItemGroup>
     <None Include="build.bat" />
     <None Include="README.md" />
+    <None Include="buildDebug.bat" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="code\apu.cpp" />
@@ -12,6 +13,8 @@
     <ClCompile Include="code\ppu.cpp" />
     <ClCompile Include="code\main.cpp" />
     <ClCompile Include="libs\raylib\include\external\tinyfiledialogs.cpp" />
+    <ClCompile Include="libs\Blip_Buffer\tempBlip_Buffer.cpp" />
+    <ClCompile Include="libs\Blip_Buffer\blip_buf.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="code\apu.h" />
@@ -23,5 +26,8 @@
     <ClInclude Include="libs\raylib\include\raygui.h" />
     <ClInclude Include="libs\raylib\include\gui_file_dialogs.h" />
     <ClInclude Include="libs\raylib\include\external\tinyfiledialogs.h" />
+    <ClInclude Include="libs\Blip_Buffer\tempBlip_Buffer.h" />
+    <ClInclude Include="libs\Blip_Buffer\tempBlip_Synth.h" />
+    <ClInclude Include="libs\Blip_Buffer\blip_buf.h" />
   </ItemGroup>
 </Project>

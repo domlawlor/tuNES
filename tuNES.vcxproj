@@ -39,12 +39,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <NMakeBuildCommandLine>build.bat</NMakeBuildCommandLine>
+    <NMakeBuildCommandLine>buildDebug.bat</NMakeBuildCommandLine>
     <NMakeOutput>tuNES.exe</NMakeOutput>
     <NMakePreprocessorDefinitions>_DEBUG;CPU_LOG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
     <IntDir>build\</IntDir>
     <OutDir>$(SolutionDir)build\</OutDir>
-    <NMakeIncludeSearchPath>E:\code\tuNES\libs\raylib\include;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
+    <NMakeIncludeSearchPath>E:\code\tuNES\libs\raylib\include;E:\code\tuNES\libs\Blip_Buffer;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <NMakeBuildCommandLine>build.bat</NMakeBuildCommandLine>
@@ -52,6 +52,7 @@
     <NMakePreprocessorDefinitions>NDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
     <IntDir>build\</IntDir>
     <OutDir>$(SolutionDir)build\</OutDir>
+    <NMakeIncludeSearchPath>E:\code\tuNES\libs\raylib\include;E:\code\tuNES\libs\Blip_Buffer;$(NMakeIncludeSearchPath)</NMakeIncludeSearchPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <BuildLog>
@@ -65,6 +66,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <None Include="build.bat" />
+    <None Include="buildDebug.bat" />
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
@@ -74,6 +76,8 @@
     <ClCompile Include="code\cartridge.cpp" />
     <ClCompile Include="code\nes.cpp" />
     <ClCompile Include="code\ppu.cpp" />
+    <ClCompile Include="libs\Blip_Buffer\blip_buf.cpp" />
+    <ClCompile Include="libs\Blip_Buffer\tempBlip_Buffer.cpp" />
     <ClCompile Include="libs\raylib\include\external\tinyfiledialogs.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -83,6 +87,9 @@
     <ClInclude Include="code\cartridge.h" />
     <ClInclude Include="code\nes.h" />
     <ClInclude Include="code\ppu.h" />
+    <ClInclude Include="libs\Blip_Buffer\blip_buf.h" />
+    <ClInclude Include="libs\Blip_Buffer\tempBlip_Buffer.h" />
+    <ClInclude Include="libs\Blip_Buffer\tempBlip_Synth.h" />
     <ClInclude Include="libs\raylib\include\gui_file_dialogs.h" />
     <ClInclude Include="libs\raylib\include\raygui.h" />
     <ClInclude Include="libs\raylib\include\external\tinyfiledialogs.h" />

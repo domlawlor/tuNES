@@ -39,8 +39,7 @@ u8 Cpu::RawReadMemory(u16 address)
 	}
 	else if((address >= 0x4000 && address <= 0x4013) || address == 0x4015)
 	{
-		return 0;
-		// Apu
+		return Nes::GetApu()->ReadRegisters(address);
 	}
 	else if(address == 0x4016 || address == 0x4017)
 	{
@@ -106,7 +105,7 @@ void Cpu::RawWriteMemory(u16 address, u8 value)
 	}
 	else if((address >= 0x4000 && address <= 0x4013) || address == 0x4015 || address == 0x4017)
 	{
-		// Apu
+		Nes::GetApu()->WriteRegisters(address, value);
 	}
 	else if(address == 0x4016)
 	{

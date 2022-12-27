@@ -2,9 +2,22 @@
 
 #include "globals.h"
 
+#include "blip_buf.h"
+
+constexpr u64 CyclesEachAudioFrame = 10000;
+constexpr int MaxSamplesInBlipBuffer = 24000;
+constexpr int MaxSamplesInTempBuffer = 1024;
+
+class Apu;
+
 class Envelope
 {
 public:
+	void Reset()
+	{
+		*this = {};
+	}
+
 	u8 GetEnvelopeVolume()
 	{
 		return (m_constVolume) ? m_volume : m_counter;
@@ -34,7 +47,7 @@ public:
 	void SetLoop(bool isLooping) { m_loopSet = isLooping; }
 	void SetVolume(u8 volume) { m_volume = volume; }
 	void SetConstVolume(bool isConstVolume) { m_constVolume = isConstVolume; }
-	void Reset() { m_resetSet = true; }
+	void RegisterReset() { m_resetSet = true; }
 
 private:
 	bool m_resetSet = false;
@@ -53,13 +66,19 @@ constexpr u8 SquareDutySequences[4][8] =
 	{ 1, 1, 1, 1, 1, 1, 0, 0 }
 };
 
-struct Square
+struct SquareChannel
 {
-	bool enabled;
+	s16 *outputDeltas;
+	s16 currentOutput = 0;
+	s16 lastOutput = 0;
 
-	u8 dutyCycle;
+	u64 lastCycle = 0;
 
 	Envelope envelope;
+
+	bool enabled = false;
+
+	u8 dutyCycle = 0;
 
 	bool haltLengthCounter = false;
 	u8 lengthCounter = 0;
@@ -78,6 +97,56 @@ struct Square
 	bool sweepNegateSet = false;
 
 	bool isSquare1 = false;
+
+	u16 timer = 0;
+	
+
+	SquareChannel()
+	{
+		outputDeltas = (s16 *)MemAlloc(CyclesEachAudioFrame * sizeof(s16));
+		Reset();
+	}
+
+	~SquareChannel()
+	{
+		MemFree(outputDeltas);
+	}
+
+	void Reset()
+	{
+		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
+
+		currentOutput = 0;
+		lastOutput = 0;
+
+		lastCycle = 0;
+
+		envelope.Reset();
+
+		enabled = false;
+
+		dutyCycle = 0;
+
+		haltLengthCounter = false;
+		lengthCounter = 0;
+
+		period = 0;
+		cyclesPerPeriod = 0;
+
+		currentDutyPos = 0;
+
+		targetSweepPeriod = 0;
+		sweepDivider = 0;
+		sweepPeriod = 0;
+		sweepShiftCount = 0;
+		enabledSweep = false;
+		sweepResetSet = false;
+		sweepNegateSet = false;
+
+		isSquare1 = false;
+
+		timer = 0;
+	}
 
 	bool IsUnmuted()
 	{
@@ -122,10 +191,7 @@ struct Square
 		}
 	}
 
-	void ClockUpdate()
-	{
-		currentDutyPos = (currentDutyPos - 1) & 0x07;
-	}
+	void ClockUpdate(u64 currentCycle, Apu *apu);
 };
 
 constexpr  u8 TriangleSequence[32] = 
@@ -134,9 +200,15 @@ constexpr  u8 TriangleSequence[32] =
 	0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 };
 
-struct Triangle
+struct TriangleChannel
 {
-	bool enabled;
+	s16 *outputDeltas;
+	s16 currentOutput = 0;
+	s16 lastOutput = 0;
+
+	u64 lastCycle = 0;
+
+	bool enabled = false;
 
 	bool haltLengthCounter = false;
 	u8 lengthCounter = 0;
@@ -148,6 +220,45 @@ struct Triangle
 	bool resetCounter = false;
 
 	u8 triangleSequencePos = 0;
+
+	u16 timer = 0;
+
+
+	TriangleChannel()
+	{
+		outputDeltas = (s16 *)MemAlloc(CyclesEachAudioFrame * sizeof(s16));
+		Reset();
+	}
+
+	~TriangleChannel()
+	{
+		MemFree(outputDeltas);
+	}
+
+	void Reset()
+	{
+		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
+
+		currentOutput = 0;
+		lastOutput = 0;
+
+		lastCycle = 0;
+
+		enabled = false;
+
+		haltLengthCounter = false;
+		lengthCounter = 0;
+
+		period = 0;
+
+		linearCounterOnReset = 0;
+		currentLinearCounter = 0;
+		resetCounter = false;
+
+		triangleSequencePos = 0;
+
+		timer = 0;
+	}
 
 	bool IsUnmuted()
 	{
@@ -171,17 +282,7 @@ struct Triangle
 		}
 	}
 
-	void ClockUpdate()
-	{
-		bool isActive = currentLinearCounter > 0 && lengthCounter > 0;
-
-		if(!isActive)
-		{
-			return;
-		}
-		
-		triangleSequencePos = (triangleSequencePos + 1) & 0x1F;
-	}
+	void ClockUpdate(u64 currentCycle, Apu *apu);
 };
 
 constexpr u16 NoisePeriodsTable[16] = 
@@ -200,42 +301,139 @@ constexpr u16 NoisePeriodsTablePAL[16] =
 	708,  944, 1890, 3778
 };
 
-
-struct Noise
+struct NoiseChannel
 {
-	bool enabled;
-	
-	Envelope envelope;
+	s16 *outputDeltas;
+	s16 currentOutput = 0;
+	s16 lastOutput = 0;
 
-	bool haltLengthCounter = false;
+	u64 lastCycle = 0;
+
+	Envelope envelope;
+	
+	u16 period = 0;
+	u16 shiftRegister = 1;
+	u16 timer = 0;
 	u8 lengthCounter = 0;
 
-	bool modeFlag;
-	u8 period;
+	bool enabled = false;
+	bool modeFlag = false;
+	bool haltLengthCounter = false;
 
-	u16 shiftRegister = 1;
+	NoiseChannel()
+	{
+		outputDeltas = (s16 *)MemAlloc(CyclesEachAudioFrame * sizeof(s16));
+		Reset();
+	}
+
+	~NoiseChannel()
+	{
+		MemFree(outputDeltas);
+	}
+
+	void Reset()
+	{
+		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
+
+		currentOutput = 0;
+		lastOutput = 0;
+		lastCycle = 0;
+
+		envelope.Reset();
+
+		period = 0;
+		shiftRegister = 1;
+		timer = 0;
+		lengthCounter = 0;
+
+		enabled = false;
+		modeFlag = false;
+		haltLengthCounter = false;
+	}
 
 	bool IsUnmuted() { return shiftRegister == 1; }
-
-	void Update()
-	{
-		uint16_t feedback = (shiftRegister & 0x01) ^ ((shiftRegister >> (modeFlag ? 6 : 1)) & 0x01);
-		shiftRegister >>= 1;
-		shiftRegister |= (feedback << 14);
-	}
+	void ClockUpdate(u64 currentCycle, Apu *apu);
 };
 
-struct Dmc
+struct DmcChannel
 {
-	bool enabled;
-	bool irqEnable;
-	bool loop;
-	u8 freqIndex;
+	s16 *outputDeltas;
+	s16 currentOutput = 0;
+	s16 lastOutput = 0;
 
-	u8 loadCounter;
-	u8 sampleAddress;
-	u8 sampleLength;
+	u64 lastCycle = 0;
+	
+	bool enabled = false;
+	bool irqEnable = false;
+	bool loop = false;
+	u8 freqIndex = 0;
+
+	u8 loadCounter = 0;
+	u8 sampleAddress = 0;
+	u8 sampleLength = 0;
+
+	DmcChannel()
+	{
+		outputDeltas = (s16 *)MemAlloc(CyclesEachAudioFrame * sizeof(s16));
+		Reset();
+	}
+
+	~DmcChannel()
+	{
+		MemFree(outputDeltas);
+	}
+
+	void Reset()
+	{
+		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
+
+		currentOutput = 0;
+		lastOutput = 0;
+		lastCycle = 0;
+
+		enabled = false;
+		irqEnable = false;
+		loop = false;
+		freqIndex = 0;
+
+		loadCounter = 0;
+		sampleAddress = 0;
+		sampleLength = 0;
+	}
+
+	void ClockUpdate(u64 currentCycle, Apu *apu);
 };
+
+// From mesen
+constexpr s32 FrameCounterCycleSteps[2][6] =
+{
+	{ 7457, 14913, 22371, 29828, 29829, 29830},
+	{ 7457, 14913, 22371, 29829, 37281, 37282}
+};
+
+enum class FrameCounterStepType
+{
+	NONE,
+	QUARTER,
+	HALF
+};
+
+constexpr FrameCounterStepType FrameCounterStepTypes[2][6] =
+{
+	{ FrameCounterStepType::QUARTER, FrameCounterStepType::HALF, FrameCounterStepType::QUARTER,
+		FrameCounterStepType::NONE, FrameCounterStepType::HALF, FrameCounterStepType::NONE },
+	{ FrameCounterStepType::QUARTER, FrameCounterStepType::HALF, FrameCounterStepType::QUARTER,
+		FrameCounterStepType::NONE, FrameCounterStepType::HALF, FrameCounterStepType::NONE }
+};
+
+constexpr u8 LengthCounterTable[] =
+{
+	0x0A, 0xFE, 0x14, 0x02, 0x28, 0x04, 0x50, 0x06,
+	0xA0, 0x08, 0x3C, 0x0A, 0x0E, 0x0C, 0x1A, 0x0E,
+	0x0C, 0x10, 0x18, 0x12, 0x30, 0x14, 0x60, 0x16,
+	0xC0, 0x18, 0x48, 0x1A, 0x10, 0x1C, 0x20, 0x1E
+};
+
 
 class Apu
 {
@@ -243,68 +441,106 @@ public:
 	Apu();
 	~Apu();
 
-	void Reset();
+	//void Reset();
 
 	void RunCycle();
+
+	void UpdateCycles();
+	void OnFrameCounterClock(bool isHalfFrame);
 
 	u8 ReadRegisters(u16 address);
 	void WriteRegisters(u16 address, u8 value);
 
-	void FrameCounterUpdate();
+	bool IsFrameCounterUpdateRequired(u32 cycleDelta);
 
-	void CalculateSample()
-	{
-		u8 square1Value = 0;
-		u8 square2Value = 0;
-		u8 triangleValue = 0;
-		u8 noiseValue = 0;
-		u8 dmcValue = 0;
+	void AddDeltaCycleNum(u64 cycleNum);
 
-		if(square1.lengthCounter > 0 && square1.IsUnmuted())
-		{
-			u8 volume = square1.envelope.GetEnvelopeVolume();
-			u8 sequenceValue = SquareDutySequences[square1.dutyCycle][square1.currentDutyPos];
-			square1Value = volume * sequenceValue;
-		}
-		if(square2.lengthCounter > 0 && square2.IsUnmuted())
-		{
-			u8 volume = square2.envelope.GetEnvelopeVolume();
-			u8 square2Value = SquareDutySequences[square2.dutyCycle][square2.currentDutyPos];
-			square2Value = volume * square2Value;
-		}
-		if(triangle.lengthCounter > 0 && triangle.IsUnmuted())
-		{
-			triangleValue = TriangleSequence[triangle.triangleSequencePos];
-		}
-		if(noise.lengthCounter > 0 && noise.IsUnmuted())
-		{
-			noiseValue = noise.envelope.GetEnvelopeVolume();
-		}
-
-		float squareOutput = square1Value * square2Value;
-		float tndOutput = dmcValue + (2 * noiseValue) + (3 * triangleValue);
-
-		// Taken from mesen.. not exactly what is on NesDev. Worth testing
-		u16 squareVolume = (u16)(477600 / (8128.0 / squareOutput + 100.0));
-		u16 tndVolume = (u16)(818350 / (24329.0 / tndOutput + 100.0));
-
-		s16 resultSample = squareVolume + tndVolume;
-	}
+	void FillAudioBuffer(void *bufferToFill, u32 samplesNeeded);
 
 private:
-	Square square1;
-	Square square2;
-	Triangle triangle;
-	Noise noise;
-	Dmc dmc;
+	AudioStream audioStream;
+	
+	u64 deltaCycleNums[CyclesEachAudioFrame] = {0};
+	u32 totalDeltas = 0;
 
-	bool dmcInterrupt;
-	bool frameInterrupt;
+	s16 square1Output = 0;
+	s16 square2Output = 0;
+	s16 triangleOutput = 0;
+	s16 noiseOutput = 0;
+	s16 dmcOutput = 0;
 
-	bool mode;
-	bool irqInhibit;
+	s16 lastMixedOutput = 0;
 
-	u64 cycle;
+	blip_t *sampleBuffer = nullptr;
 
-	//r32 finalOutput;
+	s16 *tempSampleBuffer = nullptr;
+
+	SquareChannel square1;
+	SquareChannel square2;
+	TriangleChannel triangle;
+	NoiseChannel noise;
+	DmcChannel dmc;
+
+	bool dmcInterrupt = false;
+	bool frameInterrupt = false;
+
+	bool forceUpdateSet = false;
+
+	u64 cycle = 0;
+	u64 lastCycle = 0;
+
+	u64 frameCounterLastCycle = 0;
+	s16 frameCounterPendingWriteValue = 0;
+	s8 frameCounterWriteWaitCycles = 0;
+
+	u8 frameCounterMode = 0;
+	u8 frameCounterCurrentStep = 0;
+
+	// Skip cycles after clocking to the next Framecounter step
+	u8 frameCounterSkipCycles = 0;
+
+	bool frameCounterIrqInhibit = false;
+
+	void Apu::Reset()
+	{
+		MemorySet(deltaCycleNums, 0, CyclesEachAudioFrame * sizeof(u64));
+		totalDeltas = 0;
+
+		square1Output = 0;
+		square2Output = 0;
+		triangleOutput = 0;
+		noiseOutput = 0;
+		dmcOutput = 0;
+
+		lastMixedOutput = 0;
+
+		blip_clear(sampleBuffer);
+		MemorySet(tempSampleBuffer, 0, MaxSamplesInBlipBuffer * sizeof(s16));
+
+		square1.Reset();
+		square2.Reset();
+		triangle.Reset();
+		noise.Reset();
+		dmc.Reset();
+
+		dmcInterrupt = false;
+		frameInterrupt = false;
+
+		forceUpdateSet = false;
+
+		cycle = 0;
+		lastCycle = 0;
+
+		frameCounterLastCycle = 0;
+		frameCounterPendingWriteValue = 0;
+		frameCounterWriteWaitCycles = 0;
+
+		frameCounterMode = 0;
+		frameCounterCurrentStep = 0;
+
+		// Skip cycles after clocking to the next Framecounter step
+		frameCounterSkipCycles = 0;
+
+		frameCounterIrqInhibit = false;
+	}
 };
