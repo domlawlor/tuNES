@@ -3,7 +3,9 @@
 #include <cstdio> // for printf
 #include <stdlib.h>
 
-
+#if !defined(PLATFORM_DESKTOP)
+#define CUSTOM_MODAL_DIALOGS 1
+#endif
 #define GUI_FILE_DIALOGS_IMPLEMENTATION
 #include "gui_file_dialogs.h"
 
@@ -49,9 +51,6 @@ int main()
 
 	InitWindow(gWindowWidth, gWindowHeight, "tuNES");
 
-	u8 targetFPS = 60;
-	SetTargetFPS(targetFPS);
-
 	InitialiseBackBuffers(gNesWidth, gNesHeight);
 
 	Vector2 originVec = {0,0};
@@ -60,16 +59,30 @@ int main()
 
 	Nes::GetInstance().Init();
 
-	float lastTime = GetTime();
-
-	u32 framesPerSec = 0;
-	float perSecondCountDown = 1.0f;
-
 	while(!WindowShouldClose())
-	{ 
-		if(IsKeyPressed(KEY_F1))
+	{
+		if(IsKeyPressed(KEY_TAB))
 		{
 			gameState = (gameState == GameState::NES_GAME) ? GameState::NES_MENU : GameState::NES_GAME;
+		}
+
+		if(IsFileDropped())
+		{
+			s32 droppedFileCount = 0;
+			FilePathList droppedFiles = LoadDroppedFiles();
+
+			TraceLog(LOG_INFO, "-- Dropped Files -- count = %u", droppedFiles.count);
+			for(u32 fileNum = 0; fileNum < droppedFiles.count; ++fileNum)
+			{
+				TraceLog(LOG_INFO, "%u - %s", fileNum, droppedFiles.paths[0]);
+			}
+
+			if(IsFileExtension(droppedFiles.paths[0], ".nes"))
+			{
+				Nes::QueueRomLoad(droppedFiles.paths[0]);
+				gameState = GameState::NES_GAME;
+			}
+			UnloadDroppedFiles(droppedFiles);
 		}
 
 		if(gameState == GameState::NES_GAME)
@@ -77,10 +90,10 @@ int main()
 			Nes::GetInstance().Update();
 		}
 
-		Color *pixelBuffer = Nes::GetPpu()->GetPixelBuffer();
-		
 		Texture2D drawTexture = backBuffers[currentDrawBackBufferIndex];
 		currentDrawBackBufferIndex = (currentDrawBackBufferIndex + 1) % backBufferCount;
+
+		Color *pixelBuffer = Nes::GetPpu()->GetPixelBuffer();
 		UpdateTexture(drawTexture, pixelBuffer);
 
 		BeginDrawing();
@@ -94,25 +107,9 @@ int main()
 			MenuUpdate();
 		}
 
+		//DrawFPS(10, 10);
+
 		EndDrawing();
-
-#if 0 // FPS Log
-		{
-			framesPerSec++;
-
-			float currentTime = GetTime();
-			float deltaTime = currentTime - lastTime;
-			lastTime = currentTime;
-
-			perSecondCountDown -= deltaTime;
-			if(perSecondCountDown <= 0.0f)
-			{
-				TraceLog(LOG_INFO, "FPS - %u", framesPerSec);
-				framesPerSec = 0;
-				perSecondCountDown = 1.0f;
-			}
-		}
-#endif
 	}
 
 	Nes::GetInstance().Deinit();
@@ -130,21 +127,45 @@ constexpr float buttonWidth = 120;
 constexpr float buttonHeight = 40;
 constexpr float buttonSpacing = 10;
 
+static bool showLoadRomUI = false;
+
 void MenuUpdate()
 {
 	float buttonPosX = buttonStartX;
 	float buttonPosY = buttonStartY;
 
 	Rectangle fileDialogRect = {buttonPosX, buttonPosY, buttonWidth, buttonHeight};
-	if(GuiButton(fileDialogRect, "Load Rom"))
+
+	bool loadRomPressed = GuiButton(fileDialogRect, "Load Rom");
+
+
+	if(loadRomPressed)
+	{
+		showLoadRomUI = true;
+	}
+
+	if(showLoadRomUI)
 	{
 		char loadFilename[1024] = {};
-		bool success = GuiFileDialog(DIALOG_OPEN_FILE, "Load ROM", loadFilename, "*.nes", "ROM Files (*.nes)");
-		if(success)
+
+#if defined(CUSTOM_MODAL_DIALOGS)
+		int result = GuiFileDialog(DIALOG_MESSAGE, "Load File", loadFilename, "OK", "Drag and drop a .nes file to load Rom");
+
+		if(result > 0)
+		{
+			showLoadRomUI = false;
+		}
+#else
+		int result = GuiFileDialog(DIALOG_OPEN_FILE, "Load File", loadFilename, "*.nes;*.nsf", "Files (*.nes, *.nsf)");
+
+		if(result > 0)
 		{
 			Nes::QueueRomLoad(loadFilename);
 			gameState = GameState::NES_GAME;
 		}
+
+		showLoadRomUI = false;
+#endif	
 	}
 	buttonPosY += (buttonHeight + buttonSpacing);
 

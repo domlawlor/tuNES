@@ -41,6 +41,24 @@ void Nes::Update()
 		while(!newFrameHit)
 		{
 			InputUpdate();
+
+			u64 currentCycle = m_cpu->GetCycleNum();
+			u64 cyclesElapsed = (currentCycle - m_cyclesStartHz);
+			if(cyclesElapsed >= (gNesCpuClockRate/120))
+			{
+				r64 currentTime = GetTime();
+				r64 deltaTime = currentTime - m_startHzTime;
+				if(deltaTime < (1.0/120))
+				{
+					continue;
+				}
+				else
+				{
+					m_cyclesStartHz = currentCycle;
+					m_startHzTime = currentTime;
+				}
+			}
+
 			m_cpu->Run();
 			newFrameHit = m_ppu->GetFrameNum() != currentFrameNum;
 		}
@@ -52,6 +70,8 @@ void Nes::Init()
 	m_cpu = new Cpu();
 	m_ppu = new Ppu();
 	m_apu = new Apu();
+
+	m_startHzTime = GetTime();
 }
 
 void Nes::Deinit()
@@ -100,14 +120,56 @@ bool Nes::LoadCartridge(const char *fileName)
 		delete m_cartridge;
 		m_cartridge = nullptr;
 	}
-
-	m_cartridge = Cartridge::CreateCartridgeForRom(romFileData, romFileSize);
-
-	if(!m_cartridge)
+	
+	if(IsFileExtension(fileName, ".nes"))
 	{
-		TraceLog(LOG_ERROR, "LoadCartridge failed to CreateCartridgeForRom for file - %s", fileName);
-		return false;
+		m_cartridge = Cartridge::CreateCartridgeForRom(romFileData, romFileSize);
+		if(!m_cartridge)
+		{
+			TraceLog(LOG_ERROR, "LoadCartridge failed to CreateCartridgeForRom for file - %s", fileName);
+			return false;
+		}
+		m_nesMode = NesMode::ROM;
 	}
+	else if(IsFileExtension(fileName, ".nsf"))
+	{
+		struct NSFHeader
+		{
+			u8 nesId[5];
+			u8 versionNumber;
+			u8 totalSongs;
+			u8 startingSong;
+
+			u16 loadAddress;
+			u16 initAddress;
+			u16 playAddress;
+
+			u8 songName[32];
+			u8 artistName[32];
+			u8 copyright[32];
+
+			u16 playSpeedNtsc;
+			u8 bankswitchInitValues[8];
+			u16 playSpeedPal;
+			u8 regionByte;
+			u8 soundChipsUsed;
+			u8 reservedNSF2;
+			u8 programDataLength[3];
+		};
+		Assert(sizeof(NSFHeader) == 0x80);
+
+		NSFHeader *header = (NSFHeader *)romFileData;
+
+		bool isNsfRom = (header->nesId[0] == 'N' && header->nesId[1] == 'E'
+			&& header->nesId[2] == 'S' && header->nesId[2] == 'M');
+
+		//TraceLog(LOG_ERROR, "LoadCartridge failed. NSF not implemented - %s", fileName);
+		//return false;
+
+		m_nesMode = NesMode::NSF;
+	}
+
+	
 
 	return true;
 }

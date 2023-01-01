@@ -4,8 +4,8 @@
 
 #include "blip_buf.h"
 
-constexpr u64 CyclesEachAudioFrame = 10000;
-constexpr int MaxSamplesInBlipBuffer = 24000;
+constexpr u64 CyclesEachAudioFrame = 29780;//10000;
+constexpr int MaxSamplesInBlipBuffer = 100000;//44100;
 constexpr int MaxSamplesInTempBuffer = 1024;
 
 class Apu;
@@ -69,7 +69,7 @@ constexpr u8 SquareDutySequences[4][8] =
 struct SquareChannel
 {
 	s16 *outputDeltas;
-	s16 currentOutput = 0;
+	//s16 currentOutput = 0;
 	s16 lastOutput = 0;
 
 	u64 lastCycle = 0;
@@ -84,7 +84,7 @@ struct SquareChannel
 	u8 lengthCounter = 0;
 
 	u16 period = 0;
-	u16 cyclesPerPeriod = 0;
+	u16 doublePeriod = 0;
 
 	u8 currentDutyPos = 0;
 
@@ -116,7 +116,7 @@ struct SquareChannel
 	{
 		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
 
-		currentOutput = 0;
+		//currentOutput = 0;
 		lastOutput = 0;
 
 		lastCycle = 0;
@@ -131,7 +131,7 @@ struct SquareChannel
 		lengthCounter = 0;
 
 		period = 0;
-		cyclesPerPeriod = 0;
+		doublePeriod = 0;
 
 		currentDutyPos = 0;
 
@@ -157,7 +157,7 @@ struct SquareChannel
 
 	void UpdatePeriodData()
 	{
-		cyclesPerPeriod = (period * 2) + 1;
+		doublePeriod = (period * 2) + 1;
 
 		u16 sweepShiftValue = period >> sweepShiftCount;
 		if(sweepNegateSet)
@@ -203,7 +203,7 @@ constexpr  u8 TriangleSequence[32] =
 struct TriangleChannel
 {
 	s16 *outputDeltas;
-	s16 currentOutput = 0;
+	//s16 currentOutput = 0;
 	s16 lastOutput = 0;
 
 	u64 lastCycle = 0;
@@ -239,7 +239,7 @@ struct TriangleChannel
 	{
 		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
 
-		currentOutput = 0;
+		//currentOutput = 0;
 		lastOutput = 0;
 
 		lastCycle = 0;
@@ -285,7 +285,7 @@ struct TriangleChannel
 	void ClockUpdate(u64 currentCycle, Apu *apu);
 };
 
-constexpr u16 NoisePeriodsTable[16] = 
+constexpr u16 NoisePeriodTable[16] = 
 {
 	4, 8, 16, 32,
 	64, 96, 128, 160,
@@ -293,7 +293,7 @@ constexpr u16 NoisePeriodsTable[16] =
 	762, 1016, 2034, 4068
 };
 
-constexpr u16 NoisePeriodsTablePAL[16] =
+constexpr u16 NoisePeriodTablePAL[16] =
 {
 	4, 8, 14, 30,
 	60, 88, 118, 148,
@@ -304,7 +304,7 @@ constexpr u16 NoisePeriodsTablePAL[16] =
 struct NoiseChannel
 {
 	s16 *outputDeltas;
-	s16 currentOutput = 0;
+	//s16 currentOutput = 0;
 	s16 lastOutput = 0;
 
 	u64 lastCycle = 0;
@@ -335,13 +335,13 @@ struct NoiseChannel
 	{
 		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
 
-		currentOutput = 0;
+		//currentOutput = 0;
 		lastOutput = 0;
 		lastCycle = 0;
 
 		envelope.Reset();
 
-		period = 0;
+		period = NoisePeriodTable[0] - 1;
 		shiftRegister = 1;
 		timer = 0;
 		lengthCounter = 0;
@@ -351,26 +351,53 @@ struct NoiseChannel
 		haltLengthCounter = false;
 	}
 
-	bool IsUnmuted() { return shiftRegister == 1; }
+	bool IsUnmuted() { return (shiftRegister & 0x1) == 0; };
 	void ClockUpdate(u64 currentCycle, Apu *apu);
+};
+
+constexpr u16 DmcPeriodTable[16] =
+{ 
+	428, 380, 340, 320,
+	286, 254, 226, 214,
+	190, 160, 142, 128,
+	106,  84,  72,  54
+};
+
+constexpr u16 DmcPeriodTablePAL[16] =
+{
+	398, 354, 316, 298,
+	276, 236, 210, 198,
+	176, 148, 132, 118,
+	98,  78,  66,  50
 };
 
 struct DmcChannel
 {
-	s16 *outputDeltas;
+	s16 *outputDeltas = nullptr;
+
+	u64 lastCycle = 0;
+
+	bool enabled = false;
+	bool irqEnable = false;
+	bool loopSet = false;
+	bool silenceSet = true;
+	bool hasBufferData = false;
+	bool updateRequired = false;
+
 	s16 currentOutput = 0;
 	s16 lastOutput = 0;
 
-	u64 lastCycle = 0;
-	
-	bool enabled = false;
-	bool irqEnable = false;
-	bool loop = false;
-	u8 freqIndex = 0;
+	u16 period = 0;
+	u16 timer = 0;
+	u16 sampleAddress = 0;
+	u16 sampleLength = 0;
+	u16 activeAddress = 0;
+	u16 bytesLeft = 0;
 
-	u8 loadCounter = 0;
-	u8 sampleAddress = 0;
-	u8 sampleLength = 0;
+	u8 bitsToRead = 0;
+	u8 shiftRegister = 0;
+	u8 readByte = 0;
+	u8 enabledCycleDelay = 0;
 
 	DmcChannel()
 	{
@@ -386,22 +413,41 @@ struct DmcChannel
 	void Reset()
 	{
 		MemorySet(outputDeltas, 0, CyclesEachAudioFrame * sizeof(s16));
-
-		currentOutput = 0;
-		lastOutput = 0;
+	
 		lastCycle = 0;
 
 		enabled = false;
 		irqEnable = false;
-		loop = false;
-		freqIndex = 0;
+		loopSet = false;
+		silenceSet = true;
+		hasBufferData = false;
+		updateRequired = false;
 
-		loadCounter = 0;
+		currentOutput = 0;
+		lastOutput = 0;
+
+		period = DmcPeriodTable[0] - 1;
+		timer = period;
 		sampleAddress = 0;
 		sampleLength = 0;
+		activeAddress = 0;
+		bytesLeft = 0;
+
+		bitsToRead = 0;
+		shiftRegister = 0;
+		readByte = 0;
+		enabledCycleDelay = 0;
 	}
 
+	
 	void ClockUpdate(u64 currentCycle, Apu *apu);
+
+	void StartSample();
+	void StartDMCWrite();
+	void EnabledUpdated();
+	bool NeedsUpdate();
+	void SetDmcReadBuffer(u8 value);
+	bool IsIrqUpcoming(u32 cycleDelta);
 };
 
 // From mesen
@@ -441,8 +487,6 @@ public:
 	Apu();
 	~Apu();
 
-	//void Reset();
-
 	void RunCycle();
 
 	void UpdateCycles();
@@ -456,7 +500,10 @@ public:
 	void AddDeltaCycleNum(u64 cycleNum);
 
 	void FillAudioBuffer(void *bufferToFill, u32 samplesNeeded);
+	void FillAudioBuffer();
 
+	u16 GetDmcActiveAddress() { return dmc.activeAddress; }
+	void SetDmcReadBuffer(u8 value) { dmc.SetDmcReadBuffer(value); }
 private:
 	AudioStream audioStream;
 	
@@ -481,9 +528,6 @@ private:
 	NoiseChannel noise;
 	DmcChannel dmc;
 
-	bool dmcInterrupt = false;
-	bool frameInterrupt = false;
-
 	bool forceUpdateSet = false;
 
 	u64 cycle = 0;
@@ -501,7 +545,7 @@ private:
 
 	bool frameCounterIrqInhibit = false;
 
-	void Apu::Reset()
+	void Reset()
 	{
 		MemorySet(deltaCycleNums, 0, CyclesEachAudioFrame * sizeof(u64));
 		totalDeltas = 0;
@@ -522,9 +566,6 @@ private:
 		triangle.Reset();
 		noise.Reset();
 		dmc.Reset();
-
-		dmcInterrupt = false;
-		frameInterrupt = false;
 
 		forceUpdateSet = false;
 

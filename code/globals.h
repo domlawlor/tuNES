@@ -21,6 +21,7 @@ typedef uint64_t u64;
 typedef float  r32;
 typedef double r64;
 
+#include <cstddef>
 typedef size_t mem_idx;
 
 #define  U8_MAX UINT8_MAX

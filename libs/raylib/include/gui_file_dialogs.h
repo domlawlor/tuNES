@@ -118,14 +118,18 @@ int GuiFileDialog(int dialogType, const char *title, char *fileName, const char 
 	int result = -1;
 
 #if defined(CUSTOM_MODAL_DIALOGS)
+	float rectX = (GetScreenWidth() / 2) - 160;
+	float rectY = (GetScreenHeight() / 2) - 120;
+	Rectangle rect = {rectX, rectY, 320, 120};
+
 	switch(dialogType)
 	{
 	case DIALOG_OPEN_FILE: /* TODO: Load file modal dialog */ break;
 	case DIALOG_OPEN_FILE_MULTI: /* TODO: Load multiple files modal dialog */ break;
 	case DIALOG_OPEN_DIRECTORY: /* TODO: Load directory modal dialog */ break;
 	case DIALOG_SAVE_FILE: /* TODO: Load file modal dialog */ break;
-	case DIALOG_MESSAGE: result = GuiMessageBox((Rectangle) { GetScreenWidth() / 2 - 160, GetScreenHeight() / 2 - 120, 320, 120 }, title, message, filters); break;
-	case DIALOG_TEXTINPUT: result = GuiTextInputBox((Rectangle) { GetScreenWidth() / 2 - 160, GetScreenHeight() / 2 - 120, 320, 120 }, title, message, filters, fileName, 512, NULL); break;
+	case DIALOG_MESSAGE: result = GuiMessageBox(rect, title, message, filters); break;
+	case DIALOG_TEXTINPUT: result = GuiTextInputBox(rect, title, message, filters, fileName, 512, NULL); break;
 	default: break;
 	}
 #else   // Use native OS dialogs (tinyfiledialogs)

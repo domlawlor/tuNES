@@ -130,7 +130,7 @@ class Cpu
 	bool dmcDmaActive = false;
 
 	// Debug
-	FILE *logFile = nullptr;
+	//FILE *logFile = nullptr;
 	char *opName = nullptr;
 	u16 lastPrgCounter = 0;
 	u16 logPpuCycle = 0;
@@ -150,9 +150,15 @@ public:
 	void StartApuDMCWrite();
 
 	bool IsOddCycle() { return (cycle % 2) != 0; };
+	u64 GetCycleNum() { return cycle; }
+
+	void SetApuDmcIRQ() { irqFlag = irqFlag | IRQ::DMC; }
+	void ClearApuDmcIRQ() { irqFlag = irqFlag & ~IRQ::DMC; }
+	bool IsApuDmcIRQSet() { return ((irqFlag & IRQ::DMC) != 0); };
 
 	void SetApuFrameCounterIRQ() { irqFlag = irqFlag | IRQ::FRAME_COUNTER; }
 	void ClearApuFrameCounterIRQ() { irqFlag = irqFlag & ~IRQ::FRAME_COUNTER; }
+	bool IsApuFrameCounterIRQSet() { return ((irqFlag & IRQ::FRAME_COUNTER) != 0); };
 private:
 	u16 ReadOperand();
 
@@ -163,7 +169,7 @@ private:
 	u8 RawReadMemory(u16 address);
 	void RawWriteMemory(u16 address, u8 value);
 
-	void LogOp();
+	//void LogOp();
 
 	void UpdateInterrupts();
 

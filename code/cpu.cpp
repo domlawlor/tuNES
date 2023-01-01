@@ -194,13 +194,13 @@ Cpu::Cpu()
 		operations[opNum] = operationsFuncs[opNum];
 	}
 
-	logFile = fopen("cpu.log", "w+");
+	//logFile = fopen("cpu.log", "w+");
 }
 
 Cpu::~Cpu()
 {
-	fclose(logFile);
-	logFile = nullptr;
+	//fclose(logFile);
+	//logFile = nullptr;
 }
 
 
@@ -399,7 +399,7 @@ void Cpu::Run()
 	// We keep cycle accuracy by using dummy reads where the hardware would also do the same. Taking extra cycles
 	operand = ReadOperand();
 
-	LogOp(); // Log Op before executing
+	//LogOp(); // Log Op before executing
 
 	(this->*operations[opCode])();
 
@@ -459,9 +459,9 @@ void Cpu::RunActiveDMA(u16 address)
 
 	cpuHaltQueued = false;
 
-	uint16_t spriteDmaCounter = 0;
-	uint8_t spriteReadAddr = 0;
-	uint8_t readValue = 0;
+	u16 spriteDmaCounter = 0;
+	u8 spriteReadAddr = 0;
+	u8 readValue = 0;
 	bool skipDummyReads = (address == 0x4016 || address == 0x4017);
 
 	auto processCycle = [this] {
@@ -483,14 +483,12 @@ void Cpu::RunActiveDMA(u16 address)
 		if(isOddCycle)
 		{
 			if(dmcDmaActive && !cpuHaltQueued && !dmcDmaNeedDummyRead) {
-				/*
 				//DMC DMA is ready to read a byte (both halt and dummy read cycles were performed before this)
 				processCycle();
-				readValue = RawReadMemory(Nes::GetApu()->GetDmcReadAddress()); // Apu DMC read
+				readValue = RawReadMemory(Nes::GetApu()->GetDmcActiveAddress()); // Apu DMC read
 				RunPostMemoryCycles(true);
-				_console->GetApu()->SetDmcReadBuffer(readValue);
-				_dmcDmaRunning = false;
-				*/
+				Nes::GetApu()->SetDmcReadBuffer(readValue);
+				dmcDmaActive = false;
 			}
 			else if(spriteDmaActive) {
 				//DMC DMA is not running, or not ready, run sprite DMA
@@ -552,53 +550,53 @@ void Cpu::StartApuDMCWrite()
 }
 
 
-void Cpu::LogOp()
-{
-	// PrgCounter OpCode Op1 Op2
-	constexpr u8 logStringLength = 128;
-	char logString[logStringLength];
-
-	switch(addressMode)
-	{
-	case AddressMode::ACM:
-	case AddressMode::IMPL:
-	{
-		// eg "C5A5 $88         A:00 X:00 Y:58 P:06 SP:FD"
-		const char *formatString = "%04X $%02X         A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
-		sprintf(logString, formatString, lastPrgCounter, opCode, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
-		break;
-	}
-	case AddressMode::IMED:
-	case AddressMode::REL:
-	case AddressMode::ZERO:
-	case AddressMode::ZERO_X:
-	case AddressMode::ZERO_Y:
-	case AddressMode::IND_X:
-	case AddressMode::IND_Y:
-	case AddressMode::IND_YW:
-	{
-		// eg "C5A3 $91 $1F     A:00 X:00 Y:5A P:06 SP:FD"
-		const char *formatString = "%04X $%02X $%02X     A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
-		sprintf(logString, formatString, lastPrgCounter, opCode, opValue1, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
-		break;
-	}
-	case AddressMode::ABS:
-	case AddressMode::ABS_X:
-	case AddressMode::ABS_XW:
-	case AddressMode::ABS_Y:
-	case AddressMode::ABS_YW:
-	case AddressMode::IND:
-	{
-		// eg "C008 $AD $02 $20 A:00 X:00 Y:00 P:06 SP:F5"
-		const char *formatString = "%04X $%02X $%02X $%02X A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
-		sprintf(logString, formatString, lastPrgCounter, opCode, opValue1, opValue2, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
-		break;
-	}
-	}
-
-	u32 logStringSize = strlen(logString);
-
-	fwrite(logString, 1, logStringSize, logFile);
-
-	//TraceLog(LOG_INFO, logString);
-}
+//void Cpu::LogOp()
+//{
+//	// PrgCounter OpCode Op1 Op2
+//	constexpr u8 logStringLength = 128;
+//	char logString[logStringLength];
+//
+//	switch(addressMode)
+//	{
+//	case AddressMode::ACM:
+//	case AddressMode::IMPL:
+//	{
+//		// eg "C5A5 $88         A:00 X:00 Y:58 P:06 SP:FD"
+//		const char *formatString = "%04X $%02X         A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
+//		sprintf(logString, formatString, lastPrgCounter, opCode, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
+//		break;
+//	}
+//	case AddressMode::IMED:
+//	case AddressMode::REL:
+//	case AddressMode::ZERO:
+//	case AddressMode::ZERO_X:
+//	case AddressMode::ZERO_Y:
+//	case AddressMode::IND_X:
+//	case AddressMode::IND_Y:
+//	case AddressMode::IND_YW:
+//	{
+//		// eg "C5A3 $91 $1F     A:00 X:00 Y:5A P:06 SP:FD"
+//		const char *formatString = "%04X $%02X $%02X     A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
+//		sprintf(logString, formatString, lastPrgCounter, opCode, opValue1, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
+//		break;
+//	}
+//	case AddressMode::ABS:
+//	case AddressMode::ABS_X:
+//	case AddressMode::ABS_XW:
+//	case AddressMode::ABS_Y:
+//	case AddressMode::ABS_YW:
+//	case AddressMode::IND:
+//	{
+//		// eg "C008 $AD $02 $20 A:00 X:00 Y:00 P:06 SP:F5"
+//		const char *formatString = "%04X $%02X $%02X $%02X A:%02X X:%02X Y:%02X P:%02X SP:%02X CYC:%-3u SL:%-3d\n";
+//		sprintf(logString, formatString, lastPrgCounter, opCode, opValue1, opValue2, A, X, Y, flags, stackPointer, logPpuCycle, logPpuScanline);
+//		break;
+//	}
+//	}
+//
+//	u32 logStringSize = strlen(logString);
+//
+//	fwrite(logString, 1, logStringSize, logFile);
+//
+//	//TraceLog(LOG_INFO, logString);
+//}

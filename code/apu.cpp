@@ -1,9 +1,11 @@
 #include "nes.h"
 #include "apu.h"
 
-constexpr u32 AudioSampleRate = 48000;
+constexpr u32 AudioSampleRate = 44100;
 constexpr u8 AudioSampleSize = 16;
 constexpr u8 AudioChannelCount = 1;
+
+constexpr u32 SamplesNeededPerAudioFrame = 480;
 
 // Audio input processing callback
 void AudioInputCallback(void *bufferToFill, u32 samplesNeeded)
@@ -40,6 +42,37 @@ void Apu::FillAudioBuffer(void *bufferToFill, u32 samplesNeeded)
 	}
 }
 
+
+void Apu::FillAudioBuffer()
+{
+	u32 samplesAvailable = blip_samples_avail(sampleBuffer);
+
+	constexpr u32 bufferFrameAmount = 3;
+	u32 samplesToBuffer = SamplesNeededPerAudioFrame * bufferFrameAmount;
+
+	if(samplesAvailable < samplesToBuffer)
+	{
+		return;
+	}
+
+	Assert(SamplesNeededPerAudioFrame <= MaxSamplesInTempBuffer);
+
+
+	s32 samplesRead = blip_read_samples(sampleBuffer, tempSampleBuffer, SamplesNeededPerAudioFrame, 0);
+
+	if(samplesRead != SamplesNeededPerAudioFrame)
+	{
+		TraceLog(LOG_INFO, "NOT ENOUGH SAMPLES READY");
+	}
+
+	if(!IsAudioStreamProcessed(audioStream))
+	{
+		TraceLog(LOG_INFO, "Failed IsAudioStreamProcessed");
+	}
+
+	UpdateAudioStream(audioStream, tempSampleBuffer, SamplesNeededPerAudioFrame);
+}
+
 Apu::Apu()
 {
 	square1.isSquare1 = true;
@@ -48,11 +81,12 @@ Apu::Apu()
 
 	sampleBuffer = blip_new(MaxSamplesInBlipBuffer);
 	blip_set_rates(sampleBuffer, gNesCpuClockRate, AudioSampleRate);
+	
 
 	InitAudioDevice();
 
-	constexpr u32 samplesPerFrame = 480;
-	SetAudioStreamBufferSizeDefault(samplesPerFrame);
+	
+	SetAudioStreamBufferSizeDefault(SamplesNeededPerAudioFrame);
 
 	audioStream = LoadAudioStream(AudioSampleRate, AudioSampleSize, AudioChannelCount);
 
@@ -168,38 +202,63 @@ void Apu::WriteRegisters(u16 address, u8 value)
 	case 0x400E:
 	{
 		u8 periodIndex = value & 0xF;
-		noise.period = NoisePeriodsTable[periodIndex];
+		noise.period = NoisePeriodTable[periodIndex] - 1;
 
 		noise.modeFlag = ((value & 0x80) != 0);
 		break;
 	}
 	case 0x400F:
 	{
-		if(noise.enabled) { noise.lengthCounter = LengthCounterTable[((value & 0xF8) >> 3)]; }
+		if(noise.enabled) 
+		{
+			u8 lengthCounterIndex = value >> 3;
+			noise.lengthCounter = LengthCounterTable[lengthCounterIndex];
+			forceUpdateSet = true;
+		}
+
 		noise.envelope.RegisterReset();
-		forceUpdateSet = true;
+		
 		break;
 	}
 	case 0x4010:
 	{
 		dmc.irqEnable = ((value & 0x80) != 0);
-		dmc.loop = ((value & 0x40) != 0);
-		dmc.freqIndex = value & 0xF;
+		if(!dmc.irqEnable)
+		{
+			Nes::GetCpu()->ClearApuDmcIRQ();
+		}
+
+		dmc.loopSet = ((value & 0x40) != 0);
+
+		u8 periodTableIndex = value & 0xF;
+		dmc.period = DmcPeriodTable[periodTableIndex];
+
 		break;
 	}
 	case 0x4011:
 	{
-		dmc.loadCounter = value & 0x7F;
+		u8 outputValue = value & 0x7F;
+		dmc.currentOutput = outputValue;
+
+		if(outputValue != dmc.lastOutput)
+		{
+			s16 delta = outputValue - dmc.lastOutput;
+			dmc.lastOutput = outputValue;
+
+			dmc.outputDeltas[dmc.lastCycle] = delta;
+			AddDeltaCycleNum(dmc.lastCycle);
+		}
+
 		break;
 	}
 	case 0x4012:
 	{
-		dmc.sampleAddress = value;
+		dmc.sampleAddress = 0xC000 | ((u32)value << 6);
 		break;
 	}
 	case 0x4013:
 	{
-		dmc.sampleLength = value;
+		dmc.sampleLength = (value << 4) | 0x1;
 		break;
 	}
 	case 0x4015:
@@ -214,12 +273,8 @@ void Apu::WriteRegisters(u16 address, u8 value)
 		if(!square2.enabled) { square2.lengthCounter = 0; }
 		if(!triangle.enabled) { triangle.lengthCounter = 0; }
 		if(!noise.enabled) { noise.lengthCounter = 0; }
-		if(!dmc.enabled) { dmc.sampleLength = 0; }
 
-		dmcInterrupt = false;
-
-		// TODO: If DMC Bit is set, sample will only be restarted it bytes is 0. Else
-		//       the remaining bytes will finish before the next sample is fetched
+		dmc.EnabledUpdated();
 
 		break;
 	}
@@ -252,35 +307,27 @@ void Apu::WriteRegisters(u16 address, u8 value)
 u8 Apu::ReadRegisters(u16 address)
 {
 	u8 value = 0;
-	u8 openBusVal = Nes::GetOpenBus();
-
 	UpdateCycles();
 
 	switch(address)
 	{
 	case 0x4015:
 	{
-		value |= (dmcInterrupt != 0) ? 0x80 : 0;
-		value |= (frameInterrupt != 0) ? 0x40 : 0;
-
-		value |= (dmc.sampleLength > 0) ? 0x10 : 0;
-		value |= (noise.lengthCounter > 0) ? 0x08 : 0;
-		value |= (triangle.lengthCounter > 0) ? 0x4 : 0;
-		value |= (square2.lengthCounter > 0) ? 0x2 : 0;
 		value |= (square1.lengthCounter > 0) ? 0x1 : 0;
+		value |= (square2.lengthCounter > 0) ? 0x2 : 0;
+		value |= (triangle.lengthCounter > 0) ? 0x4 : 0;
+		value |= (noise.lengthCounter > 0) ? 0x08 : 0;
+		value |= (dmc.bytesLeft > 0) ? 0x10 : 0;
 
-		frameInterrupt = false;
+		value |= Nes::GetCpu()->IsApuFrameCounterIRQSet() ? 0x40 : 0;
+		value |= Nes::GetCpu()->IsApuDmcIRQSet() ? 0x80 : 0;
 
-		// TODO: If an interrupt Flag was set the same moment as read,
-		// it will be read as set and not be cleared
-		/*if(0)
-			;
-		*/
-		Nes::SetOpenBus(value);
+		Nes::GetCpu()->ClearApuFrameCounterIRQ();
+
 		break;
 	}
 	}
-
+	Nes::SetOpenBus(value);
 	return value;
 }
 
@@ -310,9 +357,6 @@ void Apu::RunCycle()
 			{
 				continue;
 			}
-
-			Assert(cycleNum > lastCycleNumMixed); // Check to see we are sequential
-
 
 			square1Output += square1.outputDeltas[cycleNum];
 			square2Output += square2.outputDeltas[cycleNum];
@@ -358,7 +402,7 @@ void Apu::RunCycle()
 		cycle = 0;
 		lastCycle = 0;
 	}
-	else if(forceUpdateSet)
+	else if(dmc.NeedsUpdate() || forceUpdateSet)
 	{
 		forceUpdateSet = false;
 		UpdateCycles();
@@ -367,6 +411,7 @@ void Apu::RunCycle()
 	{
 		u32 cycleDelta = cycle - lastCycle;
 		bool frameCounterNeedsUpdate = IsFrameCounterUpdateRequired(cycleDelta);
+		bool dmcHasIrq = dmc.IsIrqUpcoming(cycleDelta);
 
 		if(frameCounterNeedsUpdate)
 		{
@@ -374,6 +419,7 @@ void Apu::RunCycle()
 		}
 	}
 	
+	//FillAudioBuffer();
 }
 
 
@@ -539,7 +585,7 @@ void SquareChannel::ClockUpdate(u64 currentCycle, Apu *apu)
 			apu->AddDeltaCycleNum(lastCycle);
 		}
 
-		timer = period;
+		timer = doublePeriod;
 	}
 
 	timer -= cycleDelta;
@@ -586,7 +632,7 @@ void NoiseChannel::ClockUpdate(u64 currentCycle, Apu *apu)
 
 		u8 shiftBy = modeFlag ? 6 : 1; // Mode changes the shift amount, making a more metalic sound
 
-		uint16_t feedback = (shiftRegister & 0x01) ^ ((shiftRegister >> shiftBy) & 0x01);
+		u16 feedback = (shiftRegister & 0x01) ^ ((shiftRegister >> shiftBy) & 0x01);
 		shiftRegister >>= 1;
 		shiftRegister |= (feedback << 14); // Move shifted value into MSB
 
@@ -610,6 +656,136 @@ void NoiseChannel::ClockUpdate(u64 currentCycle, Apu *apu)
 void DmcChannel::ClockUpdate(u64 currentCycle, Apu *apu)
 {
 
-	//outputDeltas[lastCycle] = delta;
-	//apu->AddDeltaCycleNum(ChannelType::Dmc, lastCycle);
+	s64 cycleDelta = currentCycle - lastCycle;
+	if(cycleDelta > timer)
+	{
+		cycleDelta -= timer + 1;
+		lastCycle += timer + 1;
+
+		if(!silenceSet)
+		{
+			if(shiftRegister & 0x01)
+			{
+				if(currentOutput <= 125) { currentOutput += 2; }
+			}
+			else
+			{
+				if(currentOutput >= 2) { currentOutput -= 2; }
+			}
+			shiftRegister >>= 1;
+		}
+
+		bitsToRead--;
+
+		if(bitsToRead == 0)
+		{
+			bitsToRead = 8;
+			if(hasBufferData)
+			{
+				silenceSet = false;
+				shiftRegister = readByte;
+				hasBufferData = false;
+				StartDMCWrite();
+			}
+			else
+			{
+				silenceSet = true;
+			}
+		}
+
+		if(currentOutput != lastOutput)
+		{
+			s16 delta = currentOutput - lastOutput;
+			lastOutput = currentOutput;
+
+			outputDeltas[lastCycle] = delta;
+			apu->AddDeltaCycleNum(lastCycle);
+		}
+
+		timer = period;
+	}
+
+	timer -= cycleDelta;
+	lastCycle = currentCycle;
+
+}
+
+void DmcChannel::StartSample()
+{
+	activeAddress = sampleAddress;
+	bytesLeft = sampleLength;
+	if(bytesLeft > 0)
+	{
+		updateRequired = true;
+	}
+}
+
+void DmcChannel::StartDMCWrite()
+{
+	if(!hasBufferData && bytesLeft > 0)
+	{
+		Nes::GetCpu()->StartApuDMCWrite();
+	}
+}
+
+
+void DmcChannel::EnabledUpdated()
+{
+	if(!enabled)
+	{
+		updateRequired = false;
+		bytesLeft = 0;
+	}
+	else if(bytesLeft == 0)
+	{
+		StartSample();
+
+		enabledCycleDelay = Nes::GetCpu()->IsOddCycle() ? 3 : 2;
+	}
+}
+
+bool DmcChannel::NeedsUpdate()
+{
+	if(enabledCycleDelay > 0)
+	{
+		enabledCycleDelay -= 1;
+		if(enabledCycleDelay == 0)
+		{
+			StartDMCWrite();
+		}
+	}
+	
+	return updateRequired;
+}
+
+void DmcChannel::SetDmcReadBuffer(u8 value)
+{
+	if(bytesLeft > 0)
+	{
+		activeAddress++;
+		if(activeAddress == 0) { activeAddress = 0x8000; } // Address wraps to 0x8000
+
+		readByte = value;
+		bytesLeft--;
+		hasBufferData = true;
+
+		if(bytesLeft == 0)
+		{
+			updateRequired = false;
+			if(loopSet) { StartSample(); }
+			else if(irqEnable) { Nes::GetCpu()->SetApuDmcIRQ(); }
+		}
+	}
+}
+
+bool DmcChannel::IsIrqUpcoming(u32 cycleDelta)
+{
+	if(!irqEnable && bytesLeft == 0)
+	{
+		return false;
+	}
+
+	u32 bitsRemaining = (bitsToRead + (bytesLeft - 1) * 8);
+	u32 cyclesLeftUntilEmptyBuffer = bitsRemaining * period;
+	return (cycleDelta >= cyclesLeftUntilEmptyBuffer);
 }

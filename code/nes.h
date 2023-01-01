@@ -41,6 +41,12 @@ struct Input
 	//u8 inputBusBuffer = 0;
 };
 
+enum class NesMode
+{
+	ROM,
+	NSF,
+};
+
 class Nes
 {
 public:
@@ -82,6 +88,8 @@ private:
 	Cartridge *m_cartridge;
 	Input m_input;
 
+	NesMode m_nesMode = NesMode::ROM;
+
 	u8 openBus = 0;
 
 	bool m_triggerPowerOn = false;
@@ -90,4 +98,7 @@ private:
 
 	char m_romFileName[romFileNameMaxLength];
 	bool m_triggerRomLoad = false;
+
+	u64 m_cyclesStartHz = 0;
+	r64 m_startHzTime = 0.0;
 };
